@@ -76,13 +76,18 @@
         <button id="pause" aria-pressed="false">一時停止</button>
       </div>
       <div class="group">
+        <button id="sound" aria-pressed="false">音を出す</button>
+        <label class="label" for="vol">音量</label>
+        <input id="vol" type="range" min="0" max="100" value="70">
+      </div>
+      <div class="group">
         <label class="label" for="gifsec">GIF</label>
         <select id="gifsec"><option value="4">4秒</option><option value="8" selected>8秒</option><option value="12">12秒</option></select>
         <select id="gifscale" aria-label="GIFサイズ"><option value="1">320×180</option><option value="2" selected>640×360</option></select>
         <button id="gif" class="rec">GIFを作る</button>
         <button id="webm" class="rec">動画を録画</button>
       </div>
-      <p class="hint">田んぼ、集落、鉄橋、海辺、山あいのトンネル、小さな町を走り、ときどき駅に停まります。踏切、犬の散歩、手を振る子ども、白サギ、対向列車、夕方のカラス、夜のホタルや花火などが現れます。できた GIF や動画は右クリック／長押しで保存できます。</p>
+      <p class="hint">田んぼ、集落、鉄橋、海辺、山あいのトンネル、小さな町を走り、ときどき駅に停まります。踏切、犬の散歩、手を振る子ども、白サギ、対向列車、夕方のカラス、夜のホタルや花火などが現れます。「音を出す」で、レールの継ぎ目の音、モーターのうなり、踏切、警笛、発車メロディ、セミやヒグラシ、夜の虫の声が鳴ります（すべてブラウザ内で合成）。できた GIF や動画は右クリック／長押しで保存できます。</p>
     </div>
     <ul class="log" id="log" aria-live="polite"></ul>
   </div>
@@ -99,7 +104,11 @@
   const Y_FAR = 84, Y_MID = 98, Y_NEAR = 112;
 
   const low = document.createElement("canvas"); low.width = W; low.height = H;
-  const ctx = low.getContext("2d", { willReadFrequently: true });
+  const lctx = low.getContext("2d", { willReadFrequently: true });
+  const wc = document.createElement("canvas"); wc.width = W; wc.height = H;
+  const wctx = wc.getContext("2d");
+  let ctx = lctx;
+  lctx.imageSmoothingEnabled = false;
   const view = document.getElementById("view"), vctx = view.getContext("2d");
   vctx.imageSmoothingEnabled = false;
   const FONT = '"DotGothic16", "MS Gothic", monospace';
@@ -256,6 +265,8 @@
     if (S.stopT > 0) {
       S.stopT -= dt; S.v = 0;
       if (S.stopT < 2.5 && !S.flagShown) { S.flagShown = true; }
+      if (S.stopT + dt > 6 && S.stopT <= 6) sfx("melody", 0.7);
+      if (S.stopT + dt > 1.2 && S.stopT <= 1.2) sfx("hiss", 0.6);
       if (S.stopT <= 0) { const g = segAt(S.camD); S.departed = g.s0 + 70; log("発車します。ガタン、ゴトン…"); }
     } else {
       const st = nextStation();
@@ -265,7 +276,7 @@
         vt = Math.min(S.vmax, Math.max(dist > 0.4 ? 0.6 : 0, Math.sqrt(2 * 0.8 * Math.max(0, dist))));
         if (dist < 0.4 && S.v < 1) {
           S.v = 0; S.camD = st.s0 + 70; S.stopT = 9; S.flagShown = false;
-          log(`${st.name}駅に到着しました`, "area");
+          log(`${st.name}駅に到着しました`, "area"); sfx("hiss", 1);
           spawnStationPeople(st);
         }
       } else if (st && !S.stops) {
@@ -277,10 +288,28 @@
       }
     }
     S.accel = lerp(S.accel, (S.v - v0) / Math.max(dt, 1e-3), Math.min(1, dt * 4));
+    const d0 = S.camD;
     S.camD += S.v * dt;
-    const ph = mod(S.camD, 25);
-    S.bob = S.v > 3 && (ph < 0.7 || (ph > 2.6 && ph < 3.3)) ? 1 : 0;
+    // rail joints every 25 m, felt under each axle (two bogies, two axles each)
+    const sp = S.v / S.vmax;
+    for (const off of [0, 2.3, 16.5, 18.8]) {
+      if (Math.floor((d0 - off) / 25) !== Math.floor((S.camD - off) / 25)) {
+        B.joltV += 17 * (0.3 + sp); B.rollV += (Math.random() - 0.5) * 0.05 * sp;
+        for (const st of B.straps) st.av += (Math.random() - 0.5) * 0.25 * sp;
+        sfx("clack", 0.35 + 0.65 * sp, off < 5 ? 1 : 0.92);
+      }
+    }
+    // spring-damped car body: vertical bounce and side-to-side roll
+    B.joltV += (-160 * B.jolt - 11 * B.joltV) * dt; B.jolt += B.joltV * dt;
+    const rollT = sp * (0.011 * Math.sin(S.camD * 0.047) + 0.006 * Math.sin(S.camD * 0.131 + 1) + 0.003 * Math.sin(S.time * 7.3));
+    B.rollV += (-38 * (B.roll - rollT) - 3.2 * B.rollV) * dt; B.roll += B.rollV * dt;
+    // hanging straps: little pendulums pushed by acceleration and roll
+    for (const st of B.straps) {
+      const tgt = clamp(-S.accel * 0.28, -0.5, 0.5) + B.roll * 6;
+      st.av += (-11 * (st.a - tgt) - 0.9 * st.av) * dt; st.a += st.av * dt;
+    }
   }
+  const B = { jolt: 0, joltV: 0, roll: 0, rollV: 0, straps: [0, 1, 2, 3].map(() => ({ a: 0, av: 0 })) };
 
   // ---------- events ----------
   const LOOKS = [
@@ -323,13 +352,13 @@
   function spawnSpecial(t) {
     let e;
     switch (t) {
-      case "crossing": e = addEvent({ type: t, k: K_NEAR, v: 0, L: 8, dur: 40 }); e.s = sAt(W + 60, K_NEAR); e.car = Math.random() < 0.6; e.col = [[200, 60, 50], [230, 220, 190], [60, 110, 170]][(Math.random() * 3) | 0]; log("踏切だ。カンカンカン…"); break;
+      case "crossing": e = addEvent({ type: t, k: K_NEAR, v: 0, L: 8, dur: 40 }); e.s = sAt(W + 60, K_NEAR); e.car = Math.random() < 0.6; e.col = [[200, 60, 50], [230, 220, 190], [60, 110, 170]][(Math.random() * 3) | 0]; log("踏切だ。カンカンカン…"); if (Math.random() < 0.6) setTimeout(() => sfx("horn", 0.8), 400); break;
       case "dogwalk": e = addEvent({ type: t, k: 4.5, v: 1.1, L: 1, dur: 60, look: LOOKS[(Math.random() * 5) | 0] }); e.s = spawnS(4.5, 1, e.v); log("あぜ道を犬の散歩をしている人がいる"); break;
       case "kids": e = addEvent({ type: t, k: 5, v: 0, L: 3, dur: 40 }); e.s = sAt(W + 30, 5); log("子どもたちが電車に手を振っている"); break;
       case "farmer": e = addEvent({ type: t, k: 3.5, v: 0, L: 1, dur: 60 }); e.s = sAt(W + 30, 3.5); log("田んぼで農家さんが作業している"); break;
       case "heron": e = addEvent({ type: t, k: 3.5, v: 0, L: 1, dur: 60, fly: 0 }); e.s = sAt(W + 30, 3.5); break;
       case "bike": e = addEvent({ type: t, k: 5, v: S.v * 0.85, L: 1, dur: 40, look: LOOKS[0] }); e.s = sAt(W + 10, 5); log("自転車の学生が電車と並走している"); break;
-      case "oncoming": e = addEvent({ type: t, k: K_TRACK2, v: -20, L: 120, dur: 20 }); e.s = sAt(W + 40, K_TRACK2); log("対向列車とすれ違った"); break;
+      case "oncoming": e = addEvent({ type: t, k: K_TRACK2, v: -20, L: 120, dur: 20 }); e.s = sAt(W + 40, K_TRACK2); log("対向列車とすれ違った"); sfx("whoosh", 1); sfx("horn", 0.5, 1.12); break;
       case "crows": e = addEvent({ type: t, dur: 18, birds: Array.from({ length: 7 + ((Math.random() * 6) | 0) }, () => ({ x: W + 20 + Math.random() * 80, y: 36 + Math.random() * 24, ph: Math.random() * 6, v: 14 + Math.random() * 6 })) }); log("カラスが山へ帰っていく"); break;
       case "plane": e = addEvent({ type: t, dur: 30, x: W + 20, y: 38 + Math.random() * 10 }); log("空に飛行機雲がのびていく"); break;
       case "fireflies": e = addEvent({ type: t, dur: 25, flies: Array.from({ length: 28 }, () => ({ s: sAt(W * Math.random() + 40, 4), y: 92 + Math.random() * 18, ph: Math.random() * 6 })) }); log("ホタルがふわふわ光っている"); break;
@@ -390,8 +419,10 @@
     if (key !== S.area) {
       S.area = key;
       if (g.b !== "station") log(STY[g.b].msg, "area");
+      if (g.b === "tunnel") sfx("horn", 0.9);
     }
     updateEvents(dt);
+    audioUpdate(dt);
   }
 
   // ---------- sky ----------
@@ -951,8 +982,11 @@
     }
     for (let y = 113; y < 123; y += 3) rect(89, y, 16, 1, rgba(C([210, 40, 40]), 0.7));
     rect(95, 110, 2, 3, C([210, 40, 40]));
+    const bj = Math.abs(B.joltV) > 14 ? Math.sign(B.joltV) : 0;
+    ctx.save(); ctx.translate(bj, 0);
     ctx.fillStyle = rgba(C([150, 210, 230]), 0.85); ctx.fillRect(226, 109, 6, 14); ctx.fillRect(227, 102, 4, 7);
     rect(227, 100, 4, 2, C([60, 120, 200])); px(229, 105, C([230, 250, 255])); px(227, 111, C([255, 255, 255])); px(227, 112, C([255, 255, 255]));
+    ctx.restore();
     // seat backs with white headrest cloths
     for (const [x0, x1, dir] of [[0, 30, 1], [290, W, -1]]) {
       for (let y = 36; y < H; y++) {
@@ -980,11 +1014,12 @@
       if (lamp > 0.3) glow((x0 + x1) / 2, 2, 50, [255, 255, 235], 0.25 * lamp);
     }
     // hanging advert
-    rect(138, 20, 44, 10, C([240, 235, 215])); rect(140, 22, 18, 3, C([200, 60, 60])); rect(160, 22, 20, 1, C([60, 60, 60])); rect(160, 25, 16, 1, C([60, 60, 60])); rect(140, 27, 30, 1, C([60, 100, 180]));
+    const adx = Math.round(Math.sin(B.straps[1].a + B.straps[2].a) * 2);
+    rect(138 + adx, 20, 44, 10, C([240, 235, 215])); rect(140 + adx, 22, 18, 3, C([200, 60, 60])); rect(160 + adx, 22, 20, 1, C([60, 60, 60])); rect(160 + adx, 25, 16, 1, C([60, 60, 60])); rect(140 + adx, 27, 30, 1, C([60, 100, 180]));
     rect(159, 19, 2, 1, C([80, 80, 80]));
     // hanging straps swing with acceleration and rail joints
     for (const [i, x] of [[0, 72], [1, 114], [2, 206], [3, 248]]) {
-      const a = clamp(-S.accel * 0.25, -0.5, 0.5) + Math.sin(S.time * 1.8 + i) * 0.04 + S.bob * 0.05 * (i % 2 ? 1 : -1);
+      const a = B.straps[i].a + Math.sin(S.time * 1.8 + i) * 0.02;
       const ex = x + Math.sin(a) * 12, ey = 20 + Math.cos(a) * 12;
       pxLine(x, 20, ex, ey, C([230, 230, 220]), 2);
       ctx.strokeStyle = rgb(C([245, 240, 225])); ctx.lineWidth = 1.5;
@@ -1000,7 +1035,7 @@
     const pp = mod(sx(Math.round(S.camD / 50) * 50, K_NEAR) - 170, 400);
     if (pp < 12) S.shadow = 0.6;
 
-    ctx.save(); ctx.translate(0, S.bob);
+    ctx = wctx;
     drawSky();
     for (const e of S.events) if (["crows", "plane", "shooting", "fireworks"].includes(e.type)) drawEvent(e);
     drawMountains();
@@ -1013,8 +1048,21 @@
     drawStructures();
     for (const e of S.events) if (e.type === "passenger") drawEvent(e);
     for (const e of S.events) if (e.type === "oncoming") drawEvent(e);
-    ctx.restore();
+    ctx = lctx;
+    // the landscape shifts and tilts against the window as the car body rocks
+    lctx.save();
+    lctx.translate(CX + B.roll * 90, 74 + B.jolt);
+    lctx.rotate(-B.roll);
+    lctx.translate(-CX, -74);
+    lctx.drawImage(wc, 0, 0);
+    lctx.restore();
+    // the cabin itself moves a little relative to the seated viewer
+    const cj = Math.round(clamp(B.jolt * 0.45, -2, 2));
+    lctx.save(); lctx.translate(0, cj);
     drawCabin();
+    lctx.restore();
+    if (cj > 0) { lctx.fillStyle = "rgb(20,18,16)"; lctx.fillRect(0, 0, W, cj); }
+    if (cj < 0) { lctx.fillStyle = "rgb(30,24,20)"; lctx.fillRect(0, H + cj, W, -cj); }
   }
 
   // ---------- post-process ----------
@@ -1028,7 +1076,7 @@
   }
   const indexBuf = new Uint8Array(W * H);
   function postProcess() {
-    const img = ctx.getImageData(0, 0, W, H), d = img.data;
+    const img = lctx.getImageData(0, 0, W, H), d = img.data;
     for (let y = 0, p = 0; y < H; y++) for (let x = 0; x < W; x++, p++) {
       const o = p * 4, th = BAYER[(x & 3) + ((y & 3) << 2)];
       let r, g, b;
@@ -1038,7 +1086,7 @@
       indexBuf[p] = r * 36 + g * 6 + b;
       d[o] = LEVELS[r]; d[o + 1] = LEVELS[g]; d[o + 2] = LEVELS[b]; d[o + 3] = 255;
     }
-    ctx.putImageData(img, 0, 0);
+    lctx.putImageData(img, 0, 0);
     return indexBuf;
   }
   const hudArea = document.getElementById("hud-area"), hudTime = document.getElementById("hud-time");
@@ -1091,6 +1139,112 @@
     out.push(0x3b); return new Uint8Array(out);
   }
 
+
+  // ---------- sound (all synthesized with Web Audio) ----------
+  const Snd = { ac: null, on: false, vol: 0.7, nodes: null, bellT: 0 };
+  const live = () => Snd.on && Snd.ac && !busy;
+  function noiseBuffer(ac, brown) {
+    const b = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate), d = b.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < d.length; i++) { const w = Math.random() * 2 - 1; if (brown) { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; } else d[i] = w; }
+    return b;
+  }
+  function audioInit() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    const ac = new AC(); Snd.ac = ac;
+    const master = ac.createGain(); master.gain.value = Snd.vol;
+    const comp = ac.createDynamicsCompressor(); master.connect(comp); comp.connect(ac.destination);
+    const white = noiseBuffer(ac, false), brown = noiseBuffer(ac, true);
+    const loop = (buf, filterType, f, q) => {
+      const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+      const fl = ac.createBiquadFilter(); fl.type = filterType; fl.frequency.value = f; fl.Q.value = q || 0.7;
+      const g = ac.createGain(); g.gain.value = 0; src.connect(fl); fl.connect(g); g.connect(master); src.start();
+      return { fl, g };
+    };
+    const rumble = loop(brown, "lowpass", 180), roar = loop(white, "bandpass", 420, 0.6), wind = loop(white, "highpass", 1800);
+    const motorG = ac.createGain(); motorG.gain.value = 0;
+    const motorF = ac.createBiquadFilter(); motorF.type = "lowpass"; motorF.frequency.value = 700;
+    const m1 = ac.createOscillator(), m2 = ac.createOscillator(); m1.type = m2.type = "sawtooth";
+    m1.connect(motorF); m2.connect(motorF); motorF.connect(motorG); motorG.connect(master); m1.start(); m2.start();
+    const bug = ac.createOscillator(); bug.type = "sine"; const bugG = ac.createGain(); bugG.gain.value = 0; bug.connect(bugG); bugG.connect(master); bug.start();
+    const squeal = ac.createOscillator(); squeal.type = "sine"; squeal.frequency.value = 2600; const sqG = ac.createGain(); sqG.gain.value = 0; squeal.connect(sqG); sqG.connect(master); squeal.start();
+    Snd.nodes = { master, white, rumble, roar, wind, motorG, motorF, m1, m2, bug, bugG, squeal, sqG };
+    return true;
+  }
+  const set = (param, v, tc = 0.08) => param.setTargetAtTime(v, Snd.ac.currentTime, tc);
+  function audioUpdate(dt) {
+    if (!live()) return;
+    const n = Snd.nodes, sp = S.v / S.vmax, g = segAt(S.camD);
+    const tun = g.b === "tunnel" ? 1 : 0, bridge = g.b === "river" ? 1 : 0;
+    set(n.rumble.g.gain, (0.25 + 0.5 * bridge + 0.4 * tun) * sp);
+    set(n.rumble.fl.frequency, 140 + 160 * sp + 120 * bridge);
+    set(n.roar.g.gain, tun * 0.12 * sp + bridge * 0.05 * sp);
+    set(n.wind.g.gain, 0.012 * sp * (1 - tun));
+    // "吊り掛け" style motor growl, stronger while accelerating
+    const mf = 28 + S.v * 7.5;
+    set(n.m1.frequency, mf); set(n.m2.frequency, mf * 1.012);
+    set(n.motorG.gain, S.v > 0.3 ? 0.018 + clamp(S.accel, 0, 1) * 0.05 : 0);
+    set(n.motorF.frequency, 400 + S.v * 40);
+    // brake squeal right before stopping
+    const braking = S.accel < -0.4 && S.v < 6 && S.v > 0.2;
+    set(n.sqG.gain, braking ? 0.012 : 0, 0.05);
+    set(n.squeal.frequency, 2500 + Math.sin(S.time * 23) * 40);
+    // insects: cicadas by day, higurashi at dusk, crickets at night
+    const t = S.tod, T0 = S.time;
+    let amp = 0, f = 4000;
+    if (!tun) {
+      if (t > 0.12 && t < 0.52) { const ph = mod(T0, 7); amp = (ph < 5 ? 0.5 + 0.5 * Math.sin(ph * 4.2) : 0) * (0.6 + 0.4 * Math.sin(T0 * 60)); f = 3700 + 200 * Math.sin(T0 * 3); }
+      else if (t >= 0.52 && t < 0.68) { const ph = mod(T0, 6); amp = ph < 3 ? (1 - ph / 3) * (Math.sin(T0 * 75) > 0 ? 1 : 0.2) : 0; f = 4600 - ph * 300; }
+      else if (T.night > 0.6) { const ph = mod(T0, 1.1); amp = ph < 0.45 ? (Math.sin(T0 * 90) > 0 ? 0.8 : 0.1) : 0; f = 4200; }
+      else if (t < 0.12) { const ph = mod(T0, 2.3); amp = ph < 0.18 ? 0.8 : 0; f = 3000 + ph * 9000; }
+    }
+    set(n.bugG.gain, amp * 0.006, 0.01); set(n.bug.frequency, f, 0.01);
+    // crossing bells with a doppler shift as we pass
+    Snd.bellT -= dt;
+    for (const e of S.events) if (e.type === "crossing") {
+      const d = e.s + 4 - S.camD;
+      if (Math.abs(d) < 90 && Snd.bellT <= 0) { Snd.bellT = 0.42; sfx("bell", 1 - Math.abs(d) / 90, d > 0 ? 1.06 : 0.94); }
+    }
+  }
+  function env(g, t0, a, peak, dur) { g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(peak, t0 + a); g.gain.exponentialRampToValueAtTime(0.0008, t0 + dur); }
+  function sfx(kind, vol = 1, pitch = 1) {
+    if (!live()) return;
+    const ac = Snd.ac, n = Snd.nodes, t0 = ac.currentTime;
+    const osc = (type, f) => { const o = ac.createOscillator(); o.type = type; o.frequency.value = f; return o; };
+    const noise = () => { const s2 = ac.createBufferSource(); s2.buffer = n.white; return s2; };
+    const out = (node, g) => { node.connect(g); g.connect(n.master); };
+    if (kind === "clack") {
+      const src = noise(), bp = ac.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 1900 * pitch; bp.Q.value = 1.4;
+      const g = ac.createGain(); env(g, t0, 0.002, 0.28 * vol, 0.07); src.connect(bp); out(bp, g); src.start(t0); src.stop(t0 + 0.1);
+      const o = osc("sine", 120 * pitch), g2 = ac.createGain(); o.frequency.exponentialRampToValueAtTime(55, t0 + 0.09); env(g2, t0, 0.002, 0.35 * vol, 0.12); out(o, g2); o.start(t0); o.stop(t0 + 0.14);
+    } else if (kind === "bell") {
+      for (const [f, a] of [[760, 0.08], [1140, 0.05], [1520, 0.03]]) {
+        const o = osc("square", f * pitch), lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 3200;
+        const g = ac.createGain(); env(g, t0, 0.003, a * vol, 0.32); o.connect(lp); out(lp, g); o.start(t0); o.stop(t0 + 0.35);
+      }
+    } else if (kind === "horn") {
+      const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1600;
+      const g = ac.createGain(); g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(0.09 * vol, t0 + 0.06); g.gain.setValueAtTime(0.09 * vol, t0 + 0.9); g.gain.linearRampToValueAtTime(0, t0 + 1.3);
+      lp.connect(g); g.connect(n.master);
+      for (const f of [311, 370]) { const o = osc("sawtooth", f * pitch); o.frequency.linearRampToValueAtTime(f * pitch * 0.985, t0 + 1.3); o.connect(lp); o.start(t0); o.stop(t0 + 1.35); }
+    } else if (kind === "hiss") {
+      const src = noise(), hp = ac.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 2500;
+      const g = ac.createGain(); env(g, t0, 0.02, 0.12 * vol, 1.4); src.connect(hp); out(hp, g); src.start(t0); src.stop(t0 + 1.5);
+    } else if (kind === "whoosh") {
+      const src = noise(), bp = ac.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = 0.8;
+      bp.frequency.setValueAtTime(300, t0); bp.frequency.linearRampToValueAtTime(1300, t0 + 1.2); bp.frequency.linearRampToValueAtTime(260, t0 + 4);
+      const g = ac.createGain(); g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(0.3 * vol, t0 + 0.8); g.gain.linearRampToValueAtTime(0.22 * vol, t0 + 3); g.gain.linearRampToValueAtTime(0, t0 + 4.2);
+      src.loop = true; src.connect(bp); out(bp, g); src.start(t0); src.stop(t0 + 4.3);
+    } else if (kind === "melody") {
+      const notes = [76, 79, 84, 83, 79, 76, 74, 76, 79, 72];
+      notes.forEach((m, i) => {
+        const f = 440 * Math.pow(2, (m - 69) / 12), st = t0 + i * 0.2;
+        const o = osc("triangle", f), g = ac.createGain(); env(g, st, 0.01, 0.07 * vol, 0.34); out(o, g); o.start(st); o.stop(st + 0.36);
+      });
+    }
+  }
+
   // ---------- UI ----------
   let last = performance.now(), busy = false;
   function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; if (!S.paused && !busy) frame(dt); requestAnimationFrame(loop); }
@@ -1104,6 +1258,15 @@
   document.getElementById("cycle").addEventListener("change", e => { S.cycle = +e.target.value; });
   const stopsBtn = document.getElementById("stops");
   stopsBtn.addEventListener("click", () => { S.stops = !S.stops; stopsBtn.setAttribute("aria-pressed", String(S.stops)); stopsBtn.textContent = S.stops ? "各駅に停まる" : "駅を通過する"; if (!S.stops && S.stopT > 0) S.stopT = 0.01; });
+
+  const sBtn = document.getElementById("sound");
+  sBtn.addEventListener("click", async () => {
+    if (!Snd.ac && !audioInit()) { status.textContent = "このブラウザでは音を鳴らせません。"; return; }
+    Snd.on = !Snd.on;
+    if (Snd.on) await Snd.ac.resume(); else await Snd.ac.suspend();
+    sBtn.setAttribute("aria-pressed", String(Snd.on)); sBtn.textContent = Snd.on ? "音を消す" : "音を出す";
+  });
+  document.getElementById("vol").addEventListener("input", e => { Snd.vol = e.target.value / 100; if (Snd.nodes) Snd.nodes.master.gain.setTargetAtTime(Snd.vol, Snd.ac.currentTime, 0.05); });
   const pBtn = document.getElementById("pause");
   function togglePause() { S.paused = !S.paused; pBtn.setAttribute("aria-pressed", String(S.paused)); pBtn.textContent = S.paused ? "再生" : "一時停止"; }
   pBtn.addEventListener("click", togglePause);
