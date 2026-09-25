@@ -1,0 +1,803 @@
+<title>Temple Hall Hours</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Yuji+Syuku&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #f1ebdf;
+    --dim: #a59a86;
+    --ground: #120f0c;
+    --panel: #1d1812;
+    --line: #463a2a;
+    --gold: #e9c26a;
+    --moss: #a8c79a;
+    --font: "DotGothic16", "MS Gothic", "Osaka-Mono", ui-monospace, monospace;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--font); font-size: 15px;
+    padding-inline: 16px; padding-block: 16px 24px; box-sizing: border-box; }
+  .wrap { max-width: 1040px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 480px) 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 800px) { .wrap { grid-template-columns: 1fr; } }
+  .screen { position: relative; width: 100%; aspect-ratio: 4 / 5; max-width: 100%; background: #000; border: 1px solid var(--line); }
+  #view { width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  .hud { position: absolute; left: 10px; bottom: 8px; display: flex; gap: 10px; font-size: 13px; color: var(--gold); text-shadow: 0 0 4px #000; pointer-events: none; }
+  .hud span:last-child { color: var(--moss); }
+  .side { display: flex; flex-direction: column; gap: 12px; }
+  h1 { margin: 0; font-size: 22px; font-weight: 400; letter-spacing: 0.08em; color: var(--gold); }
+  .sub { color: var(--dim); font-size: 13px; margin: 4px 0 0; }
+  .group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .label { color: var(--dim); font-size: 12px; letter-spacing: 0.1em; }
+  button, select { font-family: var(--font); font-size: 14px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); padding: 6px 10px; cursor: pointer; }
+  button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+  button.play { border-color: #7a5a2a; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--moss); outline-offset: 2px; }
+  button:disabled { opacity: 0.5; cursor: wait; }
+  input[type="range"] { accent-color: var(--gold); width: 110px; }
+  .log { margin: 0; padding: 10px 12px; list-style: none; background: var(--panel); border: 1px solid var(--line); min-height: 170px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+  .log li { display: flex; gap: 8px; }
+  .log time { color: var(--dim); font-variant-numeric: tabular-nums; flex: none; }
+  .log li.wx { color: var(--moss); } .log li.yo { color: #d9a0ff; }
+  #status { color: var(--moss); font-size: 13px; min-height: 1.2em; }
+  .out { display: flex; flex-direction: column; gap: 8px; }
+  .out img, .out video { max-width: 100%; image-rendering: pixelated; border: 1px solid var(--line); }
+  .hint { color: var(--dim); font-size: 12px; line-height: 1.6; margin: 0; }
+</style>
+
+<div class="wrap">
+  <div class="screen">
+    <canvas id="view" width="1024" height="1280"></canvas>
+    <div class="hud" aria-hidden="true"><span id="hud-t">夜</span><span id="hud-w">晴れ</span></div>
+  </div>
+  <div class="side">
+    <div>
+      <h1>本堂の刻</h1>
+      <p class="sub">山寺の本堂 / 256×320 ピクセル / 昼と夜</p>
+    </div>
+    <div class="group">
+      <button id="music" class="play" aria-pressed="false">音を出す</button>
+      <label class="label" for="vol">音量</label>
+      <input id="vol" type="range" min="0" max="100" value="70">
+      <button id="bgm" aria-pressed="true">お囃子（音楽）</button>
+    </div>
+    <div class="group" role="group" aria-label="時間">
+      <span class="label">時間</span>
+      <button data-t="auto" aria-pressed="true">自動</button>
+      <button data-t="0.2" aria-pressed="false">昼</button>
+      <button data-t="0.45" aria-pressed="false">夕</button>
+      <button data-t="0.7" aria-pressed="false">夜</button>
+    </div>
+    <div class="group" role="group" aria-label="天気">
+      <span class="label">天気</span>
+      <button data-w="auto" aria-pressed="true">自動</button>
+      <button data-w="rain" aria-pressed="false">雨あり</button>
+      <button data-w="dry" aria-pressed="false">雨なし</button>
+    </div>
+    <div class="group" role="group" aria-label="出来事を起こす">
+      <span class="label">出来事</span>
+      <button data-ev="tanuki">分福茶釜</button>
+      <button data-ev="mochi">餅</button>
+      <button data-ev="mokugyo">木魚</button>
+      <button data-ev="bell">鐘</button>
+      <button data-ev="incense">お香</button>
+      <button data-ev="yokai">妖怪</button>
+    </div>
+    <div class="group">
+      <button id="pause" aria-pressed="false">一時停止</button>
+      <label class="label" for="gifsec">GIF</label>
+      <select id="gifsec"><option value="4">4秒</option><option value="8" selected>8秒</option><option value="12">12秒</option></select>
+      <select id="gifscale" aria-label="GIFサイズ"><option value="1">256×320</option><option value="2" selected>512×640</option></select>
+      <button id="gif">GIFを作る</button>
+      <button id="webm">動画を録画</button>
+    </div>
+    <ul class="log" id="log" aria-live="polite"></ul>
+    <p class="hint">金色の須弥壇と仏さま、吊り灯籠、法要の提灯、香炉から立ちのぼる線香の煙。右の縁側の向こうには庭と鐘楼と鹿威し。和尚が木魚をポクポク叩き、小僧が習字をし、分福茶釜の狸が踊り、唐傘お化けや提灯お化け、座敷わらしがときどき現れます。夜は庭にホタル、昼は雀と縁側の猫。音楽は箏と尺八と笙のような響きを毎回その場で合成しています。</p>
+    <div id="status" role="status"></div>
+    <div class="out" id="out"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const W = 256, H = 320;
+  const low = document.createElement("canvas"); low.width = W; low.height = H;
+  const ctx = low.getContext("2d", { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = false;
+  const view = document.getElementById("view"), vctx = view.getContext("2d");
+  vctx.imageSmoothingEnabled = false;
+  const KFONT = '"Yuji Syuku", "DotGothic16", "Hiragino Mincho ProN", serif';
+  const PFONT = '"DotGothic16", "MS Gothic", monospace';
+  if (document.fonts && document.fonts.load) { document.fonts.load(`20px ${KFONT}`).catch(() => {}); document.fonts.load(`10px ${PFONT}`).catch(() => {}); }
+
+  // ---------- helpers ----------
+  function hash(i) { let h = Math.imul((i | 0) ^ 0x9e3779b9, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16; return (h >>> 0) / 4294967296; }
+  const mod = (a, n) => ((a % n) + n) % n;
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const mul = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
+  const rgb = c => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
+  const rgba = (c, a) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${clamp(a, 0, 1).toFixed(3)})`;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const pick = a => a[(Math.random() * a.length) | 0];
+  const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  function rect(x, y, w, h, c) { ctx.fillStyle = typeof c === "string" ? c : rgb(c); ctx.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(w)), Math.max(1, Math.round(h))); }
+  const px = (x, y, c) => { ctx.fillStyle = typeof c === "string" ? c : rgb(c); ctx.fillRect(Math.round(x), Math.round(y), 1, 1); };
+  function disc(x, y, rx, ry, c) { ctx.fillStyle = typeof c === "string" ? c : rgb(c); for (let dy = -ry; dy <= ry; dy++) { const w = Math.round(rx * Math.sqrt(Math.max(0, 1 - (dy / (ry + 0.5)) ** 2))); ctx.fillRect(Math.round(x - w), Math.round(y + dy), w * 2 + 1, 1); } }
+  function line(x0, y0, x1, y1, c, t = 1) { ctx.fillStyle = typeof c === "string" ? c : rgb(c); const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) | 0; for (let i = 0; i <= n; i++) { const f = n ? i / n : 0; ctx.fillRect(Math.round(lerp(x0, x1, f)), Math.round(lerp(y0, y1, f)), t, t); } }
+  function glow(x, y, r, c, a) {
+    if (a <= 0.01) return;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, rgba(c, a)); g.addColorStop(0.4, rgba(c, a * 0.35)); g.addColorStop(1, rgba(c, 0));
+    const p = ctx.globalCompositeOperation; ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); ctx.globalCompositeOperation = p;
+  }
+  function kanji(str, x, y, size, c, vertical = false) {
+    ctx.fillStyle = typeof c === "string" ? c : rgb(c); ctx.font = `${size}px ${KFONT}`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    if (vertical) [...str].forEach((ch, i) => ctx.fillText(ch, x, y + i * size * 1.05)); else ctx.fillText(str, x, y);
+    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+  }
+
+  // ---------- state ----------
+  const S = {
+    time: 0, tod: 0.62, todMode: "auto", weather: "auto", rain: 0, lastWx: 0, lastPhase: "",
+    events: [], nextEvent: 5, smoke: [], flies: [], drops: [], ripples: [], birds: [], words: [],
+    monk: { mode: "idle", t: 0, arm: 0 }, novice: { mode: "write", t: 0, char: "夢", brush: 0 },
+    tanuki: 0, lantern: 0, umbrella: null, warashi: 0, mochi: 3, bell: 0, shishi: 0, shishiT: 6, incense: 0, cat: 0, paused: false,
+  };
+  const logEl = document.getElementById("log");
+  const clock = () => { const m = Math.floor(mod(S.tod * 1440 + 360, 1440)); return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; };
+  function log(msg, cls = "") {
+    const li = document.createElement("li"); li.className = cls;
+    const t = document.createElement("time"); t.textContent = clock();
+    const sp = document.createElement("span"); sp.textContent = msg;
+    li.append(t, sp); logEl.prepend(li);
+    while (logEl.children.length > 9) logEl.lastChild.remove();
+  }
+  function word(str, x, y, c = [255, 240, 200], life = 1.1) { S.words.push({ str, x, y, c, t: 0, life }); }
+  const night = () => smooth(0.4, 0.55, S.tod) * (1 - smooth(0.9, 1.0, S.tod));
+  const dusk = () => Math.max(0, 1 - Math.abs(S.tod - 0.47) / 0.07);
+
+  // ---------- layout ----------
+  const OPEN = { x0: 194, x1: 256, y0: 82, y1: 226 }; // open shoji to the garden
+  const CENSER = { x: 72, y: 250 }, KETTLE = { x: 118, y: 300 }, MOKU = { x: 138, y: 204 }, RIN = { x: 120, y: 206 };
+  const MONK = { x: 160, y: 232 }, NOVICE = { x: 232, y: 300 }, OFFER = { x: 182, y: 214 };
+
+  // ---------- events ----------
+  function startEvent(kind) {
+    switch (kind) {
+      case "tanuki": if (S.tanuki > 0) return; S.tanuki = 14; log("茶釜から しっぽが…！ 分福茶釜の狸が踊りだした", "yo"); sfx("poof"); break;
+      case "mochi": if (S.monk.mode !== "idle" || S.mochi <= 0) { if (S.mochi <= 0) { S.mochi = 3; log("小僧が お供えのお餅を並べなおした"); } return; } S.monk.mode = "mochi"; S.monk.t = 0; S.novice.mode = "doze"; S.novice.t = 0; log("小僧がうとうとしている隙に、和尚がそっとお供えの餅を…"); break;
+      case "mokugyo": if (S.monk.mode !== "idle") return; S.monk.mode = "chant"; S.monk.t = 0; sfx("rin"); word("チーン", RIN.x, RIN.y - 14, [255, 240, 170]); log("和尚が木魚を叩き、お経をあげはじめた"); break;
+      case "bell": S.bell = 9; sfx("bell"); log("鐘楼の鐘が ゴーン… と鳴った"); word("ゴーン…", 226, 104, [230, 230, 255], 2.5); break;
+      case "incense": S.incense = 10; log("小僧が 香炉にお香をくべた。白檀の香りがひろがる"); sfx("tap"); break;
+      case "yokai": startEvent(pick(S.rain > 0.2 ? ["umbrella", "umbrella", "lantern", "warashi"] : ["lantern", "warashi", "umbrella"])); break;
+      case "umbrella": if (S.umbrella) return; S.umbrella = { x: 250, y: 238, t: 0 }; log("唐傘お化けが 縁側からぴょんぴょん跳ねてきた", "yo"); sfx("boing"); break;
+      case "lantern": if (S.lantern > 0) return; S.lantern = 9; log("法要の提灯が べろんと舌を出した… 提灯お化けだ", "yo"); sfx("giggle"); break;
+      case "warashi": if (S.warashi > 0) return; S.warashi = 8; log("柱のかげから 座敷わらしがこちらをのぞいている", "yo"); sfx("giggle"); break;
+      case "cat": S.cat = 16; log("縁側で 寺の猫が丸くなって昼寝している"); break;
+      case "write": S.novice.char = pick(["夢", "和", "空", "寿", "福", "心", "花", "風"]); S.novice.mode = "show"; S.novice.t = 0; log(`小僧が「${S.novice.char}」の字を書きあげた`); break;
+      case "wind": sfx("furin"); log("風が通り、軒の風鈴がちりんと鳴った"); S.furin = 2; break;
+    }
+  }
+  function trySpecial() {
+    const n = night(), rain = S.rain > 0.2;
+    const c = [["tanuki", 2], ["mochi", 2], ["mokugyo", 2.5], ["bell", 1.4], ["incense", 1.6], ["umbrella", rain ? 2.5 : 0.6], ["lantern", n > 0.5 ? 2 : 0.5],
+      ["warashi", 1.3], ["cat", n < 0.5 && !rain ? 1.8 : 0], ["write", 1.5], ["wind", rain ? 0.3 : 1.2]].filter(x => x[1] > 0);
+    let r = Math.random() * c.reduce((a, x) => a + x[1], 0), t = c[0][0];
+    for (const [k, w] of c) if ((r -= w) <= 0) { t = k; break; }
+    startEvent(t);
+  }
+
+  // ---------- update ----------
+  function weatherTarget() {
+    if (S.weather === "rain") return 0.8;
+    if (S.weather === "dry") return 0;
+    const c = S.time % 130; return c < 60 ? 0 : c < 66 ? (c - 60) / 6 * 0.8 : c < 112 ? 0.8 : Math.max(0, 0.8 - (c - 112) / 6);
+  }
+  function step(dt) {
+    S.time += dt;
+    if (S.todMode === "auto") S.tod = mod(S.tod + dt / 200, 1);
+    S.rain += (weatherTarget() - S.rain) * Math.min(1, dt * 0.5);
+    if (S.lastWx === 0 && S.rain > 0.2) { S.lastWx = 1; log("庭に雨が降りはじめた。軒から雨だれが落ちる", "wx"); }
+    else if (S.lastWx === 1 && S.rain < 0.08) { S.lastWx = 0; log("雨があがり、苔の匂いがする", "wx"); }
+    const phase = S.tod < 0.4 ? "day" : S.tod < 0.5 ? "dusk" : S.tod < 0.9 ? "night" : "dawn";
+    if (phase !== S.lastPhase) {
+      if (S.lastPhase) log({ day: "日が高くなり、本堂に光が差しこむ", dusk: "夕暮れ。ヒグラシがカナカナと鳴く", night: "日が暮れ、灯籠に火がともった", dawn: "夜が白みはじめた" }[phase], "wx");
+      if (phase === "dusk" && S.lastPhase) startEvent("bell");
+      S.lastPhase = phase;
+    }
+    // incense smoke from the censer and the altar sticks
+    const rate = 4 + (S.incense > 0 ? 10 : 0);
+    if (Math.random() < dt * rate) S.smoke.push({ x: CENSER.x + rnd(-2, 2), y: CENSER.y - 8, t: 0, life: rnd(4, 6), ph: rnd(0, 6), big: S.incense > 0 });
+    if (Math.random() < dt * 2) S.smoke.push({ x: 88 + rnd(-1, 1), y: 150, t: 0, life: 3, ph: rnd(0, 6), thin: true });
+    for (let i = S.smoke.length - 1; i >= 0; i--) { const p = S.smoke[i]; p.t += dt; p.y -= dt * (p.thin ? 9 : 14); p.x += Math.sin(p.t * 1.6 + p.ph) * dt * (4 + p.t * 3); if (p.t > p.life) S.smoke.splice(i, 1); }
+    S.incense = Math.max(0, S.incense - dt);
+    // monk
+    const m = S.monk; m.t += dt;
+    if (m.mode === "chant") {
+      const beat = Math.floor(m.t / 0.48), prev = Math.floor((m.t - dt) / 0.48);
+      m.arm = mod(m.t, 0.48) < 0.12 ? 1 : 0;
+      if (beat !== prev && m.t < 12) { sfx("moku"); if (beat % 2 === 0) word("ポク", MOKU.x + rnd(-3, 3), MOKU.y - 12, [255, 230, 190], 0.6); }
+      if (m.t > 12.5) { m.mode = "idle"; m.t = 0; sfx("rin"); word("チーン", RIN.x, RIN.y - 14, [255, 240, 170]); }
+    } else if (m.mode === "mochi") {
+      if (m.t > 1.2 && m.t - dt <= 1.2) { S.mochi = Math.max(0, S.mochi - 1); sfx("munch"); }
+      if (m.t > 4.2 && m.t - dt <= 4.2) { S.novice.mode = "look"; S.novice.t = 0; }
+      if (m.t > 4.4 && m.t - dt <= 4.4) { m.mode = "fake"; m.t = 0; log("小僧が顔を上げた！ 和尚は何食わぬ顔で合掌…（ほっぺがふくらんでいる）"); }
+    } else if (m.mode === "fake") { if (m.t > 3.5) { m.mode = "idle"; m.t = 0; S.novice.mode = "write"; } }
+    // novice
+    const nv = S.novice; nv.t += dt;
+    if (nv.mode === "write") nv.brush = Math.sin(S.time * 3);
+    if (nv.mode === "doze" && m.mode !== "mochi") { nv.mode = "write"; }
+    if (nv.mode === "show" && nv.t > 4) nv.mode = "write";
+    if (nv.mode === "look" && nv.t > 3.8) nv.mode = "write";
+    if (S.tanuki > 0) { const b = S.tanuki; S.tanuki -= dt; if (b > 1 && S.tanuki <= 1) sfx("poof"); if (Math.random() < dt * 3 && S.tanuki > 1.5 && S.tanuki < 12.5) sfx("step"); }
+    S.lantern = Math.max(0, S.lantern - dt); S.warashi = Math.max(0, S.warashi - dt); S.bell = Math.max(0, S.bell - dt); S.cat = Math.max(0, S.cat - dt); S.furin = Math.max(0, (S.furin || 0) - dt);
+    if (S.umbrella) { const u = S.umbrella; u.t += dt; u.x -= dt * 22; u.y = 244 + Math.min(1, u.t / 3) * 20 - Math.abs(Math.sin(u.t * 5)) * 8; if (Math.floor(u.t * 5 / Math.PI) !== Math.floor((u.t - dt) * 5 / Math.PI)) sfx("hop"); if (u.x < -20) S.umbrella = null; }
+    // shishi-odoshi in the garden
+    S.shishiT -= dt; if (S.shishiT <= 0) { S.shishiT = rnd(11, 16); S.shishi = 0.8; sfx("shishi"); }
+    S.shishi = Math.max(0, S.shishi - dt);
+    // fireflies at night when dry, sparrows by day
+    const wantF = night() > 0.6 && S.rain < 0.1 ? 12 : 0;
+    while (S.flies.length < wantF) S.flies.push({ x: rnd(OPEN.x0 + 4, 252), y: rnd(150, 215), ph: rnd(0, 6) });
+    if (S.flies.length > wantF) S.flies.length = wantF;
+    for (const f of S.flies) { f.x += Math.sin(S.time * 0.6 + f.ph) * dt * 3; f.y += Math.cos(S.time * 0.5 + f.ph * 2) * dt * 2.5; }
+    const wantB = night() < 0.3 && S.rain < 0.1 ? 3 : 0;
+    while (S.birds.length < wantB) S.birds.push({ x: rnd(200, 250), y: 214, t: rnd(0, 5) });
+    if (S.birds.length > wantB) S.birds.length = wantB;
+    for (const b of S.birds) { b.t += dt; if (Math.random() < dt * 0.8) b.x = clamp(b.x + rnd(-5, 5), 200, 250); }
+    // rain in the garden
+    const want = Math.round(S.rain * 70);
+    while (S.drops.length < want) S.drops.push({ x: rnd(OPEN.x0, W + 10), y: rnd(OPEN.y0, 222), v: rnd(140, 190) });
+    if (S.drops.length > want) S.drops.length = want;
+    for (const d of S.drops) { d.y += d.v * dt; d.x -= d.v * 0.1 * dt; if (d.y > 218) { if (Math.random() < 0.4) S.ripples.push({ x: d.x, y: rnd(196, 214), t: 0 }); d.y = OPEN.y0 + rnd(0, 6); d.x = rnd(OPEN.x0, W + 10); } }
+    for (let i = S.ripples.length - 1; i >= 0; i--) { S.ripples[i].t += dt; if (S.ripples[i].t > 0.6) S.ripples.splice(i, 1); }
+    for (let i = S.words.length - 1; i >= 0; i--) { S.words[i].t += dt; if (S.words[i].t > S.words[i].life) S.words.splice(i, 1); }
+    S.nextEvent -= dt; if (S.nextEvent <= 0) { S.nextEvent = rnd(7, 12); trySpecial(); }
+    audioUpdate(dt);
+  }
+
+  // ---------- interior ----------
+  const WOOD = [74, 52, 36], WOODD = [46, 32, 24], WOODL = [110, 80, 54];
+  const GOLD = [206, 160, 64], GOLDL = [250, 214, 120], GOLDD = [130, 90, 36];
+  function drawCeiling() {
+    rect(0, 0, W, 84, [58, 44, 34]);
+    for (let x = 0; x < W; x += 22) rect(x, 0, 4, 20, WOODD);
+    rect(0, 18, W, 6, WOOD); rect(0, 18, W, 1, WOODL); rect(0, 23, W, 1, WOODD);
+    rect(0, 66, W, 8, WOOD); rect(0, 66, W, 1, WOODL); rect(0, 73, W, 2, WOODD);
+    // hanging plaque 本堂
+    rect(30, 28, 98, 36, [84, 60, 38]); rect(32, 30, 94, 32, [198, 170, 122]); rect(32, 30, 94, 1, [230, 206, 160]);
+    for (let i = 0; i < 12; i++) rect(34 + i * 8, 31 + (i % 3), 6, 1, [184, 154, 108]);
+    kanji("本堂", 82, 47, 22, [30, 22, 18]);
+    rect(40, 38, 4, 5, [150, 40, 30]); px(41, 40, [220, 200, 160]);
+    for (const x of [44, 112]) { rect(x, 64, 3, 3, WOODD); rect(x - 1, 66, 5, 1, [40, 50, 70]); }
+  }
+  function drawBackWall() {
+    rect(0, 74, 192, 138, [70, 56, 44]);
+    rect(0, 74, 6, 146, WOOD); rect(186, 74, 8, 152, WOOD); rect(186, 74, 1, 152, WOODL);
+    rect(0, 176, 192, 4, WOOD); // lower rail
+    rect(4, 180, 36, 30, [210, 200, 176]); rect(4, 180, 36, 1, WOODD); rect(21, 180, 1, 30, WOODD);
+    rect(0, 208, 192, 4, WOODD);
+  }
+  function drawLanternGold(x, y) {
+    rect(x - 1, 74, 2, y - 80, [120, 90, 40]);
+    rect(x - 8, y - 8, 16, 3, GOLDD); for (let i = 0; i < 5; i++) { rect(x - 7 + i * 3, y - 12, 2, 4, GOLD); px(x - 7 + i * 3, y - 13, GOLDL); }
+    rect(x - 9, y - 5, 18, 18, GOLD); rect(x - 9, y - 5, 18, 1, GOLDL);
+    for (let yy = y - 3; yy < y + 12; yy += 3) for (let xx = x - 7; xx < x + 8; xx += 3) rect(xx, yy, 2, 2, [255, 226, 150]);
+    rect(x - 10, y + 13, 20, 3, GOLDD); rect(x - 6, y + 16, 12, 2, GOLD); rect(x - 1, y + 18, 2, 4, GOLD); px(x, y + 22, GOLDL);
+  }
+  function drawBuddha(cx, cy) {
+    // mandorla with rays
+    disc(cx, cy - 12, 17, 25, [110, 62, 34]); disc(cx, cy - 12, 15, 23, [150, 94, 44]); disc(cx, cy - 12, 11, 18, [128, 78, 38]);
+    for (let a = 0; a < 16; a++) { const an = -Math.PI + a / 15 * Math.PI; line(cx + Math.cos(an) * 8, cy - 22 + Math.sin(an) * 8, cx + Math.cos(an) * 14, cy - 22 + Math.sin(an) * 14, [220, 170, 80]); }
+    disc(cx, cy - 22, 8, 8, [196, 140, 60]);
+    // seated body with a dark outline so it reads against the halo
+    disc(cx, cy + 4, 14, 8, [70, 40, 20]); rect(cx - 9, cy - 13, 18, 18, [70, 40, 20]); disc(cx, cy - 18, 6, 7, [70, 40, 20]);
+    disc(cx, cy + 4, 13, 7, [196, 150, 62]); disc(cx, cy + 3, 11, 5, [214, 168, 72]);
+    rect(cx - 8, cy - 12, 16, 16, [228, 180, 80]); rect(cx - 8, cy - 12, 3, 16, [252, 214, 120]);
+    line(cx - 6, cy - 10, cx + 2, cy + 2, [180, 132, 52]); line(cx + 6, cy - 8, cx + 1, cy + 3, [180, 132, 52]);
+    rect(cx - 3, cy + 1, 6, 3, [232, 190, 96]);
+    disc(cx, cy - 18, 5, 6, [246, 206, 110]); px(cx - 2, cy - 21, [255, 236, 170]); rect(cx - 5, cy - 18, 1, 3, [200, 150, 60]); rect(cx + 5, cy - 18, 1, 3, [200, 150, 60]);
+    disc(cx, cy - 24, 4, 2, [150, 110, 50]); disc(cx, cy - 26, 2, 2, [150, 110, 50]);
+    rect(cx - 3, cy - 18, 2, 1, [150, 110, 50]); rect(cx + 1, cy - 18, 2, 1, [150, 110, 50]); px(cx, cy - 15, [170, 120, 50]);
+    // lotus pedestal
+    for (let i = 0; i < 7; i++) { const x = cx - 15 + i * 5; disc(x, cy + 13, 3, 4, i % 2 ? [220, 170, 80] : [196, 148, 60]); px(x, cy + 10, [250, 214, 120]); }
+    rect(cx - 16, cy + 17, 32, 5, GOLDD); rect(cx - 12, cy + 22, 24, 6, GOLD);
+  }
+  function drawAltar() {
+    const x0 = 46, x1 = 124;
+    // zushi (gold shrine) with hanging ornaments
+    rect(x0, 78, x1 - x0, 104, [60, 40, 24]);
+    rect(x0 + 6, 88, x1 - x0 - 12, 88, [120, 84, 36]);
+    rect(x0 - 3, 76, x1 - x0 + 6, 10, GOLD); rect(x0 - 3, 76, x1 - x0 + 6, 1, GOLDL);
+    for (let x = x0; x < x1; x += 4) { rect(x, 79, 2, 4, GOLDL); }
+    rect(x0, 86, 6, 96, GOLD); rect(x1 - 6, 86, 6, 96, GOLD); rect(x0 + 1, 86, 1, 96, GOLDL);
+    for (const hx of [x0 + 14, x1 - 14]) { for (let y = 88; y < 124; y += 4) { px(hx, y, GOLDL); px(hx - 1, y + 2, GOLD); px(hx + 1, y + 2, GOLD); } disc(hx, 126, 2, 2, GOLDL); }
+    for (let x = x0 + 8; x < x1 - 8; x += 6) { line(x, 86, x + 3, 92, GOLD); }
+    drawBuddha(85, 140);
+    // small lamps beside the Buddha
+    for (const lx of [x0 + 12, x1 - 12]) { rect(lx - 1, 142, 2, 26, GOLDD); disc(lx, 138, 4, 4, [255, 230, 170]); rect(lx - 4, 142, 8, 1, GOLDD); }
+    // altar table
+    rect(x0 - 6, 168, x1 - x0 + 12, 6, GOLD); rect(x0 - 6, 168, x1 - x0 + 12, 1, GOLDL);
+    rect(x0 - 2, 174, x1 - x0 + 4, 22, [150, 108, 44]);
+    for (let x = x0 + 2; x < x1 - 2; x += 8) { rect(x, 177, 6, 16, GOLD); rect(x + 2, 179, 2, 12, [120, 84, 34]); }
+    rect(x0 - 6, 194, x1 - x0 + 12, 4, GOLDD);
+    // candles, flowers, incense on the table
+    for (const cx of [68, 102]) { rect(cx - 1, 158, 2, 10, [240, 236, 226]); rect(cx - 3, 166, 6, 2, GOLDD); px(cx, 156, [255, 200, 90]); px(cx, 155, [255, 240, 180]); }
+    rect(52, 160, 6, 8, [40, 34, 34]); for (const [fx, fy, c] of [[53, 152, [230, 120, 160]], [56, 150, [250, 250, 240]], [51, 155, [120, 180, 110]], [58, 154, [230, 120, 160]]]) { disc(fx, fy, 2, 2, c); line(55, 160, fx, fy + 2, [80, 130, 70]); }
+    rect(84, 162, 8, 6, [60, 56, 54]); rect(83, 161, 10, 1, [90, 86, 80]); rect(87, 150, 1, 11, [120, 60, 50]); px(87, 150, [255, 120, 60]);
+    rect(112, 158, 6, 10, [40, 30, 26]); rect(113, 156, 4, 2, GOLD);
+    // side shrines
+    for (const sx of [8, 150]) {
+      rect(sx, 116, 32, 58, [54, 36, 22]); rect(sx - 2, 112, 36, 6, GOLD); rect(sx - 2, 112, 36, 1, GOLDL); for (let i = 0; i < 5; i++) rect(sx + 2 + i * 7, 108, 3, 4, GOLD);
+      rect(sx + 4, 120, 24, 36, [100, 70, 34]); rect(sx + 13, 124, 6, 26, GOLD); disc(sx + 16, 124, 3, 3, GOLDL);
+      rect(sx + 2, 158, 28, 6, GOLD); rect(sx, 164, 32, 10, [120, 86, 40]); for (let x = sx + 3; x < sx + 29; x += 6) rect(x, 166, 4, 6, GOLD);
+    }
+    // stool and cushion in front of the altar
+    rect(62, 198, 44, 10, [90, 60, 40]); rect(62, 198, 44, 2, [120, 84, 56]); rect(64, 208, 4, 6, WOODD); rect(100, 208, 4, 6, WOODD);
+    rect(12, 194, 22, 16, [90, 62, 40]); rect(10, 190, 26, 5, [150, 60, 50]); rect(12, 188, 22, 3, [200, 170, 110]);
+  }
+  function drawRightWall() {
+    // scroll 静
+    rect(163, 96, 21, 66, [96, 74, 50]); rect(165, 100, 17, 56, [236, 228, 208]); rect(163, 94, 21, 3, [60, 40, 30]); rect(163, 160, 21, 3, [60, 40, 30]);
+    kanji("静", 173, 122, 15, [24, 20, 18]); rect(170, 144, 3, 3, [170, 40, 30]); for (let i = 0; i < 3; i++) px(171, 136 + i * 2, [80, 70, 60]);
+  }
+  function drawFloor() {
+    rect(0, 212, W, H - 212, [150, 148, 102]);
+    for (let y = 214; y < H; y += 2) rect(0, y, W, 1, [138, 136, 94]);
+    const vx = 128, vy = 110;
+    for (const bx of [-240, -90, 40, 170, 300, 440]) line(vx + (bx - vx) * (212 - vy) / (H - vy), 212, bx, H, [44, 60, 50]);
+    for (const y of [212, 228, 252, 290]) { rect(0, y, W, 2, [52, 70, 58]); }
+    rect(0, 210, W, 3, WOODD);
+  }
+  function drawOpening() {
+    // frame for the open shoji; the garden itself is drawn later without the room's lighting
+    rect(OPEN.x0 - 4, OPEN.y0 - 4, W - OPEN.x0 + 4, 4, WOOD);
+    rect(OPEN.x0 - 4, OPEN.y0, 4, OPEN.y1 - OPEN.y0 + 6, WOOD);
+    rect(OPEN.x0 - 4, OPEN.y0, 1, OPEN.y1 - OPEN.y0 + 6, WOODL);
+    // half-open shoji panel on the right edge
+    rect(248, OPEN.y0, 8, OPEN.y1 - OPEN.y0, [226, 220, 204]); for (let y = OPEN.y0 + 8; y < OPEN.y1; y += 12) rect(248, y, 8, 1, [150, 130, 100]); rect(248, OPEN.y0, 1, OPEN.y1 - OPEN.y0, [150, 130, 100]);
+    rect(OPEN.x0 - 4, OPEN.y1, W - OPEN.x0 + 4, 6, [110, 80, 52]); rect(OPEN.x0 - 4, OPEN.y1, W - OPEN.x0 + 4, 1, [150, 116, 80]);
+  }
+  function drawCenser() {
+    const { x, y } = CENSER;
+    rect(x - 16, y + 16, 32, 6, [70, 46, 32]); rect(x - 16, y + 16, 32, 1, WOODL);
+    rect(x - 13, y + 22, 26, 20, [60, 40, 28]); rect(x - 10, y + 25, 20, 13, [80, 54, 36]); rect(x - 14, y + 42, 4, 8, WOODD); rect(x + 10, y + 42, 4, 8, WOODD); rect(x - 16, y + 48, 32, 3, WOODD);
+    disc(x, y + 4, 14, 9, [70, 76, 78]); disc(x, y + 2, 12, 7, [90, 98, 98]); for (let i = 0; i < 6; i++) px(x - 9 + i * 3.5, y + 5, [60, 66, 66]);
+    rect(x - 12, y - 4, 24, 3, [100, 108, 108]); rect(x - 10, y - 5, 20, 1, [130, 138, 136]);
+    rect(x - 17, y - 2, 4, 5, [80, 86, 86]); rect(x + 13, y - 2, 4, 5, [80, 86, 86]);
+    for (const lx of [-8, 0, 8]) rect(x + lx - 1, y + 11, 3, 6, [70, 76, 76]);
+    for (let i = 0; i < 3; i++) { rect(x - 2 + i * 2, y - 12, 1, 8, [150, 90, 70]); px(x - 2 + i * 2, y - 12, [255, 130, 70]); }
+  }
+  function drawKettle() {
+    const { x, y } = KETTLE, tn = S.tanuki;
+    rect(x - 16, y + 2, 32, 16, [90, 60, 44]); rect(x - 16, y + 2, 32, 2, [130, 92, 64]); rect(x - 13, y + 4, 26, 3, [40, 30, 26]);
+    for (let i = 0; i < 4; i++) px(x - 8 + i * 5, y + 5, [255, 120, 60]);
+    const dancing = tn > 1 && tn < 13;
+    let kx = x, ky = y;
+    if (dancing) { kx = x + Math.sin((14 - tn) * 1.3) * 30; ky = y - 8 - Math.abs(Math.sin((14 - tn) * 5)) * 6; }
+    // tanuki parts sprout out of the kettle
+    if (dancing) {
+      rect(kx - 6, ky + 2, 3, 6, [110, 80, 56]); rect(kx + 3, ky + 2, 3, 6, [110, 80, 56]);
+      const step2 = Math.floor(S.time * 8) & 1; px(kx - 6 + step2, ky + 8, [60, 40, 30]); px(kx + 4 - step2, ky + 8, [60, 40, 30]);
+      disc(kx - 13, ky - 4, 4, 3, [120, 90, 60]); disc(kx - 16, ky - 6, 3, 3, [150, 116, 80]); for (let i = 0; i < 3; i++) px(kx - 17 + i * 2, ky - 6, [80, 56, 40]);
+    }
+    disc(kx, ky - 6, 11, 8, [60, 58, 56]); disc(kx, ky - 7, 9, 6, [80, 76, 72]); rect(kx - 11, ky - 8, 22, 2, [50, 48, 46]);
+    rect(kx - 6, ky - 14, 12, 2, [70, 66, 62]); disc(kx, ky - 15, 2, 1, [100, 94, 88]);
+    rect(kx + 10, ky - 9, 6, 2, [70, 66, 62]);
+    if (dancing) {
+      disc(kx, ky - 19, 6, 5, [130, 98, 66]); disc(kx - 4, ky - 24, 2, 2, [110, 80, 56]); disc(kx + 4, ky - 24, 2, 2, [110, 80, 56]);
+      rect(kx - 5, ky - 20, 3, 2, [50, 36, 28]); rect(kx + 2, ky - 20, 3, 2, [50, 36, 28]); px(kx - 4, ky - 20, [255, 255, 255]); px(kx + 3, ky - 20, [255, 255, 255]);
+      rect(kx - 2, ky - 17, 4, 2, [230, 210, 180]); px(kx, ky - 17, [30, 20, 20]);
+      rect(kx - 9, ky - 12, 3, 5, [110, 80, 56]); rect(kx + 7, ky - 14 - Math.round(Math.abs(Math.sin(S.time * 6)) * 3), 3, 5, [110, 80, 56]);
+      rect(kx - 12, ky - 22, 3, 1, [200, 60, 60]); rect(kx - 11, ky - 25, 1, 3, [220, 200, 160]);
+    }
+    if (tn > 12.5 || (tn > 0.2 && tn < 1.5)) for (let i = 0; i < 10; i++) disc(kx + rnd(-12, 12), ky - 10 + rnd(-10, 6), 3, 2, [230, 230, 230]);
+    if (!dancing && Math.random() < 0.3) px(kx + 16, ky - 12 - rnd(0, 6), [220, 220, 230]);
+  }
+  function drawMokugyo() {
+    rect(MOKU.x - 10, MOKU.y + 4, 22, 4, [60, 40, 28]); rect(MOKU.x - 8, MOKU.y + 8, 3, 18, WOODD); rect(MOKU.x + 7, MOKU.y + 8, 3, 18, WOODD);
+    rect(MOKU.x - 8, MOKU.y + 2, 18, 3, [150, 40, 40]);
+    const sq = S.monk.arm && S.monk.mode === "chant" ? 1 : 0;
+    disc(MOKU.x, MOKU.y - 4 + sq, 9, 6 - sq, [110, 50, 30]); disc(MOKU.x, MOKU.y - 5 + sq, 8, 4 - sq, [150, 74, 40]);
+    rect(MOKU.x - 6, MOKU.y - 3 + sq, 12, 1, [60, 24, 16]); px(MOKU.x - 4, MOKU.y - 7, [210, 130, 80]);
+    // rin (singing bowl) on its cushion
+    rect(RIN.x - 7, RIN.y + 2, 14, 4, [150, 40, 50]); disc(RIN.x, RIN.y - 2, 6, 3, GOLDD); disc(RIN.x, RIN.y - 3, 5, 2, GOLD); rect(RIN.x - 5, RIN.y - 5, 10, 1, GOLDL);
+  }
+  function drawOffering() {
+    const { x, y } = OFFER;
+    rect(x - 9, y + 4, 18, 22, [70, 48, 32]); rect(x - 10, y + 2, 20, 3, WOODL);
+    rect(x - 7, y - 2, 14, 4, [200, 160, 110]); rect(x - 6, y + 2, 12, 2, [170, 130, 90]);
+    for (let i = 0; i < S.mochi; i++) { disc(x - 4 + i * 4, y - 5 - (i === 1 ? 2 : 0), 3, 2, [248, 244, 232]); px(x - 5 + i * 4, y - 6, [255, 255, 255]); }
+  }
+  function drawMonk() {
+    const m = S.monk, x = MONK.x, y = MONK.y;
+    const sneaking = m.mode === "mochi", faking = m.mode === "fake", chewing = sneaking && m.t > 1.2 || faking;
+    const face = sneaking && m.t < 4.2 ? 1 : -1;
+    const robe = [96, 62, 130], robeD = [70, 44, 100], kesa = [190, 150, 70], skin = [226, 190, 160];
+    rect(x - 12, y - 42, 24, 40, robe); rect(x - 14, y - 20, 28, 18, robe); rect(x - 14, y - 4, 28, 4, robeD);
+    rect(x + 6 * -face, y - 40, 3, 36, robeD);
+    line(x - 10, y - 40, x + 10, y - 14, kesa, 3); rect(x + 2, y - 30, 10, 16, kesa); for (let yy = y - 28; yy < y - 16; yy += 3) rect(x + 3, yy, 8, 1, [150, 110, 50]);
+    for (let i = 0; i < 9; i++) { const a = Math.PI * 0.1 + i / 8 * Math.PI * 0.8; px(x + Math.cos(a) * 9, y - 44 + Math.sin(a) * 5, [120, 70, 40]); }
+    rect(x - 7, y - 1, 5, 3, [240, 240, 236]); rect(x + 2, y - 1, 5, 3, [240, 240, 236]);
+    disc(x, y - 50, 7, 7, skin); disc(x - 2, y - 53, 3, 2, [240, 210, 184]);
+    px(x + face * 7, y - 49, [200, 160, 130]);
+    px(x + face * 3, y - 50, [40, 30, 30]);
+    if (chewing) { disc(x + face * 4, y - 46, 3, 2, [236, 170, 150]); if (Math.floor(S.time * 6) & 1) px(x + face * 5, y - 45, [200, 120, 110]); }
+    // arms: striking the mokugyo, reaching for mochi, or palms together
+    if (m.mode === "chant") { const up = m.arm ? 0 : -6; line(x - 10, y - 34, MOKU.x + 6, MOKU.y - 10 + up, robe, 3); line(MOKU.x + 6, MOKU.y - 10 + up, MOKU.x + 2, MOKU.y - 6 + up, [180, 150, 100], 2); disc(MOKU.x + 1, MOKU.y - 6 + up, 2, 2, [200, 60, 50]); }
+    else if (sneaking && m.t < 4.2) { const reach = m.t < 1.2 ? m.t / 1.2 : 1 - Math.min(1, (m.t - 1.2) / 0.6); line(x + 8, y - 34, lerp(x + 12, OFFER.x - 2, reach), lerp(y - 26, OFFER.y - 6, reach), robe, 3); if (reach > 0.8 && m.t < 1.4) disc(OFFER.x, OFFER.y - 7, 2, 2, [248, 244, 232]); }
+    else { rect(x - 3, y - 38, 6, 8, robe); rect(x - 1, y - 42, 2, 5, skin); }
+    if (faking && Math.floor(S.time * 2) & 1) { ctx.font = `8px ${PFONT}`; ctx.fillStyle = "rgb(255,240,210)"; ctx.fillText("なむ…", x - 30, y - 62); }
+  }
+  function drawNovice() {
+    const n = S.novice, x = NOVICE.x, y = NOVICE.y;
+    // low desk with paper and inkstone
+    rect(166, 268, 56, 5, [100, 60, 40]); rect(166, 268, 56, 1, [140, 90, 60]); rect(170, 273, 4, 20, [70, 42, 30]); rect(214, 273, 4, 20, [70, 42, 30]);
+    rect(176, 262, 30, 7, [246, 242, 230]); rect(168, 263, 6, 5, [40, 40, 44]); rect(169, 262, 4, 1, [70, 70, 76]);
+    if (n.mode === "show") { rect(178, 236, 26, 30, [246, 242, 230]); kanji(n.char, 191, 251, 20, [20, 16, 14]); }
+    else { for (let i = 0; i < 3; i++) rect(180 + i * 8, 264, 5, 1, [40, 36, 34]); }
+    // novice in seiza
+    const robe = [84, 90, 64], skin = [230, 196, 166];
+    rect(x - 12, y - 28, 22, 22, robe); rect(x - 16, y - 8, 28, 10, robe); rect(x - 16, y + 1, 30, 3, [60, 64, 44]);
+    rect(x + 6, y - 4, 10, 6, [210, 200, 170]);
+    let hy = y - 36, dozeTilt = 0;
+    if (n.mode === "doze") { dozeTilt = Math.round(Math.abs(Math.sin(S.time * 1.2)) * 3); hy += dozeTilt; const z = mod(S.time * 6, 12); ctx.font = `8px ${PFONT}`; ctx.fillStyle = "rgba(220,230,255,0.9)"; ctx.fillText("z", x - 16 - z * 0.5, y - 44 - z); }
+    disc(x - 2, hy, 7, 7, skin); disc(x - 1, hy - 3, 4, 2, [240, 214, 190]);
+    if (n.mode === "look") { px(x - 6, hy, [30, 20, 20]); px(x - 3, hy, [30, 20, 20]); rect(x - 5, hy + 3, 2, 1, [150, 80, 70]); ctx.font = `9px ${PFONT}`; ctx.fillStyle = "rgb(255,255,255)"; ctx.fillText("？", x - 18, hy - 10); }
+    else if (n.mode === "doze") { rect(x - 7, hy, 3, 1, [60, 40, 40]); }
+    else { rect(x - 7, hy + 1, 3, 1, [60, 40, 40]); }
+    px(x + 5, hy, [210, 170, 140]);
+    // brush arm
+    if (n.mode === "write") { const bx = 196 + n.brush * 6, by = 258; line(x - 8, y - 22, bx + 4, by + 2, robe, 3); line(bx + 3, by + 3, bx + 8, by - 8, [70, 50, 40]); px(bx + 3, by + 3, [20, 20, 20]); }
+    else if (n.mode === "show") { line(x - 8, y - 22, 204, 244, robe, 3); }
+    else line(x - 8, y - 22, x - 14, y - 10, robe, 3);
+  }
+  function drawYokai() {
+    // paper lantern 法要 (becomes a lantern ghost)
+    const lx = 212, ly = 30, sw = S.lantern > 0 ? Math.sin(S.time * 5) * 2 : Math.sin(S.time * 0.8) * 0.5;
+    rect(lx, 0, 1, 24, [60, 50, 40]);
+    ctx.save(); ctx.translate(lx + 0.5, 24); ctx.rotate(sw * 0.03); ctx.translate(-lx - 0.5, -24);
+    rect(lx - 9, 24, 19, 4, [40, 32, 28]); rect(lx - 11, 28, 23, 40, [244, 236, 214]);
+    for (let y = 31; y < 66; y += 4) rect(lx - 11, y, 23, 1, [214, 204, 180]);
+    rect(lx - 9, 68, 19, 4, [40, 32, 28]); rect(lx, 72, 1, 8, [150, 40, 40]); px(lx, 80, [150, 40, 40]);
+    if (S.lantern > 0) {
+      disc(lx - 4, 40, 3, 3, [255, 255, 255]); disc(lx - 4, 40, 1, 1, [20, 20, 20]);
+      rect(lx - 7, 52, 14, 3, [60, 20, 20]); rect(lx + 1, 55, 5, 8 + Math.round(Math.sin(S.time * 8) * 2), [230, 90, 110]);
+      kanji("法", lx + 5, 38, 9, [30, 24, 20]);
+    } else kanji("法要", lx + 0.5, 39, 11, [30, 24, 20], true);
+    ctx.restore();
+    // karakasa-obake hopping across
+    if (S.umbrella) {
+      const u = S.umbrella, x = u.x, y = u.y;
+      for (let r = 0; r < 12; r++) rect(x - r * 1.1, y - 32 + r, r * 2.2 + 1, 1, r % 4 === 0 ? [140, 50, 50] : [190, 70, 60]);
+      for (let i = -3; i <= 3; i++) line(x, y - 32, x + i * 4, y - 20, [120, 40, 40]);
+      disc(x, y - 25, 3, 3, [255, 255, 255]); disc(x + 1, y - 25, 1, 1, [20, 20, 20]);
+      rect(x - 4, y - 21, 8, 2, [60, 20, 20]); rect(x - 1, y - 19, 3, 5, [230, 90, 110]);
+      rect(x, y - 20, 1, 16, [180, 140, 90]); rect(x - 1, y - 4, 3, 4, [230, 200, 160]); rect(x - 2, y, 5, 1, [120, 90, 60]);
+    }
+    // zashiki-warashi peeking from behind the pillar
+    if (S.warashi > 0) {
+      const a = Math.min(1, S.warashi / 1.5, (8 - S.warashi) / 1.5), x = 196, y = 222;
+      ctx.globalAlpha = a;
+      rect(x - 2, y - 26, 8, 26, [200, 50, 60]); for (let i = 0; i < 4; i++) px(x + 1, y - 22 + i * 5, [250, 210, 110]);
+      rect(x - 3, y - 34, 9, 9, [20, 16, 16]); rect(x - 2, y - 30, 7, 5, [240, 214, 190]); rect(x - 2, y - 31, 7, 1, [20, 16, 16]);
+      px(x - 1, y - 28, [30, 20, 20]); px(x + 2, y - 28, [30, 20, 20]); px(x, y - 26, [220, 120, 120]);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // ---------- garden (outside, own lighting) ----------
+  function drawGarden() {
+    const n = night(), dk = dusk(), rain = S.rain;
+    ctx.save(); ctx.beginPath(); ctx.rect(OPEN.x0, OPEN.y0, 248 - OPEN.x0, OPEN.y1 - OPEN.y0); ctx.clip();
+    const skyTop = mix(mix([120, 180, 236], [60, 50, 110], dk), [10, 12, 34], n), skyBot = mix(mix([200, 226, 240], [250, 150, 100], dk), [30, 30, 62], n);
+    const top = mix(skyTop, [110, 116, 128], rain * (1 - n * 0.7)), bot = mix(skyBot, [140, 144, 150], rain * (1 - n * 0.7));
+    const g = ctx.createLinearGradient(0, OPEN.y0, 0, 170); g.addColorStop(0, rgb(top)); g.addColorStop(1, rgb(bot));
+    ctx.fillStyle = g; ctx.fillRect(OPEN.x0, OPEN.y0, 60, 90);
+    const L = c => mul(mix(c, [c[0] * 0.25, c[1] * 0.3, c[2] * 0.55], n), 1 - rain * 0.25);
+    if (n > 0.4 && rain < 0.3) { for (let i = 0; i < 14; i++) px(OPEN.x0 + hash(i) * 56, OPEN.y0 + 4 + hash(i + 9) * 50, rgba([230, 230, 255], n * (0.4 + 0.6 * Math.sin(S.time + i)))); disc(236, 100, 5, 5, rgba([245, 240, 215], n)); glow(236, 100, 16, [220, 220, 255], 0.3 * n); }
+    // distant hills and the bell tower
+    for (let x = OPEN.x0; x < 250; x++) { const h = 10 + Math.sin(x * 0.08) * 5 + Math.sin(x * 0.21) * 2; rect(x, 164 - h, 1, h + 4, L([90, 120, 110])); }
+    const bx = 226, by = 128, swing = S.bell > 0 ? Math.sin(S.time * 3) * 1.2 * (S.bell / 9) : 0;
+    rect(bx - 16, by, 32, 4, L([70, 50, 44])); for (let i = 0; i < 4; i++) rect(bx - 18 + i * 2, by - 2 - i * 2, 36 - i * 4, 2, L([60, 64, 70]));
+    rect(bx - 12, by + 4, 2, 30, L([110, 60, 40])); rect(bx + 10, by + 4, 2, 30, L([110, 60, 40]));
+    ctx.save(); ctx.translate(bx, by + 5); ctx.rotate(swing * 0.05); rect(-5, 0, 10, 13, L([90, 80, 50])); rect(-6, 12, 12, 2, L([110, 96, 60])); for (let i = 0; i < 3; i++) px(-3 + i * 3, 4, L([140, 124, 80])); ctx.restore();
+    rect(bx - 16, by + 32, 32, 3, L([120, 110, 100]));
+    // moss garden, stone lantern, pond, shishi-odoshi
+    rect(OPEN.x0, 166, 60, 60, L([70, 100, 60])); for (let i = 0; i < 40; i++) px(OPEN.x0 + hash(i * 3) * 56, 168 + hash(i * 5) * 50, L([90, 126, 74]));
+    disc(226, 204, 20, 7, L([60, 90, 110])); if (n < 0.5) for (let i = 0; i < 5; i++) px(214 + hash(i) * 24, 202 + hash(i + 4) * 4, L([200, 220, 240]));
+    const tx = 204, ty = 196;
+    rect(tx - 4, ty - 8, 8, 8, L([120, 120, 116])); rect(tx - 6, ty - 12, 12, 4, L([140, 140, 134])); rect(tx - 7, ty - 26, 14, 4, L([130, 130, 124])); rect(tx - 4, ty - 22, 8, 10, L([110, 110, 104]));
+    rect(tx - 2, ty - 20, 4, 5, n > 0.3 ? [255, 200, 110] : L([60, 56, 52])); rect(tx - 5, ty - 30, 10, 4, L([140, 140, 134]));
+    const tip = S.shishi > 0 ? 1 : 0, sx = 240, sy = 200;
+    rect(sx - 1, sy - 4, 2, 10, L([110, 90, 60])); line(sx - 8, sy - 8 + tip * 6, sx + 7, sy - 2 - tip * 6, L([130, 170, 90]), 2);
+    line(sx + 12, sy - 18, sx + 8, sy - 6, L([120, 160, 80]), 2); if (rain < 0.5) px(sx + 7, sy - 4 + mod(S.time * 20, 6), L([200, 220, 240]));
+    // pine branch across the top
+    line(OPEN.x0, 94, 228, 104, L([70, 50, 40]), 2);
+    for (const [px2, py] of [[204, 92], [216, 98], [226, 102], [198, 100]]) disc(px2, py, 7, 3, L([50, 90, 60]));
+    // hydrangeas bloom in the rain
+    for (let i = 0; i < 6; i++) disc(198 + i * 3, 216 - (i % 2) * 3, 3, 2, rain > 0.2 ? L([150, 140, 230]) : L([90, 130, 80]));
+    // sparrows and fireflies
+    for (const b of S.birds) { const hop = Math.abs(Math.sin(b.t * 6)) < 0.3 ? 1 : 0; rect(b.x, b.y - 3 - hop, 4, 3, L([150, 110, 80])); px(b.x - 1, b.y - 4 - hop, L([120, 90, 70])); px(b.x + 4, b.y - 3 - hop, L([60, 40, 30])); }
+    for (const f of S.flies) { const a = Math.max(0, Math.sin(S.time * 2 + f.ph)); if (a > 0.1) { px(f.x, f.y, rgba([220, 255, 130], a)); glow(f.x, f.y, 4, [200, 255, 110], a * 0.6); } }
+    if (n > 0.3) glow(tx, ty - 17, 16, [255, 190, 100], 0.4 * n);
+    // rain
+    for (const d of S.drops) { ctx.fillStyle = rgba([190, 205, 235], 0.5); ctx.fillRect(Math.round(d.x), Math.round(d.y), 1, 4); }
+    for (const r of S.ripples) { const k = r.t / 0.6; ctx.strokeStyle = rgba([200, 220, 255], 0.6 * (1 - k)); ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(Math.round(r.x), Math.round(r.y), 1 + k * 3, 0.5 + k, 0, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.restore();
+    // eave drips and the wind chime
+    rect(OPEN.x0 - 4, OPEN.y0 - 1, W - OPEN.x0 + 4, 3, [60, 44, 32]);
+    if (rain > 0.2) for (let i = 0; i < 7; i++) { const x = OPEN.x0 + 4 + i * 8, y = OPEN.y0 + 2 + mod(S.time * 70 + i * 23, 120); px(x, y, rgba([200, 220, 255], 0.7)); px(x, y + 1, rgba([200, 220, 255], 0.4)); }
+    const cs = S.furin > 0 ? Math.sin(S.time * 12) * 2 : Math.sin(S.time * 1.5) * 0.5;
+    rect(222, OPEN.y0 + 2, 1, 6, [80, 80, 80]); disc(222, OPEN.y0 + 10, 3, 2, [170, 220, 240]); rect(222 + cs, OPEN.y0 + 12, 1, 5, [80, 80, 80]); rect(221 + cs, OPEN.y0 + 17, 3, 4, [240, 240, 230]);
+    // sleeping cat on the engawa
+    if (S.cat > 0) { const x = 220, y = OPEN.y1 + 1, a = Math.min(1, S.cat, 16 - S.cat); ctx.globalAlpha = a; disc(x, y - 3, 7, 3, [220, 200, 170]); disc(x + 6, y - 5, 3, 3, [220, 200, 170]); px(x + 4, y - 8, [220, 200, 170]); px(x + 8, y - 8, [220, 200, 170]); rect(x - 4, y - 4, 4, 2, [170, 120, 80]); rect(x + 5, y - 5, 2, 1, [60, 40, 40]); ctx.globalAlpha = 1; }
+  }
+
+  // ---------- frame ----------
+  function render() {
+    const n = night(), dk = dusk();
+    drawCeiling(); drawBackWall(); drawAltar(); drawRightWall();
+    drawLanternGold(26, 98); drawLanternGold(140, 98);
+    drawFloor(); drawOpening();
+    drawMokugyo(); drawOffering(); drawMonk(); drawCenser(); drawNovice(); drawKettle(); drawYokai();
+    // time-of-day lighting for the room
+    ctx.globalCompositeOperation = "multiply";
+    ctx.fillStyle = rgb(mix(mix([255, 250, 238], [236, 176, 140], dk), [104, 90, 138], n));
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = "source-over";
+    drawGarden();
+    // lamps and glows
+    const fl = 0.85 + 0.15 * Math.sin(S.time * 9) * Math.sin(S.time * 3.7);
+    const lamp = 0.25 + 0.75 * n;
+    glow(85, 130, 80, [255, 190, 90], 0.4 * lamp * fl); glow(150, 250, 110, [255, 170, 90], 0.12 * n * fl);
+    glow(26, 104, 26, [255, 200, 110], 0.55 * lamp * fl); glow(140, 104, 26, [255, 200, 110], 0.55 * lamp * fl);
+    glow(58, 138, 8, [255, 220, 140], 0.6 * lamp); glow(112, 138, 8, [255, 220, 140], 0.6 * lamp);
+    for (const cx of [68, 102]) glow(cx, 155, 7, [255, 190, 90], 0.8 * fl);
+    glow(212, 48, 30, [255, 200, 130], (0.3 + 0.5 * n) * fl);
+    glow(118, 304, 14, [255, 120, 60], 0.4);
+    if (n < 0.6) {
+      // daylight falling through the open shoji onto the tatami, with dust motes
+      ctx.globalCompositeOperation = "lighter";
+      ctx.fillStyle = rgba([255, 236, 190], 0.1 * (1 - n) * (1 - S.rain * 0.6));
+      ctx.beginPath(); ctx.moveTo(OPEN.x0, OPEN.y0); ctx.lineTo(248, OPEN.y0); ctx.lineTo(200, H); ctx.lineTo(96, H); ctx.closePath(); ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
+      for (let i = 0; i < 18; i++) { const t = S.time * 0.1 + hash(i); const x = lerp(OPEN.x0, 150, mod(t + hash(i * 3), 1)) + Math.sin(S.time + i) * 4, y = 100 + hash(i * 7) * 180; px(x, y, rgba([255, 250, 220], 0.5 * (1 - n))); }
+    }
+    // incense smoke curls
+    for (const p of S.smoke) { const k = p.t / p.life, a = (p.thin ? 0.35 : 0.5) * (1 - k) * Math.min(1, p.t * 3); const s = p.big ? 2 + k * 3 : 1 + k * 1.5; ctx.fillStyle = rgba([230, 230, 236], a); ctx.fillRect(Math.round(p.x), Math.round(p.y), Math.round(s), Math.max(1, Math.round(s * 0.6))); }
+    // floating onomatopoeia
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (const w of S.words) { const k = w.t / w.life; ctx.font = `9px ${PFONT}`; ctx.lineWidth = 2; ctx.strokeStyle = rgba([20, 14, 10], 0.9 * (1 - k)); ctx.strokeText(w.str, w.x, w.y - k * 8); ctx.fillStyle = rgba(w.c, 1 - k); ctx.fillText(w.str, w.x, w.y - k * 8); }
+    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    if (S.bell > 7) { ctx.fillStyle = rgba([255, 255, 255], (S.bell - 7) * 0.06); ctx.fillRect(0, 0, W, H); }
+  }
+
+  // ---------- post-process ----------
+  const LEVELS = [0, 34, 76, 128, 190, 255];
+  const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  const LO = new Uint8Array(256), FR = new Uint8Array(256);
+  for (let v = 0; v < 256; v++) { let i = 0; while (i < 4 && v >= LEVELS[i + 1]) i++; const a = LEVELS[i], b = LEVELS[i + 1]; LO[v] = i; FR[v] = Math.round(((v - a) / (b - a)) * 16); }
+  const indexBuf = new Uint8Array(W * H);
+  function postProcess() {
+    const img = ctx.getImageData(0, 0, W, H), d = img.data;
+    for (let y = 0, p = 0; y < H; y++) for (let x = 0; x < W; x++, p++) {
+      const o = p * 4, th = BAYER[(x & 3) + ((y & 3) << 2)];
+      let r = LO[d[o]] + (FR[d[o]] > th ? 1 : 0), g = LO[d[o + 1]] + (FR[d[o + 1]] > th ? 1 : 0), b = LO[d[o + 2]] + (FR[d[o + 2]] > th ? 1 : 0);
+      if (r > 5) r = 5; if (g > 5) g = 5; if (b > 5) b = 5;
+      indexBuf[p] = r * 36 + g * 6 + b;
+      d[o] = LEVELS[r]; d[o + 1] = LEVELS[g]; d[o + 2] = LEVELS[b]; d[o + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    return indexBuf;
+  }
+  const hudT = document.getElementById("hud-t"), hudW = document.getElementById("hud-w");
+  function frame(dt) {
+    step(dt); render();
+    const idx = postProcess();
+    vctx.drawImage(low, 0, 0, view.width, view.height);
+    hudT.textContent = `${S.tod < 0.4 ? "昼" : S.tod < 0.5 ? "夕" : S.tod < 0.9 ? "夜" : "朝"} ${clock()}`;
+    hudW.textContent = S.rain > 0.5 ? "雨" : S.rain > 0.12 ? "小雨" : "晴れ";
+    return idx;
+  }
+
+  // ---------- sound: koto, shakuhachi, sho-like drone; mokugyo, rin, temple bell, shishi-odoshi ----------
+  const Snd = { ac: null, on: false, vol: 0.7, bgm: true, n: null, nextNote: 0, nextFlute: 0, droneT: 0, chantG: null };
+  let busy = false;
+  const live = () => Snd.on && Snd.ac && !busy;
+  const SCALE = [62, 63, 67, 69, 70, 74, 75, 79, 81, 82]; // miyako-bushi on D
+  const mf = m => 440 * Math.pow(2, (m - 69) / 12);
+  function audioInit() {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
+    const ac = new AC(); Snd.ac = ac;
+    const master = ac.createGain(); master.gain.value = Snd.vol;
+    const comp = ac.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 3; master.connect(comp); comp.connect(ac.destination);
+    const conv = ac.createConvolver(), len = ac.sampleRate * 3.5, ir = ac.createBuffer(2, len, ac.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6); }
+    conv.buffer = ir; const wet = ac.createGain(); wet.gain.value = 0.45; conv.connect(wet); wet.connect(master);
+    const music = ac.createGain(); music.gain.value = 0.9; music.connect(master); music.connect(conv);
+    const white = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate), wd = white.getChannelData(0); for (let i = 0; i < wd.length; i++) wd[i] = Math.random() * 2 - 1;
+    const pink = ac.createBuffer(1, ac.sampleRate * 3, ac.sampleRate), pd = pink.getChannelData(0); let b0 = 0, b1 = 0, b2 = 0;
+    for (let i = 0; i < pd.length; i++) { const w = Math.random() * 2 - 1; b0 = 0.997 * b0 + w * 0.029; b1 = 0.985 * b1 + w * 0.032; b2 = 0.95 * b2 + w * 0.048; pd[i] = (b0 + b1 + b2) * 0.9; }
+    const loop = (buf, type, f, dest) => { const s = ac.createBufferSource(); s.buffer = buf; s.loop = true; const fl = ac.createBiquadFilter(); fl.type = type; fl.frequency.value = f; const g = ac.createGain(); g.gain.value = 0; s.connect(fl); fl.connect(g); g.connect(dest); s.start(); return g; };
+    // chanting murmur: a sawtooth voice through two formants
+    const voice = ac.createOscillator(); voice.type = "sawtooth"; voice.frequency.value = 98;
+    const f1 = ac.createBiquadFilter(); f1.type = "bandpass"; f1.frequency.value = 500; f1.Q.value = 6;
+    const f2 = ac.createBiquadFilter(); f2.type = "bandpass"; f2.frequency.value = 900; f2.Q.value = 8;
+    const chantG = ac.createGain(); chantG.gain.value = 0; voice.connect(f1); voice.connect(f2); f1.connect(chantG); f2.connect(chantG); chantG.connect(master); chantG.connect(conv); voice.start();
+    Snd.n = { master, music, conv, white, pink, rainG: loop(pink, "lowpass", 1800, master), hissG: loop(white, "highpass", 5000, master), windG: loop(pink, "bandpass", 400, master), chantG, f1, f2, voice };
+    Snd.nextNote = ac.currentTime + 0.5; Snd.nextFlute = ac.currentTime + 6;
+    return true;
+  }
+  function envG(t0, a, peak, dur, dest) { const g = Snd.ac.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(peak, t0 + a); g.gain.exponentialRampToValueAtTime(0.0005, t0 + dur); g.connect(dest); return g; }
+  function osc(type, f, t0, dur, g) { const o = Snd.ac.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t0); o.connect(g); o.start(t0); o.stop(t0 + dur + 0.05); return o; }
+  function koto(m, t0, vel, bend) {
+    const d = Snd.n.music, f = mf(m);
+    const o = osc("triangle", f, t0, 2.4, envG(t0, 0.003, 0.08 * vel, 2.4, d));
+    const o2 = osc("sine", f * 2, t0, 0.9, envG(t0, 0.002, 0.04 * vel, 0.9, d));
+    osc("sine", f * 3.01, t0, 0.3, envG(t0, 0.001, 0.02 * vel, 0.3, d));
+    if (bend) { for (const oo of [o, o2]) { oo.frequency.setValueAtTime(oo.frequency.value, t0 + 0.25); oo.frequency.linearRampToValueAtTime(oo.frequency.value * Math.pow(2, 1 / 12), t0 + 0.45); } }
+    const s = Snd.ac.createBufferSource(); s.buffer = Snd.n.white; const hp = Snd.ac.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 3000; s.connect(hp); hp.connect(envG(t0, 0.001, 0.03 * vel, 0.02, d)); s.start(t0); s.stop(t0 + 0.03);
+  }
+  function shakuhachi(m, t0, dur) {
+    const d = Snd.n.music, f = mf(m);
+    const g = Snd.ac.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.06, t0 + 0.4); g.gain.setValueAtTime(0.05, t0 + dur * 0.7); g.gain.linearRampToValueAtTime(0.0001, t0 + dur); g.connect(d);
+    const o = osc("sine", f * 0.97, t0, dur, g); o.frequency.linearRampToValueAtTime(f, t0 + 0.35);
+    const v = Snd.ac.createOscillator(), vg = Snd.ac.createGain(); v.frequency.value = 4.5; vg.gain.setValueAtTime(0, t0); vg.gain.linearRampToValueAtTime(14, t0 + dur); v.connect(vg); vg.connect(o.detune); v.start(t0); v.stop(t0 + dur);
+    const s = Snd.ac.createBufferSource(); s.buffer = Snd.n.white; s.loop = true; const bp = Snd.ac.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f * 2; bp.Q.value = 2;
+    const ng = Snd.ac.createGain(); ng.gain.setValueAtTime(0.0001, t0); ng.gain.linearRampToValueAtTime(0.03, t0 + 0.15); ng.gain.linearRampToValueAtTime(0.008, t0 + 0.6); ng.gain.linearRampToValueAtTime(0.0001, t0 + dur); s.connect(bp); bp.connect(ng); ng.connect(d); s.start(t0); s.stop(t0 + dur);
+  }
+  function drone(t0, dur) {
+    const g = Snd.ac.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.012, t0 + 3); g.gain.setValueAtTime(0.012, t0 + dur - 3); g.gain.linearRampToValueAtTime(0.0001, t0 + dur); g.connect(Snd.n.music);
+    for (const m of pick([[62, 69, 74, 76, 81], [67, 70, 74, 79], [62, 67, 69, 74, 79]])) { const o = Snd.ac.createOscillator(); o.type = "sine"; o.frequency.value = mf(m); o.detune.value = rnd(-4, 4); o.connect(g); o.start(t0); o.stop(t0 + dur); }
+  }
+  let melIdx = 4;
+  function audioUpdate(dt) {
+    if (!live()) return;
+    const ac = Snd.ac, n = Snd.n, t = ac.currentTime;
+    if (Snd.bgm) {
+      // koto phrases with long pauses (ma)
+      while (Snd.nextNote < t + 0.3) {
+        const phraseLen = 3 + ((Math.random() * 5) | 0);
+        let tt = Snd.nextNote;
+        for (let i = 0; i < phraseLen; i++) {
+          melIdx = clamp(melIdx + pick([-2, -1, -1, 1, 1, 2]), 0, SCALE.length - 1);
+          koto(SCALE[melIdx], tt, i === 0 ? 1 : 0.75, Math.random() < 0.15);
+          if (Math.random() < 0.25) koto(SCALE[Math.max(0, melIdx - 3)] - 12, tt, 0.5, false);
+          tt += pick([0.28, 0.42, 0.42, 0.6, 0.9]);
+        }
+        Snd.nextNote = tt + rnd(1.5, 4);
+      }
+      if (t > Snd.nextFlute) { const len = rnd(2.5, 4.5); shakuhachi(pick([69, 70, 74, 75, 79]), t + 0.05, len); if (Math.random() < 0.5) shakuhachi(pick([67, 69, 74]), t + len + 0.3, rnd(2, 3.5)); Snd.nextFlute = t + rnd(12, 22); }
+      if (t > Snd.droneT) { drone(t, 14); Snd.droneT = t + 12; }
+    }
+    // ambience
+    n.rainG.gain.setTargetAtTime(S.rain * 0.28, t, 0.3); n.hissG.gain.setTargetAtTime(S.rain * 0.03, t, 0.3);
+    n.windG.gain.setTargetAtTime(0.012 + 0.01 * Math.sin(S.time * 0.3), t, 0.5);
+    const nt = night(), dk = dusk();
+    if (S.rain < 0.1 && nt > 0.5 && Math.random() < dt * 1.8) for (let i = 0; i < 2; i++) osc("sine", 4600 + Math.random() * 200, t + i * 0.09, 0.08, envG(t + i * 0.09, 0.005, 0.006, 0.08, n.master));
+    if (S.rain < 0.1 && dk > 0.3 && Math.random() < dt * 0.4) for (let i = 0; i < 8; i++) osc("sine", 4400 - i * 60, t + i * 0.08, 0.06, envG(t + i * 0.08, 0.003, 0.008, 0.06, n.master));
+    if (S.rain < 0.1 && nt < 0.3 && Math.random() < dt * 0.6) { const o = osc("sine", 3200, t, 0.12, envG(t, 0.005, 0.01, 0.12, n.master)); o.frequency.linearRampToValueAtTime(4200, t + 0.1); }
+    if (S.rain > 0.2 && Math.random() < dt * 0.3) { const g = envG(t, 0.01, 0.02, 0.2, n.master); const o = osc("square", 150, t, 0.2, g); const am = ac.createOscillator(), ag = ac.createGain(); am.frequency.value = 28; ag.gain.value = 60; am.connect(ag); ag.connect(o.frequency); am.start(t); am.stop(t + 0.25); }
+    // chanting while the mokugyo is struck
+    const chanting = S.monk.mode === "chant" && S.monk.t < 12;
+    n.chantG.gain.setTargetAtTime(chanting ? 0.035 : 0, t, 0.2);
+    if (chanting) { const syl = Math.floor(S.monk.t / 0.48) % 4; n.f1.frequency.setTargetAtTime([500, 350, 700, 400][syl], t, 0.04); n.f2.frequency.setTargetAtTime([900, 1900, 1100, 800][syl], t, 0.04); n.voice.frequency.setTargetAtTime(syl === 3 ? 92 : 98, t, 0.1); }
+  }
+  function sfx(kind) {
+    if (!live()) return;
+    const ac = Snd.ac, t0 = ac.currentTime, m = Snd.n.master, cv = Snd.n.conv;
+    const noise = (type, f, q, dur, vol, dest = m) => { const s = ac.createBufferSource(); s.buffer = Snd.n.white; const fl = ac.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; s.connect(fl); fl.connect(envG(t0, 0.002, vol, dur, dest)); s.start(t0, Math.random()); s.stop(t0 + dur + 0.05); };
+    switch (kind) {
+      case "moku": osc("sine", 540, t0, 0.12, envG(t0, 0.001, 0.25, 0.12, m)); osc("sine", 1180, t0, 0.05, envG(t0, 0.001, 0.08, 0.05, m)); noise("bandpass", 900, 3, 0.04, 0.15); break;
+      case "rin": for (const [f, a, d] of [[1210, 0.08, 7], [1218, 0.05, 7], [3290, 0.03, 4], [6100, 0.012, 2]]) osc("sine", f, t0, d, envG(t0, 0.002, a, d, cv)); break;
+      case "bell": {
+        noise("lowpass", 300, 0.7, 0.3, 0.3);
+        for (const [f, a, d] of [[82, 0.22, 12], [84.5, 0.16, 12], [168, 0.1, 9], [230, 0.08, 7], [318, 0.05, 5], [433, 0.03, 4]]) osc("sine", f, t0, d, envG(t0, 0.01, a, d, cv));
+        break;
+      }
+      case "shishi": osc("sine", 420, t0, 0.18, envG(t0, 0.001, 0.14, 0.18, cv)); noise("bandpass", 1100, 4, 0.08, 0.2, cv); for (let i = 0; i < 6; i++) { const tt = t0 + 0.3 + i * 0.07; osc("sine", rnd(900, 1600), tt, 0.04, envG(tt, 0.002, 0.012, 0.04, m)); } break;
+      case "furin": for (let i = 0; i < 3; i++) { const tt = t0 + i * 0.22; osc("sine", pick([2637, 2794, 3136]), tt, 1.5, envG(tt, 0.002, 0.04, 1.5, cv)); osc("sine", 5274, tt, 0.4, envG(tt, 0.001, 0.01, 0.4, cv)); } break;
+      case "poof": noise("lowpass", 1200, 0.7, 0.5, 0.3); osc("sine", 300, t0, 0.4, envG(t0, 0.01, 0.06, 0.4, m)).frequency.exponentialRampToValueAtTime(900, t0 + 0.3); break;
+      case "step": osc("sine", rnd(300, 420), t0, 0.08, envG(t0, 0.001, 0.05, 0.08, m)); break;
+      case "munch": for (let i = 0; i < 4; i++) { const tt = t0 + i * 0.18; const s = ac.createBufferSource(); s.buffer = Snd.n.white; const f = ac.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 600; s.connect(f); f.connect(envG(tt, 0.005, 0.08, 0.08, m)); s.start(tt); s.stop(tt + 0.1); } break;
+      case "tap": noise("bandpass", 2000, 2, 0.03, 0.1); break;
+      case "boing": { const o = osc("sine", 200, t0, 0.3, envG(t0, 0.005, 0.06, 0.3, m)); o.frequency.exponentialRampToValueAtTime(600, t0 + 0.15); o.frequency.exponentialRampToValueAtTime(250, t0 + 0.3); break; }
+      case "hop": { const o = osc("sine", 260, t0, 0.12, envG(t0, 0.003, 0.03, 0.12, m)); o.frequency.exponentialRampToValueAtTime(520, t0 + 0.1); break; }
+      case "giggle": for (let i = 0; i < 4; i++) { const tt = t0 + i * 0.13; const o = osc("triangle", 900 - i * 40, tt, 0.1, envG(tt, 0.01, 0.025, 0.1, cv)); o.frequency.linearRampToValueAtTime(1100 - i * 40, tt + 0.05); } break;
+    }
+  }
+
+  // ---------- GIF ----------
+  const PALETTE = new Uint8Array(768);
+  for (let i = 0; i < 216; i++) { PALETTE[i * 3] = LEVELS[(i / 36) | 0]; PALETTE[i * 3 + 1] = LEVELS[((i / 6) | 0) % 6]; PALETTE[i * 3 + 2] = LEVELS[i % 6]; }
+  function lzw(ix, out) {
+    let size = 9, next = 258, cur = 0, bits = 0; const dict = new Map(), bytes = [];
+    const emit = c => { cur |= c << bits; bits += size; while (bits >= 8) { bytes.push(cur & 255); cur >>>= 8; bits -= 8; } };
+    emit(256); let prefix = ix[0];
+    for (let i = 1; i < ix.length; i++) {
+      const k = ix[i], key = prefix * 256 + k, v = dict.get(key);
+      if (v !== undefined) { prefix = v; continue; }
+      emit(prefix);
+      if (next < 4095) { dict.set(key, next++); if (next > (1 << size) && size < 12) size++; } else { emit(256); dict.clear(); size = 9; next = 258; }
+      prefix = k;
+    }
+    emit(prefix); emit(257); if (bits > 0) bytes.push(cur & 255);
+    out.push(8);
+    for (let i = 0; i < bytes.length; i += 255) { const n = Math.min(255, bytes.length - i); out.push(n); for (let j = 0; j < n; j++) out.push(bytes[i + j]); }
+    out.push(0);
+  }
+  function upscale(ix, k) {
+    if (k === 1) return ix.slice();
+    const w = W * k, o = new Uint8Array(w * H * k);
+    for (let y = 0; y < H * k; y++) { const sy = ((y / k) | 0) * W, row = y * w; for (let x = 0; x < w; x++) o[row + x] = ix[sy + ((x / k) | 0)]; }
+    return o;
+  }
+  async function makeGif(seconds = 8, scale = 2, fps = 20, onProgress) {
+    const n = Math.round(seconds * fps), w = W * scale, h = H * scale, delay = Math.round(100 / fps);
+    const out = []; for (const ch of "GIF89a") out.push(ch.charCodeAt(0));
+    out.push(w & 255, w >> 8, h & 255, h >> 8, 0xf7, 0, 0); for (let i = 0; i < 768; i++) out.push(PALETTE[i]);
+    out.push(0x21, 0xff, 0x0b); for (const ch of "NETSCAPE2.0") out.push(ch.charCodeAt(0)); out.push(3, 1, 0, 0, 0);
+    for (let i = 0; i < n; i++) {
+      const ix = frame(1 / fps);
+      out.push(0x21, 0xf9, 4, 4, delay & 255, delay >> 8, 0, 0, 0x2c, 0, 0, 0, 0, w & 255, w >> 8, h & 255, h >> 8, 0);
+      lzw(upscale(ix, scale), out);
+      if (i % 4 === 3) { onProgress && onProgress(i + 1, n); await new Promise(r => setTimeout(r, 0)); }
+    }
+    out.push(0x3b); return new Uint8Array(out);
+  }
+
+  // ---------- UI ----------
+  let last = performance.now();
+  function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; if (!S.paused && !busy) frame(dt); requestAnimationFrame(loop); }
+  const status = document.getElementById("status"), out = document.getElementById("out");
+  const mBtn = document.getElementById("music");
+  mBtn.addEventListener("click", async () => {
+    if (!Snd.ac && !audioInit()) { status.textContent = "このブラウザでは音を鳴らせません。"; return; }
+    Snd.on = !Snd.on;
+    if (Snd.on) { await Snd.ac.resume(); Snd.nextNote = Snd.ac.currentTime + 0.3; } else await Snd.ac.suspend();
+    mBtn.setAttribute("aria-pressed", String(Snd.on)); mBtn.textContent = Snd.on ? "音を止める" : "音を出す";
+  });
+  const bgmBtn = document.getElementById("bgm");
+  bgmBtn.addEventListener("click", () => { Snd.bgm = !Snd.bgm; bgmBtn.setAttribute("aria-pressed", String(Snd.bgm)); });
+  document.getElementById("vol").addEventListener("input", e => { Snd.vol = e.target.value / 100; if (Snd.n) Snd.n.master.gain.setTargetAtTime(Snd.vol, Snd.ac.currentTime, 0.05); });
+  const tButtons = [...document.querySelectorAll("[data-t]")];
+  tButtons.forEach(b => b.addEventListener("click", () => { tButtons.forEach(x => x.setAttribute("aria-pressed", String(x === b))); if (b.dataset.t === "auto") S.todMode = "auto"; else { S.todMode = "fixed"; S.tod = +b.dataset.t; } }));
+  const wButtons = [...document.querySelectorAll("[data-w]")];
+  wButtons.forEach(b => b.addEventListener("click", () => { S.weather = b.dataset.w; wButtons.forEach(x => x.setAttribute("aria-pressed", String(x === b))); }));
+  document.querySelectorAll("[data-ev]").forEach(b => b.addEventListener("click", () => startEvent(b.dataset.ev)));
+  const pBtn = document.getElementById("pause");
+  function togglePause() { S.paused = !S.paused; pBtn.setAttribute("aria-pressed", String(S.paused)); pBtn.textContent = S.paused ? "再生" : "一時停止"; }
+  pBtn.addEventListener("click", togglePause);
+  window.addEventListener("keydown", e => { if (e.code === "Space" && e.target === document.body) { e.preventDefault(); togglePause(); } });
+  const gifBtn = document.getElementById("gif");
+  gifBtn.addEventListener("click", async () => {
+    busy = true; gifBtn.disabled = true;
+    try {
+      const bytes = await makeGif(+document.getElementById("gifsec").value, +document.getElementById("gifscale").value, 20, (i, n) => { status.textContent = `GIF 生成中… ${i}/${n} フレーム`; });
+      const img = new Image(); img.src = URL.createObjectURL(new Blob([bytes], { type: "image/gif" })); img.alt = "書き出した本堂のGIF"; out.prepend(img);
+      status.textContent = `GIF ができました（${(bytes.length / 1048576).toFixed(1)} MB）。右クリック／長押しで保存できます。`;
+    } catch (err) { status.textContent = `GIF の生成に失敗しました: ${err.message}`; }
+    finally { busy = false; gifBtn.disabled = false; last = performance.now(); }
+  });
+  const webmBtn = document.getElementById("webm"); let rec = null;
+  webmBtn.addEventListener("click", () => {
+    if (rec) { rec.stop(); return; }
+    if (!view.captureStream || typeof MediaRecorder === "undefined") { status.textContent = "このブラウザは動画録画に対応していません。GIF をお使いください。"; return; }
+    const chunks = [], type = ["video/webm;codecs=vp9", "video/webm", "video/mp4"].find(t => MediaRecorder.isTypeSupported(t)) || "";
+    rec = new MediaRecorder(view.captureStream(30), type ? { mimeType: type, videoBitsPerSecond: 6e6 } : undefined);
+    rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+    rec.onstop = () => {
+      const v = document.createElement("video"); v.src = URL.createObjectURL(new Blob(chunks, { type: rec.mimeType || "video/webm" }));
+      v.controls = v.loop = v.muted = v.autoplay = true; out.prepend(v);
+      status.textContent = "録画しました（映像のみ）。動画の右クリック／長押しで保存できます。"; rec = null; webmBtn.textContent = "動画を録画";
+    };
+    rec.start(); webmBtn.textContent = "録画を止める"; status.textContent = "録画中… もう一度押すと停止します。";
+  });
+
+  log("山寺の本堂。灯明がゆらめいている", "wx");
+  for (let i = 0; i < 20; i++) step(1 / 30);
+  window.Temple = { S, frame, makeGif, startEvent };
+  requestAnimationFrame(loop);
+})();
+</script>
