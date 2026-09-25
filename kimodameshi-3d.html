@@ -1,0 +1,200 @@
+<!doctype html>
+<title>Lantern Walk PS1</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three/r128/three.min.js"></script>
+<script src="kimodameshi-common.js"></script>
+<script>
+(() => {
+  "use strict";
+  const K = KIMO, { W, H, EYE, PROJ, P, S, AMB, LAMPC, FOGC } = K;
+  if (!window.THREE) { document.body.textContent = "Three.js を読み込めませんでした。ネットワークを確認してください。"; return; }
+
+  // ---------- renderer: tiny framebuffer, no smoothing ----------
+  const renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true, powerPreference: "low-power" });
+  renderer.setPixelRatio(1); renderer.setSize(W, H, false);
+  const scene = new THREE.Scene();
+  const fogCol = new THREE.Color(FOGC[0] / 255, FOGC[1] / 255, FOGC[2] / 255);
+  scene.fog = new THREE.FogExp2(fogCol, 0.075); scene.background = new THREE.Color(0x080a1e);
+  const cam = new THREE.PerspectiveCamera(2 * Math.atan((H / 2) / PROJ) * 180 / Math.PI, W / H, 0.05, 90);
+
+  // PS1 look: snap every projected vertex to a coarse screen grid so geometry wobbles
+  function ps1(m) {
+    m.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace("#include <project_vertex>", "#include <project_vertex>\n  gl_Position.xy = floor(gl_Position.xy / gl_Position.w * vec2(96.0, 54.0) + 0.5) / vec2(96.0, 54.0) * gl_Position.w;"); };
+    return m;
+  }
+  const nearest = t => { t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; return t; };
+  const lam = (o) => ps1(new THREE.MeshLambertMaterial(o));
+  const col = c => new THREE.Color(c[0] / 255, c[1] / 255, c[2] / 255);
+  // textures from the shared wall texels
+  function texFrom(t, y0 = 0, y1 = null) {
+    const T = K.TEX[t], h = (y1 ?? T.h) - y0, [c, x] = K.mkCanvas(T.w, h), [ec, ex] = K.mkCanvas(T.w, h);
+    const a = x.createImageData(T.w, h), b = ex.createImageData(T.w, h);
+    for (let y = 0; y < h; y++) for (let i = 0; i < T.w; i++) { const s = (y + y0) * T.w + i, o = (y * T.w + i) * 4; for (let k = 0; k < 3; k++) { a.data[o + k] = T.data[s * 3 + k]; b.data[o + k] = T.em[s] ? T.data[s * 3 + k] : 0; } a.data[o + 3] = b.data[o + 3] = 255; }
+    x.putImageData(a, 0, 0); ex.putImageData(b, 0, 0);
+    return [nearest(new THREE.CanvasTexture(c)), nearest(new THREE.CanvasTexture(ec))];
+  }
+  const rep = (t, rx, ry) => { const c = t.clone(); c.needsUpdate = true; c.wrapS = c.wrapT = THREE.RepeatWrapping; c.repeat.set(rx, ry); return c; };
+  const add = (geo, mat, x, y, z, ry = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.y = ry; scene.add(m); return m; };
+
+  // ---------- ground ----------
+  const GS = 16, [gc, gx] = K.mkCanvas(K.MW * GS, K.MH * GS), gi = gx.createImageData(K.MW * GS, K.MH * GS);
+  for (let y = 0; y < K.MH * GS; y++) for (let x = 0; x < K.MW * GS; x++) { const wx = (x + 0.5) / GS, wy = (y + 0.5) / GS, c = K.cell(wx, wy) === "w" ? [18, 30, 58] : K.ground(wx, wy), o = (y * K.MW * GS + x) * 4; gi.data[o] = c[0]; gi.data[o + 1] = c[1]; gi.data[o + 2] = c[2]; gi.data[o + 3] = 255; }
+  gx.putImageData(gi, 0, 0);
+  const groundGeo = new THREE.PlaneGeometry(K.MW, K.MH, 60, 60); groundGeo.rotateX(-Math.PI / 2); groundGeo.translate(K.MW / 2, 0, K.MH / 2);
+  const groundMat = lam({ map: nearest(new THREE.CanvasTexture(gc)) });
+  scene.add(new THREE.Mesh(groundGeo, groundMat));
+  const far = new THREE.PlaneGeometry(140, 140); far.rotateX(-Math.PI / 2); far.translate(10, -0.02, 10); scene.add(new THREE.Mesh(far, lam({ color: 0x141c18 })));
+  // pond surface that catches the lantern light
+  const pondMat = ps1(new THREE.MeshPhongMaterial({ color: 0x0c1834, specular: 0x8899cc, shininess: 60, transparent: true, opacity: 0.85 }));
+  const pondGeo = new THREE.PlaneGeometry(2, 2, 12, 12); pondGeo.rotateX(-Math.PI / 2); const pond = add(pondGeo, pondMat, 17, 0.01, 11);
+
+  // ---------- forest (instanced low-poly pines) ----------
+  const trees = [];
+  for (let y = 0; y < K.MH; y++) for (let x = 0; x < K.MW; x++) if (K.cell(x, y) === "T") { const n = K.h2(x, y); trees.push([x + 0.3 + n * 0.4, y + 0.3 + K.h2(y, x) * 0.4, 2.4 + n * 1.3]); if (n > 0.5) trees.push([x + 0.8 - n * 0.5, y + 0.8 - K.h2(x + 3, y) * 0.5, 1.8 + n]); }
+  for (const p of K.PROPS) if (p.k === "pine") trees.push([p.x, p.y, 3.2]);
+  const trunkGeo = new THREE.CylinderGeometry(0.07, 0.1, 1, 5); trunkGeo.translate(0, 0.5, 0);
+  const coneGeo = new THREE.ConeGeometry(1, 1, 6); coneGeo.translate(0, 0.5, 0);
+  // the lantern is below the branches: turn the cone bases upward so they stay dark instead of glowing
+  { const nr = coneGeo.attributes.normal; for (let i = 0; i < nr.count; i++) if (nr.getY(i) < -0.9) nr.setXYZ(i, 0, 1, 0); }
+  const trunkI = new THREE.InstancedMesh(trunkGeo, lam({ color: 0x3a2a22 }), trees.length);
+  const coneI = new THREE.InstancedMesh(coneGeo, lam({ color: 0x1e3a2a }), trees.length * 3);
+  const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3();
+  trees.forEach(([x, z, h], i) => {
+    mtx.compose(v.set(x, 0, z), q, sc.set(1, h * 0.55, 1)); trunkI.setMatrixAt(i, mtx);
+    for (let k = 0; k < 3; k++) { const r = (0.62 - k * 0.15) * (h / 3), yy = h * (0.3 + k * 0.2); q.setFromAxisAngle(v.set(0, 1, 0), K.h2(i, k) * 3); mtx.compose(v.set(x, yy, z), q, sc.set(r, h * 0.32, r)); coneI.setMatrixAt(i * 3 + k, mtx); q.identity(); }
+  });
+  scene.add(trunkI, coneI);
+
+  // ---------- main hall ----------
+  const [hallT, hallE] = texFrom("H", 20), [doorT, doorE] = texFrom("D", 20), [roofT] = texFrom("H", 0, 19);
+  const front = lam({ map: rep(hallT, 6, 1), emissiveMap: rep(hallE, 6, 1), emissive: 0xffffff });
+  const sideM = lam({ map: rep(hallT, 4, 1), emissiveMap: rep(hallE, 4, 1), emissive: 0x999999 });
+  const dark = lam({ color: 0x40281c });
+  add(new THREE.BoxGeometry(6, 1.35, 4, 12, 4, 8), [sideM, sideM, dark, dark, front, sideM], 11, 0.675, 4);
+  for (const x of [9.5, 12.5]) add(new THREE.PlaneGeometry(1, 1.35, 2, 3), lam({ map: doorT, emissiveMap: doorE, emissive: 0xffffff }), x, 0.675, 6.01);
+  const roofM = lam({ map: rep(roofT, 8, 2), color: 0xb0b8d0 });
+  add(new THREE.BoxGeometry(7.4, 0.08, 5.4), lam({ color: 0xbe965a }), 11, 1.36, 4);
+  const roofGeo = new THREE.ConeGeometry(1, 1, 4, 1); roofGeo.rotateY(Math.PI / 4);
+  const roof = add(roofGeo, roofM, 11, 1.4 + 0.5, 4); roof.scale.set(3.7 / 0.7071, 1.05, 2.7 / 0.7071);
+  add(new THREE.BoxGeometry(2.6, 0.12, 0.14), lam({ color: 0x2c2e3a }), 11, 2.4, 4);
+  for (const x of [9.7, 12.3]) add(new THREE.BoxGeometry(0.12, 0.2, 0.12), lam({ color: 0xd0a050, emissive: 0x302000 }), x, 2.55, 4);
+  // two red lanterns under the eave
+  const redLant = lam({ color: 0xe05038, emissive: 0xc04020 });
+  for (const x of [9, 13]) { const s = add(new THREE.SphereGeometry(0.16, 6, 4), redLant, x, 1.1, 6.35); s.scale.y = 1.3; }
+
+  // ---------- stone walls and gate ----------
+  const [stoneT] = texFrom("S"), stoneM = lam({ map: stoneT });
+  for (let y = 0; y < K.MH; y++) for (let x = 0; x < K.MW; x++) if (K.cell(x, y) === "S") add(new THREE.BoxGeometry(1, 0.45, 1, 2, 1, 2), stoneM, x + 0.5, 0.225, y + 0.5);
+  const [gateT] = texFrom("G"), red = lam({ map: gateT });
+  for (const x of [7.5, 12.5]) add(new THREE.CylinderGeometry(0.3, 0.32, 2.4, 8, 3), red, x, 1.2, 17.5);
+  add(new THREE.BoxGeometry(6.4, 0.2, 0.34), red, 10, 2.05, 17.5); add(new THREE.BoxGeometry(5.6, 0.12, 0.24), red, 10, 1.62, 17.5);
+  const gr = add(roofGeo, roofM, 10, 2.55, 17.5); gr.scale.set(3.6 / 0.7071, 0.55, 0.9 / 0.7071);
+  { const [pc, px] = K.mkCanvas(48, 20); px.fillStyle = "#281a1a"; px.fillRect(0, 0, 48, 20); px.strokeStyle = "#c89a50"; px.strokeRect(1.5, 1.5, 45, 17); px.fillStyle = "#e6c878"; px.font = '12px "DotGothic16", monospace'; px.textAlign = "center"; px.textBaseline = "middle"; px.fillText("月影寺", 24, 11);
+    add(new THREE.PlaneGeometry(0.9, 0.38), lam({ map: nearest(new THREE.CanvasTexture(pc)), emissive: 0x201810 }), 10, 1.84, 17.68); }
+
+  // ---------- props as low-poly models ----------
+  const stoneC = lam({ color: 0x8a8884 }), bronze = lam({ color: 0x7a6a3c }), wood = lam({ color: 0x6e4a30 }), fire = lam({ color: 0xffc070, emissive: 0xffa040 });
+  const lights = [];
+  for (const p of K.PROPS) {
+    const g = new THREE.Group(); g.position.set(p.x, 0, p.y);
+    const put = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); g.add(o); return o; };
+    switch (p.k) {
+      case "toro": put(new THREE.BoxGeometry(0.34, 0.1, 0.34), stoneC, 0, 0.05, 0); put(new THREE.CylinderGeometry(0.07, 0.08, 0.45, 6), stoneC, 0, 0.32, 0); put(new THREE.BoxGeometry(0.42, 0.06, 0.42), stoneC, 0, 0.57, 0);
+        put(new THREE.BoxGeometry(0.28, 0.22, 0.28), fire, 0, 0.71, 0); for (const [dx, dz] of [[-0.12, -0.12], [0.12, -0.12], [-0.12, 0.12], [0.12, 0.12]]) put(new THREE.BoxGeometry(0.06, 0.24, 0.06), stoneC, dx, 0.71, dz);
+        put(new THREE.ConeGeometry(0.34, 0.2, 6), stoneC, 0, 0.92, 0); put(new THREE.SphereGeometry(0.05, 5, 4), stoneC, 0, 1.05, 0);
+        if (lights.length < 6) { const l = new THREE.PointLight(0xffa050, 0.7, 2.6, 2); l.position.set(p.x, 0.75, p.y); scene.add(l); lights.push(l); } break;
+      case "koro": put(new THREE.CylinderGeometry(0.28, 0.22, 0.3, 8), bronze, 0, 0.35, 0); for (const a of [0, 2.1, 4.2]) put(new THREE.BoxGeometry(0.05, 0.2, 0.05), bronze, Math.cos(a) * 0.18, 0.1, Math.sin(a) * 0.18);
+        put(new THREE.ConeGeometry(0.3, 0.16, 8), bronze, 0, 0.68, 0); put(new THREE.BoxGeometry(0.3, 0.05, 0.3), fire, 0, 0.51, 0); break;
+      case "saisen": { const b = put(new THREE.BoxGeometry(0.9, 0.42, 0.4), lam({ color: 0x80522e }), 0, 0.21, 0); put(new THREE.BoxGeometry(0.94, 0.04, 0.44), wood, 0, 0.44, 0); break; }
+      case "jizo": put(new THREE.CylinderGeometry(0.1, 0.13, 0.36, 7), stoneC, 0, 0.2, 0); put(new THREE.SphereGeometry(0.1, 7, 5), stoneC, 0, 0.47, 0); put(new THREE.ConeGeometry(0.15, 0.14, 7), lam({ color: 0xc03030 }), 0, 0.33, 0); break;
+      case "grave": put(new THREE.BoxGeometry(0.45, 0.14, 0.38), stoneC, 0, 0.07, 0); put(new THREE.BoxGeometry(0.3, 0.1, 0.26), stoneC, 0, 0.19, 0); put(new THREE.BoxGeometry(0.22, 0.62, 0.18), lam({ color: 0x9a9aa2 }), 0, 0.55, 0); put(new THREE.BoxGeometry(0.03, 0.9, 0.08), lam({ color: 0xaa9670 }), 0.2, 0.45, -0.12); break;
+      case "willow": { put(new THREE.CylinderGeometry(0.08, 0.14, 2.2, 6), lam({ color: 0x3a2e26 }), 0, 1.1, 0); const lm = lam({ color: 0x3c6a48 }); for (let i = 0; i < 40; i++) { const a = K.hash(i) * 6.28, r = 0.2 + K.hash(i + 7) * 0.6, len = 0.8 + K.hash(i + 3) * 1.2; put(new THREE.BoxGeometry(0.03, len, 0.03), lm, Math.cos(a) * r, 2.3 - len / 2, Math.sin(a) * r); } break; }
+      case "bell": {
+        for (const [dx, dz] of [[-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7], [0.7, 0.7]]) put(new THREE.CylinderGeometry(0.06, 0.07, 1.8, 6), wood, dx, 0.9, dz);
+        put(new THREE.BoxGeometry(1.8, 0.2, 1.8), stoneC, 0, 0.1, 0); const r = put(roofGeo, roofM, 0, 2.15, 0); r.scale.set(1.3 / 0.7071, 0.7, 1.3 / 0.7071); put(new THREE.BoxGeometry(1.7, 0.06, 1.7), lam({ color: 0xbe965a }), 0, 1.82, 0);
+        const piv = new THREE.Group(); piv.position.set(0, 1.78, 0); g.add(piv); const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 0.55, 10), bronze); bell.position.y = -0.35; piv.add(bell); g.userData.pivot = piv; break;
+      }
+      case "chozu": put(new THREE.BoxGeometry(0.8, 0.4, 0.45), stoneC, 0, 0.2, 0); put(new THREE.BoxGeometry(0.7, 0.02, 0.35), lam({ color: 0x406890, emissive: 0x081020 }), 0, 0.405, 0); break;
+    }
+    scene.add(g); p.obj = g;
+  }
+  const bellProp = K.PROPS.find(p => p.k === "bell");
+
+  // ---------- sky: the shared panorama on a cylinder around the camera ----------
+  const skyTex = nearest(new THREE.CanvasTexture(K.skyC)); skyTex.wrapS = THREE.RepeatWrapping; skyTex.repeat.x = -1; skyTex.offset.x = 0.25;
+  const SKYR = 40, skyH = SKYR * Math.tan(80 / PROJ);
+  const skyCyl = new THREE.Mesh(new THREE.CylinderGeometry(SKYR, SKYR, skyH, 48, 1, true), new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide, fog: false, depthWrite: false }));
+  skyCyl.renderOrder = -1; scene.add(skyCyl);
+
+  // ---------- lights ----------
+  const amb = new THREE.AmbientLight(new THREE.Color(AMB[0], AMB[1], AMB[2]), 1); scene.add(amb);
+  const moon = new THREE.DirectionalLight(0x8090d0, 0.18); moon.position.set(0, 3, 4); scene.add(moon);
+  const lamp = new THREE.PointLight(new THREE.Color(LAMPC[0] / 1.15, LAMPC[1] / 1.15, LAMPC[2] / 1.15), 1.2, 9, 2); scene.add(lamp);
+
+  // ---------- rain as real 3D streaks ----------
+  const RN = 500, rainPos = new Float32Array(RN * 6), rainGeo = new THREE.BufferGeometry(); rainGeo.setAttribute("position", new THREE.BufferAttribute(rainPos, 3));
+  const rainMat = new THREE.LineBasicMaterial({ color: 0x9aa4d0, transparent: true, opacity: 0.5 });
+  const rain = new THREE.LineSegments(rainGeo, rainMat); rain.frustumCulled = false; scene.add(rain);
+  const drops = Array.from({ length: RN }, () => [Math.random() * 12 - 6, Math.random() * 4, Math.random() * 12 - 6]);
+
+  // ---------- yokai: billboards drawn from the same pixel art ----------
+  const sprites = new Map();
+  function syncSprites() {
+    const seen = new Set();
+    for (const e of S.ents) {
+      seen.add(e.id);
+      let s = sprites.get(e.id);
+      if (!s) {
+        const t = nearest(new THREE.CanvasTexture(e.g.c)), et = nearest(new THREE.CanvasTexture(e.g.ec));
+        const a = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, alphaTest: 0.5 })), b = new THREE.Sprite(new THREE.SpriteMaterial({ map: et, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+        for (const sp of [a, b]) { sp.center.set(0.5, 0); sp.scale.set(e.w, e.h, 1); scene.add(sp); }
+        s = { a, b, t, et }; sprites.set(e.id, s);
+      }
+      s.t.needsUpdate = true; s.et.needsUpdate = true;
+      const d = Math.hypot(e.x - P.x, e.y - P.y), lt = K.lampTerm(d) + S.flash * 0.9;
+      s.a.material.color.setRGB(AMB[0] + LAMPC[0] * lt, AMB[1] + LAMPC[1] * lt, AMB[2] + LAMPC[2] * lt);
+      s.a.material.opacity = e.alpha; s.b.material.opacity = e.alpha; s.a.material.alphaTest = e.alpha < 1 ? 0.05 : 0.5;
+      for (const sp of [s.a, s.b]) sp.position.set(e.x, e.z, e.y);
+      s.b.position.addScaledVector(cam.getWorldDirection(v).negate(), 0.01);
+    }
+    for (const [id, s] of sprites) if (!seen.has(id)) { scene.remove(s.a, s.b); s.t.dispose(); s.et.dispose(); s.a.material.dispose(); s.b.material.dispose(); sprites.delete(id); }
+  }
+
+  function render(ctx) {
+    const hb = (K.horizon() - H / 2) / PROJ;
+    cam.position.set(P.x, EYE - hb, P.y); cam.rotation.set(0, -P.a - Math.PI / 2, 0, "YXZ");
+    const ca = Math.cos(P.a), sa = Math.sin(P.a);
+    lamp.position.set(P.x + ca * 0.35 - sa * 0.25, EYE - 0.12, P.y + sa * 0.35 + ca * 0.25);
+    lamp.intensity = 1.25 * S.lamp * S.flick;
+    amb.intensity = 1 + S.flash * 1.8;
+    for (const l of lights) l.intensity = 0.7 * (0.85 + 0.15 * Math.sin(S.time * 9 + l.position.x * 3));
+    skyTex.needsUpdate = true; skyCyl.position.set(P.x, cam.position.y + skyH / 2, P.y);
+    scene.background.setRGB(0.03 + S.flash * 0.5, 0.04 + S.flash * 0.5, 0.12 + S.flash * 0.5);
+    if (bellProp.obj.userData.pivot) bellProp.obj.userData.pivot.rotation.x = S.bellSwing > 0 ? Math.sin(S.time * 3) * 0.3 * (S.bellSwing / 7) : 0;
+    pondMat.opacity = 0.8 + 0.05 * Math.sin(S.time * 2);
+    // rain streaks around the player
+    rain.visible = S.rain > 0.05; rainMat.opacity = 0.55 * Math.min(1, S.rain * 1.5);
+    if (rain.visible) {
+      const n = Math.round(RN * Math.min(1, S.rain * 1.3));
+      for (let i = 0; i < RN; i++) {
+        const d = drops[i]; d[1] -= 0.16; if (d[1] < 0) { d[0] = Math.random() * 12 - 6; d[1] = 3 + Math.random(); d[2] = Math.random() * 12 - 6; }
+        const o = i * 6, x = P.x + d[0], z = P.y + d[2], on = i < n;
+        rainPos[o] = x; rainPos[o + 1] = on ? d[1] : -5; rainPos[o + 2] = z; rainPos[o + 3] = x + 0.02; rainPos[o + 4] = on ? d[1] + 0.22 : -5; rainPos[o + 5] = z;
+      }
+      rainGeo.attributes.position.needsUpdate = true;
+    }
+    syncSprites();
+    renderer.render(scene, cam);
+    ctx.drawImage(renderer.domElement, 0, 0, W, H);
+  }
+
+  K.start({
+    title: "提灯を持って夜の境内を歩く（3D・初代PS風）",
+    sub: "Three.js の本物の3D を 256×144・216色に落とし、頂点をカクつかせた初代プレイステーション風",
+    hint: "本堂・屋根・山門・灯籠・鐘楼・杉林はすべてポリゴンの立体で、灯籠と手元の提灯は本物の光源として周りを照らします。雨も3Dの線で降ります。妖怪だけは当時のゲームと同じく板（スプライト）です。自動で境内を一周し、矢印キー/WASDとドラッグで自分でも歩けます。",
+    render,
+  });
+})();
+</script>

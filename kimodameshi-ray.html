@@ -1,0 +1,142 @@
+<!doctype html>
+<title>Lantern Walk Raycast</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<body>
+<script src="kimodameshi-common.js"></script>
+<script>
+(() => {
+  "use strict";
+  const K = KIMO, { W, H, EYE, PROJ, TEX, HGT, P, S, cell, clamp, AMB, LAMPC, FOGC, FOGK } = K;
+  const img = new ImageData(W, H), buf = img.data;
+  const MAXD = 22, MAXHITS = 5;
+  // per-column wall hits kept for sprite occlusion
+  const hits = Array.from({ length: W }, () => Array.from({ length: MAXHITS }, () => ({ d: 0, top: 0, bot: 0 })));
+  const nhits = new Uint8Array(W);
+  const tmp = []; for (let i = 0; i < 16; i++) tmp.push({ d: 0, t: "", u: 0, side: 0 });
+
+  function shade(o, r, g, b, d, em, side) {
+    // lantern light falls off with distance, moonlight is a cool ambient, fog swallows the far
+    const lt = K.lampTerm(d), fl = S.flash * 0.9;
+    let R, G, B;
+    if (em) { R = r; G = g; B = b; }
+    else { const s = side ? 0.78 : 1; R = r * (AMB[0] + LAMPC[0] * lt + fl) * s; G = g * (AMB[1] + LAMPC[1] * lt + fl) * s; B = b * (AMB[2] + LAMPC[2] * lt + fl * 1.1) * s; }
+    const f = 1 - Math.exp(-d * FOGK);
+    buf[o] = R + (FOGC[0] - R) * f; buf[o + 1] = G + (FOGC[1] - G) * f; buf[o + 2] = B + (FOGC[2] - B) * f; buf[o + 3] = 255;
+  }
+
+  // sprite pixel caches (static props once, yokai whenever their art changes)
+  const pixCache = new WeakMap();
+  function pixels(art) {
+    let p = pixCache.get(art);
+    if (!p || p.ver !== art.ver) {
+      const c = art.c || art.g.c, ec = art.ec || art.g.ec;
+      p = { ver: art.ver, w: c.width, h: c.height, a: c.getContext("2d").getImageData(0, 0, c.width, c.height).data, e: ec.getContext("2d").getImageData(0, 0, c.width, c.height).data };
+      pixCache.set(art, p);
+    }
+    return p;
+  }
+
+  function render(ctx) {
+    const hor = Math.round(K.horizon()), ca = Math.cos(P.a), sa = Math.sin(P.a);
+    const sky = K.skyInfo();
+    // ---- sky: panorama rotates with the view ----
+    for (let x = 0; x < W; x++) {
+      const ang = P.a + Math.atan((x - W / 2) / PROJ);
+      const u = ((((ang / (Math.PI * 2)) % 1) + 1) % 1) * sky.w | 0;
+      for (let y = 0; y < hor && y < H; y++) {
+        const v = clamp(sky.h - 1 - (hor - y), 0, sky.h - 1), si = (v * sky.w + u) * 4, o = (y * W + x) * 4;
+        buf[o] = sky.data[si]; buf[o + 1] = sky.data[si + 1]; buf[o + 2] = sky.data[si + 2]; buf[o + 3] = 255;
+      }
+    }
+    // ---- floor casting ----
+    const lx = Math.cos(P.a - K.FOV / 2), ly = Math.sin(P.a - K.FOV / 2), rx = Math.cos(P.a + K.FOV / 2), ry = Math.sin(P.a + K.FOV / 2);
+    const k0 = 1 / Math.cos(K.FOV / 2);
+    for (let y = Math.max(hor + 1, 0); y < H; y++) {
+      const rowD = EYE * PROJ / (y - hor + 0.0001);
+      let wx = P.x + lx * rowD * k0, wy = P.y + ly * rowD * k0;
+      const sx = (rx - lx) * rowD * k0 / W, sy = (ry - ly) * rowD * k0 / W;
+      for (let x = 0; x < W; x++, wx += sx, wy += sy) {
+        const o = (y * W + x) * 4;
+        if (cell(wx, wy) === "w") {
+          // pond: mirror of the sky with ripples and the lantern's glint
+          const ang = P.a + Math.atan((x - W / 2) / PROJ), rip = Math.sin(wx * 9 + S.time * 2) * 0.5 + Math.sin(wy * 7 - S.time * 1.6) * 0.5 + (S.rain > 0.2 ? Math.sin(wx * 31 + wy * 29 + S.time * 20) : 0);
+          const u = ((((ang / (Math.PI * 2)) % 1) + 1) % 1) * sky.w | 0, v = clamp(sky.h - 1 - Math.round((y - hor) * 1.2 + rip * 2), 0, sky.h - 1), si = (v * sky.w + u) * 4;
+          shade(o, sky.data[si] * 0.7 + 8, sky.data[si + 1] * 0.7 + 14, sky.data[si + 2] * 0.8 + 20, rowD * 0.6, true, 0);
+          continue;
+        }
+        const c = K.ground(wx, wy);
+        let r = c[0], g = c[1], b = c[2];
+        if (S.rain > 0.2) { const wet = S.rain * 0.35; r *= 1 - wet * 0.4; g *= 1 - wet * 0.35; b *= 1 - wet * 0.2; if (K.h2((wx * 20) | 0, (wy * 20 + S.time * 3) | 0) > 0.995) { r = g = b = 200; } }
+        shade(o, r, g, b, rowD, false, 0);
+      }
+    }
+    // ---- walls: DDA, keep several hits so low walls show what is behind them ----
+    for (let x = 0; x < W; x++) {
+      const cam = (x - W / 2) / PROJ, dx = ca - sa * cam, dy = sa + ca * cam;
+      let mx = P.x | 0, my = P.y | 0;
+      const ddx = Math.abs(1 / dx), ddy = Math.abs(1 / dy), stx = dx < 0 ? -1 : 1, sty = dy < 0 ? -1 : 1;
+      let sdx = dx < 0 ? (P.x - mx) * ddx : (mx + 1 - P.x) * ddx, sdy = dy < 0 ? (P.y - my) * ddy : (my + 1 - P.y) * ddy;
+      let n = 0, prevH = 0;
+      for (let it = 0; it < 64; it++) {
+        let side, d;
+        if (sdx < sdy) { d = sdx; sdx += ddx; mx += stx; side = 0; } else { d = sdy; sdy += ddy; my += sty; side = 1; }
+        if (d > MAXD) break;
+        const t = cell(mx, my), h = HGT[t] || 0;
+        if (h > prevH && n < tmp.length) {
+          let u = side === 0 ? P.y + d * dy : P.x + d * dx; u -= Math.floor(u); if ((side === 0 && dx < 0) || (side === 1 && dy > 0)) u = 1 - u;
+          const e = tmp[n++]; e.d = d; e.t = t; e.u = u; e.side = side;
+        }
+        prevH = h;
+        if (h >= 3) break;
+      }
+      nhits[x] = 0;
+      for (let i = n - 1; i >= 0; i--) {
+        const e = tmp[i], tex = TEX[e.t], h = HGT[e.t], sc = PROJ / e.d;
+        const bot = hor + EYE * sc, top = bot - h * sc, y0 = Math.max(0, Math.ceil(top)), y1 = Math.min(H, Math.ceil(bot));
+        const tu = Math.min(tex.w - 1, (e.u * tex.w) | 0);
+        for (let y = y0; y < y1; y++) {
+          const hv = (bot - y) / sc, tv = clamp(tex.h - 1 - ((hv * K.TEXEL) | 0), 0, tex.h - 1), ti = tv * tex.w + tu;
+          shade((y * W + x) * 4, tex.data[ti * 3], tex.data[ti * 3 + 1], tex.data[ti * 3 + 2], e.d, tex.em[ti] && S.lamp > -1 ? 1 : 0, e.side);
+        }
+      }
+      for (let i = 0; i < n && nhits[x] < MAXHITS; i++) { const e = tmp[i], sc = PROJ / e.d, bot = hor + EYE * sc, hh = hits[x][nhits[x]++]; hh.d = e.d; hh.bot = bot; hh.top = bot - HGT[e.t] * sc; }
+    }
+    // ---- sprites: props and yokai, far to near ----
+    const list = [];
+    for (const p of K.PROPS) list.push({ x: p.x, y: p.y, art: K.propArt(p.k), z: K.propArt(p.k).z, alpha: 1, sw: p.k === "bell" && S.bellSwing > 0 });
+    for (const e of S.ents) list.push({ x: e.x, y: e.y, art: e, z: e.z, alpha: e.alpha });
+    for (const s of list) { const dx = s.x - P.x, dy = s.y - P.y; s.depth = dx * ca + dy * sa; s.lat = -dx * sa + dy * ca; }
+    list.sort((a, b) => b.depth - a.depth);
+    for (const s of list) {
+      if (s.depth < 0.15 || s.depth > MAXD) continue;
+      const a = s.art, px = pixels(a), sc = PROJ / s.depth, cx = W / 2 + s.lat * sc;
+      const sw = a.w * sc, shh = a.h * sc, bot = hor + (EYE - s.z) * sc, top = bot - shh;
+      const x0 = Math.max(0, Math.ceil(cx - sw / 2)), x1 = Math.min(W, Math.ceil(cx + sw / 2)), y0 = Math.max(0, Math.ceil(top)), y1 = Math.min(H, Math.ceil(bot));
+      if (x0 >= x1) continue;
+      for (let x = x0; x < x1; x++) {
+        const tu = clamp(((x - (cx - sw / 2)) / sw * px.w) | 0, 0, px.w - 1), hs = hits[x], nh = nhits[x];
+        for (let y = y0; y < y1; y++) {
+          let occ = false; for (let i = 0; i < nh; i++) { const hh = hs[i]; if (hh.d < s.depth && y >= hh.top && y < hh.bot) { occ = true; break; } }
+          if (occ) continue;
+          const tv = clamp(((y - top) / shh * px.h) | 0, 0, px.h - 1), pi = (tv * px.w + tu) * 4;
+          if (px.a[pi + 3] < 128) continue;
+          const o = (y * W + x) * 4, em = px.e[pi + 3] > 128 && S.lamp > -1;
+          const r0 = buf[o], g0 = buf[o + 1], b0 = buf[o + 2];
+          shade(o, px.a[pi], px.a[pi + 1], px.a[pi + 2], s.depth, em, 0);
+          if (s.alpha < 1) { buf[o] = r0 + (buf[o] - r0) * s.alpha; buf[o + 1] = g0 + (buf[o + 1] - g0) * s.alpha; buf[o + 2] = b0 + (buf[o + 2] - b0) * s.alpha; }
+        }
+      }
+    }
+    // ---- rain falling in the world (only drops, the overlay adds streaks) ----
+    ctx.putImageData(img, 0, 0);
+  }
+
+  K.start({
+    title: "提灯を持って夜の境内を歩く（レイキャスティング版）",
+    sub: "初代DOOM・Wolfenstein と同じ疑似3D / 256×144 ピクセル / 216色",
+    hint: "壁は2Dの地図から1列ずつ光線を飛ばして描き、灯籠やお地蔵さま・妖怪はすべて板（スプライト）です。提灯の明かりは距離で弱まり、遠くは霧に沈みます。自動で山門→参道→池→本堂→鐘楼→本堂の裏→地蔵→墓地と歩き、妖怪に出会います。矢印キー/WASDとドラッグで自分でも歩けます。",
+    render,
+  });
+})();
+</script>
