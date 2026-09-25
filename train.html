@@ -1,0 +1,1141 @@
+<title>Retro Train Window</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #efe6d2;
+    --dim: #a8987c;
+    --ground: #17120d;
+    --panel: #231b13;
+    --line: #4a3a28;
+    --accent: #e8a24a;
+    --green: #8fc79a;
+    --font: "DotGothic16", "MS Gothic", "Osaka-Mono", ui-monospace, monospace;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--font); font-size: 15px;
+    padding-inline: 16px; padding-block: 16px 24px; box-sizing: border-box; }
+  .wrap { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 22px; font-weight: 400; letter-spacing: 0.08em; color: var(--accent); }
+  .sub { color: var(--dim); font-size: 13px; }
+  .screen { position: relative; width: 100%; aspect-ratio: 16 / 9; max-width: 100%; background: #000; border: 1px solid var(--line); }
+  #view { width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  .hud { position: absolute; left: 10px; top: 8px; display: flex; gap: 10px; font-size: 13px; color: var(--accent); text-shadow: 0 0 4px #000, 0 0 2px #000; pointer-events: none; }
+  .hud span:last-child { color: var(--green); }
+  .row { display: grid; grid-template-columns: 1fr minmax(0, 320px); gap: 14px; align-items: start; }
+  @media (max-width: 760px) { .row { grid-template-columns: 1fr; } }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+  .group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .label { color: var(--dim); font-size: 12px; letter-spacing: 0.1em; }
+  button, select { font-family: var(--font); font-size: 14px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); padding: 6px 10px; cursor: pointer; }
+  button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+  button.rec { border-color: #7a3a2a; }
+  button:disabled { opacity: 0.5; cursor: wait; }
+  input[type="range"] { accent-color: var(--accent); width: 120px; }
+  .log { margin: 0; padding: 10px 12px; list-style: none; background: var(--panel); border: 1px solid var(--line); min-height: 150px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+  .log li { display: flex; gap: 8px; }
+  .log time { color: var(--dim); font-variant-numeric: tabular-nums; flex: none; }
+  .log li.area { color: var(--accent); }
+  .log li.ev { color: var(--green); }
+  #status { color: var(--green); font-size: 13px; min-height: 1.2em; }
+  .out { display: flex; flex-direction: column; gap: 8px; }
+  .out img, .out video { max-width: 100%; image-rendering: pixelated; border: 1px solid var(--line); }
+  .hint { color: var(--dim); font-size: 12px; line-height: 1.6; margin: 0; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>レトロ電車の車窓</h1>
+    <span class="sub">ローカル線 / 320×180 ピクセル / 手続き生成</span>
+  </header>
+  <div class="screen">
+    <canvas id="view" width="1280" height="720"></canvas>
+    <div class="hud" aria-hidden="true"><span id="hud-area">田園</span><span id="hud-time">朝</span></div>
+  </div>
+  <div class="row">
+    <div class="controls">
+      <div class="group" role="group" aria-label="時間帯">
+        <span class="label">時間帯</span>
+        <button data-t="auto" aria-pressed="true">自動</button>
+        <button data-t="0.1" aria-pressed="false">朝</button>
+        <button data-t="0.32" aria-pressed="false">昼</button>
+        <button data-t="0.6" aria-pressed="false">夕</button>
+        <button data-t="0.84" aria-pressed="false">夜</button>
+      </div>
+      <div class="group">
+        <label class="label" for="cycle">一日の長さ</label>
+        <select id="cycle">
+          <option value="90">1分30秒</option>
+          <option value="180" selected>3分</option>
+          <option value="360">6分</option>
+        </select>
+        <button id="stops" aria-pressed="true">各駅に停まる</button>
+        <button id="pause" aria-pressed="false">一時停止</button>
+      </div>
+      <div class="group">
+        <label class="label" for="gifsec">GIF</label>
+        <select id="gifsec"><option value="4">4秒</option><option value="8" selected>8秒</option><option value="12">12秒</option></select>
+        <select id="gifscale" aria-label="GIFサイズ"><option value="1">320×180</option><option value="2" selected>640×360</option></select>
+        <button id="gif" class="rec">GIFを作る</button>
+        <button id="webm" class="rec">動画を録画</button>
+      </div>
+      <p class="hint">田んぼ、集落、鉄橋、海辺、山あいのトンネル、小さな町を走り、ときどき駅に停まります。踏切、犬の散歩、手を振る子ども、白サギ、対向列車、夕方のカラス、夜のホタルや花火などが現れます。できた GIF や動画は右クリック／長押しで保存できます。</p>
+    </div>
+    <ul class="log" id="log" aria-live="polite"></ul>
+  </div>
+  <div id="status" role="status"></div>
+  <div class="out" id="out"></div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const W = 320, H = 180, CX = 160;
+  const GX0 = 42, GX1 = 278, GY0 = 30, GY1 = 118, GR = 7, SASH0 = 70, SASH1 = 74;
+  const K_MT = 0.06, K_MT2 = 0.18, K_FAR = 0.5, K_MID = 2.4, K_NEAR = 8, K_TRACK2 = 11;
+  const Y_FAR = 84, Y_MID = 98, Y_NEAR = 112;
+
+  const low = document.createElement("canvas"); low.width = W; low.height = H;
+  const ctx = low.getContext("2d", { willReadFrequently: true });
+  const view = document.getElementById("view"), vctx = view.getContext("2d");
+  vctx.imageSmoothingEnabled = false;
+  const FONT = '"DotGothic16", "MS Gothic", monospace';
+  if (document.fonts && document.fonts.load) document.fonts.load(`10px ${FONT}`).catch(() => {});
+
+  // ---------- helpers ----------
+  function hash(i) { let h = Math.imul((i | 0) ^ 0x9e3779b9, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16; return (h >>> 0) / 4294967296; }
+  const h2 = (a, b) => hash(Math.imul(a | 0, 73856093) ^ Math.imul(b | 0, 19349663));
+  function noise1(t) { const i = Math.floor(t), f = t - i, u = f * f * (3 - 2 * f); return hash(i) + (hash(i + 1) - hash(i)) * u; }
+  const mod = (a, n) => ((a % n) + n) % n;
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const rgb = c => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
+  const rgba = (c, a) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${clamp(a, 0, 1).toFixed(3)})`;
+  const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  function rect(x, y, w, h, c) {
+    const x0 = Math.round(x), y0 = Math.round(y), x1 = Math.round(x + w), y1 = Math.round(y + h);
+    ctx.fillStyle = typeof c === "string" ? c : rgb(c);
+    ctx.fillRect(x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0));
+  }
+  const px = (x, y, c) => { ctx.fillStyle = typeof c === "string" ? c : rgb(c); ctx.fillRect(Math.round(x), Math.round(y), 1, 1); };
+  function pxLine(x0, y0, x1, y1, style, t = 1) {
+    ctx.fillStyle = typeof style === "string" ? style : rgb(style);
+    const dx = x1 - x0, dy = y1 - y0, n = Math.max(Math.abs(dx), Math.abs(dy)) | 0;
+    for (let i = 0; i <= n; i++) { const f = n ? i / n : 0; ctx.fillRect(Math.round(x0 + dx * f), Math.round(y0 + dy * f), t, t); }
+  }
+  function glow(x, y, r, c, a) {
+    if (r < 0.5 || a <= 0.01) return;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, rgba(c, a)); g.addColorStop(0.35, rgba(c, a * 0.35)); g.addColorStop(1, rgba(c, 0));
+    const prev = ctx.globalCompositeOperation; ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); ctx.globalCompositeOperation = prev;
+  }
+  function blob(x, y, w, h, c) { rect(x + 2, y, w - 4, h, c); rect(x, y + 2, w, h - 4, c); rect(x + 1, y + 1, w - 2, h - 2, c); }
+  function scaled(ox, oy, m) { ctx.save(); ctx.translate(ox, oy); ctx.scale(m, m); ctx.translate(-ox, -oy); }
+
+  // ---------- time of day ----------
+  const KEYS = [
+    [0.00, [70, 80, 140], [255, 170, 120], [0.85, 0.72, 0.66], 0.25],
+    [0.10, [100, 160, 225], [235, 225, 200], [1, 0.95, 0.88], 0],
+    [0.30, [60, 130, 225], [175, 215, 245], [1, 1, 1], 0],
+    [0.50, [80, 140, 220], [215, 215, 215], [1, 0.95, 0.86], 0],
+    [0.60, [90, 76, 150], [255, 140, 70], [1, 0.74, 0.52], 0.1],
+    [0.68, [40, 36, 90], [170, 90, 110], [0.6, 0.5, 0.62], 0.6],
+    [0.76, [8, 10, 32], [28, 32, 70], [0.3, 0.32, 0.48], 1],
+    [0.93, [10, 12, 36], [32, 36, 76], [0.3, 0.32, 0.48], 1],
+    [0.98, [30, 34, 80], [110, 80, 120], [0.45, 0.42, 0.55], 0.7],
+    [1.00, [70, 80, 140], [255, 170, 120], [0.85, 0.72, 0.66], 0.25],
+  ];
+  const T = { top: [0, 0, 0], bot: [0, 0, 0], li: [1, 1, 1], night: 0 };
+  function computeTOD(t) {
+    let i = 0; while (i < KEYS.length - 2 && KEYS[i + 1][0] <= t) i++;
+    const a = KEYS[i], b = KEYS[i + 1], f = smooth(0, 1, (t - a[0]) / (b[0] - a[0]));
+    T.top = mix(a[1], b[1], f); T.bot = mix(a[2], b[2], f); T.li = mix(a[3], b[3], f); T.night = lerp(a[4], b[4], f);
+  }
+  const todName = t => t < 0.2 ? "朝" : t < 0.52 ? "昼" : t < 0.7 ? "夕方" : "夜";
+  const L = c => [c[0] * T.li[0], c[1] * T.li[1], c[2] * T.li[2]];
+  const shade = (c, f) => mix(L(c), T.bot, f);
+
+  // ---------- route ----------
+  const STY = {
+    field:    { name: "田園",         len: [500, 800], mount: 0.8, msg: "青々とした田んぼの中を走る" },
+    village:  { name: "山あいの集落", len: [400, 650], mount: 1.2, msg: "瓦屋根の集落が見えてきた" },
+    river:    { name: "鉄橋",         len: [140, 220], mount: 0.6, msg: "鉄橋を渡る。ゴーッという音" },
+    coast:    { name: "海辺",         len: [600, 900], mount: 0.35, msg: "窓の外に海が広がった" },
+    mountain: { name: "山あい",       len: [400, 650], mount: 1.6, msg: "山あいを縫うように走る" },
+    tunnel:   { name: "トンネル",     len: [150, 260], mount: 1.8, msg: "トンネルに入った" },
+    town:     { name: "小さな町",     len: [400, 650], mount: 0.5, msg: "懐かしい町並みを抜けていく" },
+    station:  { name: "駅",           len: [140, 140], mount: 0.8, msg: "" },
+  };
+  const NEXT = {
+    field: ["village", "river", "coast", "mountain", "town"], village: ["field", "mountain", "town"],
+    river: ["field", "village", "town"], coast: ["field", "mountain", "village"],
+    mountain: ["tunnel", "village", "field", "tunnel"], tunnel: ["coast", "mountain", "field"], town: ["field", "river", "coast"],
+  };
+  const NAMES = ["ひだまり", "なつやま", "しおかぜ", "こもれび", "ほたるがわ", "あかね", "ゆうなぎ", "つきみの"];
+  const route = [{ b: "field", s0: -6000, s1: 260 }];
+  let sinceStation = 0, stationCount = 0;
+  function extendRoute(upto) {
+    while (route[route.length - 1].s1 < upto) {
+      const last = route[route.length - 1], n = route.length;
+      if (sinceStation >= 2 && last.b !== "tunnel" && last.b !== "river" && last.b !== "station") {
+        route.push({ b: "station", bg: last.b === "coast" ? "coast" : last.b, s0: last.s1, s1: last.s1 + 140, name: NAMES[stationCount % NAMES.length], idx: stationCount });
+        stationCount++; sinceStation = 0; continue;
+      }
+      const prev = last.b === "station" ? last.bg : last.b;
+      const opts = NEXT[prev];
+      const b = opts[Math.floor(hash(n * 977 + 13) * opts.length)];
+      const [a, c] = STY[b].len;
+      route.push({ b, s0: last.s1, s1: last.s1 + a + (c - a) * hash(n * 31 + 7) });
+      sinceStation++;
+    }
+  }
+  function segIndex(s) {
+    extendRoute(s + 10);
+    if (s < route[0].s1) return 0;
+    let lo = 0, hi = route.length - 1;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (route[m].s0 <= s) lo = m; else hi = m - 1; }
+    return lo;
+  }
+  const segAt = s => route[segIndex(s)];
+  const styleAt = s => { const g = segAt(s); return g.b === "station" ? g.bg : g.b; };
+  function mountAt(s) {
+    const i = segIndex(s), g = route[i], v = STY[g.b === "station" ? g.bg : g.b].mount, B = 150;
+    const sv = j => { const q = route[j]; return STY[q.b === "station" ? q.bg : q.b].mount; };
+    if (i > 0 && s - g.s0 < B) return lerp(sv(i - 1), v, 0.5 + 0.5 * (s - g.s0) / B);
+    if (g.s1 - s < B) { extendRoute(g.s1 + 10); return lerp(sv(i + 1), v, 0.5 + 0.5 * (g.s1 - s) / B); }
+    return v;
+  }
+
+  // ---------- state ----------
+  const S = {
+    time: 0, tod: 0.06, todMode: "auto", cycle: 180, camD: 0, v: 0, vmax: 17, accel: 0,
+    stopT: 0, departed: -1e9, stops: true, events: [], nextEvent: 3, area: "", paused: false, dither: true, bob: 0, shadow: 1,
+  };
+  const sx = (s, k) => CX + (s - S.camD) * k;
+  const sAt = (x, k) => S.camD + (x - CX) / k;
+  function baseY(k) {
+    const lk = Math.log(k), a = Math.log(K_FAR), b = Math.log(K_MID), c = Math.log(K_NEAR);
+    if (lk <= b) return Y_FAR + (Y_MID - Y_FAR) * (lk - a) / (b - a);
+    return Y_MID + (Y_NEAR - Y_MID) * (lk - b) / (c - b);
+  }
+  function cells(k, cell, marginM, fn) {
+    const s0 = sAt(-10, k) - marginM, s1 = sAt(W + 10, k) + marginM;
+    for (let i = Math.floor(s0 / cell); i * cell <= s1; i++) { const s = i * cell; fn(i, s, sx(s, k), styleAt(s)); }
+  }
+
+  // ---------- log ----------
+  const logEl = document.getElementById("log");
+  function clockStr() {
+    const m = Math.floor(mod(S.tod * 24 * 60 + 5 * 60, 24 * 60));
+    return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  }
+  function log(msg, cls = "ev") {
+    const li = document.createElement("li"); li.className = cls;
+    const t = document.createElement("time"); t.textContent = clockStr();
+    const sp = document.createElement("span"); sp.textContent = msg;
+    li.append(t, sp); logEl.prepend(li);
+    while (logEl.children.length > 7) logEl.lastChild.remove();
+  }
+
+  // ---------- train motion ----------
+  function nextStation() {
+    for (let i = segIndex(S.camD), n = 0; n < 60; i++, n++) {
+      while (route.length <= i + 1) extendRoute(route[route.length - 1].s1 + 1);
+      const g = route[i];
+      if (g.b === "station") { const c = g.s0 + 70; if (c > S.camD - 1 && c !== S.departed) return g; }
+    }
+    return null;
+  }
+  function stepTrain(dt) {
+    const v0 = S.v;
+    if (S.stopT > 0) {
+      S.stopT -= dt; S.v = 0;
+      if (S.stopT < 2.5 && !S.flagShown) { S.flagShown = true; }
+      if (S.stopT <= 0) { const g = segAt(S.camD); S.departed = g.s0 + 70; log("発車します。ガタン、ゴトン…"); }
+    } else {
+      const st = nextStation();
+      let vt = S.vmax;
+      if (st && S.stops) {
+        const dist = st.s0 + 70 - S.camD;
+        vt = Math.min(S.vmax, Math.max(dist > 0.4 ? 0.6 : 0, Math.sqrt(2 * 0.8 * Math.max(0, dist))));
+        if (dist < 0.4 && S.v < 1) {
+          S.v = 0; S.camD = st.s0 + 70; S.stopT = 9; S.flagShown = false;
+          log(`${st.name}駅に到着しました`, "area");
+          spawnStationPeople(st);
+        }
+      } else if (st && !S.stops) {
+        const dist = st.s0 + 70 - S.camD;
+        if (dist < 0 && st.s0 + 70 !== S.departed) { S.departed = st.s0 + 70; log(`${st.name}駅を通過`); }
+      }
+      if (S.stopT <= 0) {
+        if (vt > S.v) S.v = Math.min(vt, S.v + 0.6 * dt); else S.v = Math.max(vt, S.v - 1.3 * dt);
+      }
+    }
+    S.accel = lerp(S.accel, (S.v - v0) / Math.max(dt, 1e-3), Math.min(1, dt * 4));
+    S.camD += S.v * dt;
+    const ph = mod(S.camD, 25);
+    S.bob = S.v > 3 && (ph < 0.7 || (ph > 2.6 && ph < 3.3)) ? 1 : 0;
+  }
+
+  // ---------- events ----------
+  const LOOKS = [
+    { coat: [230, 230, 220], pants: [40, 50, 90], hair: [30, 24, 20] },
+    { coat: [200, 80, 80], pants: [60, 60, 80], hair: [50, 30, 20], long: true },
+    { coat: [90, 110, 150], pants: [50, 46, 40], hair: [20, 18, 16] },
+    { coat: [210, 180, 110], pants: [80, 70, 60], hair: [40, 30, 24], long: true },
+    { coat: [120, 150, 110], pants: [50, 50, 60], hair: [24, 20, 18] },
+  ];
+  const addEvent = e => { e.t = 0; e.seed = (Math.random() * 1e9) | 0; S.events.push(e); return e; };
+  const active = type => S.events.some(e => e.type === type);
+  const spawnS = (k, L, v) => (v < S.v ? sAt(W + 30, k) : sAt(-30, k) - L);
+  const isDay = () => T.night < 0.3;
+  const CANDS = {
+    field:    [["crossing", 3], ["dogwalk", 2], ["kids", 2], ["farmer", 2], ["heron", 2], ["bike", 1.5], ["oncoming", 2], ["crows", 2], ["plane", 1], ["fireflies", 2], ["fireworks", 1.2], ["shooting", 1]],
+    village:  [["crossing", 3], ["dogwalk", 2], ["kids", 2.5], ["bike", 1.5], ["oncoming", 1.5], ["crows", 2], ["fireworks", 1], ["fireflies", 1]],
+    river:    [["fisher", 3], ["fireflies", 2], ["crows", 1]],
+    coast:    [["fisher", 2], ["kids", 1], ["oncoming", 1.5], ["plane", 1.5], ["shooting", 1.5], ["fireworks", 1.5]],
+    mountain: [["oncoming", 1.5], ["crows", 1.5], ["shooting", 1.5], ["plane", 1]],
+    town:     [["crossing", 3], ["dogwalk", 2], ["bike", 2], ["oncoming", 1.5], ["crows", 2], ["fireworks", 1]],
+    tunnel:   [],
+  };
+  function trySpecial() {
+    const g = segAt(S.camD + 20);
+    if (g.b === "station" || g.b === "tunnel" || S.stopT > 0) return;
+    const st = g.b;
+    const cands = (CANDS[st] || []).filter(([t]) => {
+      if (active(t)) return false;
+      if (["kids", "farmer", "heron", "bike", "plane", "fisher", "dogwalk"].includes(t)) return isDay() || (t === "dogwalk" && T.night < 0.7);
+      if (t === "crows") return S.tod > 0.52 && S.tod < 0.7;
+      if (["fireflies", "fireworks", "shooting"].includes(t)) return T.night > 0.7;
+      if (t === "oncoming") return S.v > 8;
+      return true;
+    });
+    if (!cands.length) return;
+    let r = Math.random() * cands.reduce((a, c) => a + c[1], 0), t = cands[0][0];
+    for (const [n, w] of cands) if ((r -= w) <= 0) { t = n; break; }
+    spawnSpecial(t);
+  }
+  function spawnSpecial(t) {
+    let e;
+    switch (t) {
+      case "crossing": e = addEvent({ type: t, k: K_NEAR, v: 0, L: 8, dur: 40 }); e.s = sAt(W + 60, K_NEAR); e.car = Math.random() < 0.6; e.col = [[200, 60, 50], [230, 220, 190], [60, 110, 170]][(Math.random() * 3) | 0]; log("踏切だ。カンカンカン…"); break;
+      case "dogwalk": e = addEvent({ type: t, k: 4.5, v: 1.1, L: 1, dur: 60, look: LOOKS[(Math.random() * 5) | 0] }); e.s = spawnS(4.5, 1, e.v); log("あぜ道を犬の散歩をしている人がいる"); break;
+      case "kids": e = addEvent({ type: t, k: 5, v: 0, L: 3, dur: 40 }); e.s = sAt(W + 30, 5); log("子どもたちが電車に手を振っている"); break;
+      case "farmer": e = addEvent({ type: t, k: 3.5, v: 0, L: 1, dur: 60 }); e.s = sAt(W + 30, 3.5); log("田んぼで農家さんが作業している"); break;
+      case "heron": e = addEvent({ type: t, k: 3.5, v: 0, L: 1, dur: 60, fly: 0 }); e.s = sAt(W + 30, 3.5); break;
+      case "bike": e = addEvent({ type: t, k: 5, v: S.v * 0.85, L: 1, dur: 40, look: LOOKS[0] }); e.s = sAt(W + 10, 5); log("自転車の学生が電車と並走している"); break;
+      case "oncoming": e = addEvent({ type: t, k: K_TRACK2, v: -20, L: 120, dur: 20 }); e.s = sAt(W + 40, K_TRACK2); log("対向列車とすれ違った"); break;
+      case "crows": e = addEvent({ type: t, dur: 18, birds: Array.from({ length: 7 + ((Math.random() * 6) | 0) }, () => ({ x: W + 20 + Math.random() * 80, y: 36 + Math.random() * 24, ph: Math.random() * 6, v: 14 + Math.random() * 6 })) }); log("カラスが山へ帰っていく"); break;
+      case "plane": e = addEvent({ type: t, dur: 30, x: W + 20, y: 38 + Math.random() * 10 }); log("空に飛行機雲がのびていく"); break;
+      case "fireflies": e = addEvent({ type: t, dur: 25, flies: Array.from({ length: 28 }, () => ({ s: sAt(W * Math.random() + 40, 4), y: 92 + Math.random() * 18, ph: Math.random() * 6 })) }); log("ホタルがふわふわ光っている"); break;
+      case "fireworks": e = addEvent({ type: t, k: 0.35, dur: 16, s: sAt(170 + Math.random() * 90, 0.35), parts: [], rockets: [], next: 0 }); log("遠くで花火が上がっている"); break;
+      case "shooting": e = addEvent({ type: t, dur: 0.9, x0: 100 + Math.random() * 160, y0: 38 + Math.random() * 12, dx: -(60 + Math.random() * 40), dy: 20 }); log("流れ星！"); break;
+      case "fisher": e = addEvent({ type: t, k: 3, v: 0, L: 1, dur: 60 }); e.s = sAt(W + 30, 3); log("水辺で釣りをしている人がいる"); break;
+    }
+  }
+  function spawnStationPeople(st) {
+    const c = st.s0 + 70;
+    for (let i = 0; i < 4; i++) {
+      const e = addEvent({ type: "passenger", k: K_NEAR, v: 0, L: 1, dur: 9, look: LOOKS[(Math.random() * 5) | 0], dir: Math.random() < 0.5 ? -1 : 1, delay: Math.random() * 4 });
+      e.s = c - 14 + Math.random() * 28;
+    }
+  }
+  function updateEvents(dt) {
+    S.nextEvent -= dt;
+    if (S.nextEvent <= 0) { S.nextEvent = 5 + Math.random() * 6; trySpecial(); }
+    for (let i = S.events.length - 1; i >= 0; i--) {
+      const e = S.events[i];
+      e.t += dt;
+      if (e.k && e.type !== "fireworks") {
+        if (e.type === "bike") e.v = Math.max(0, lerp(e.v, S.v * 0.7, dt * 0.08));
+        if (e.type === "passenger") { if (e.t > e.delay) e.s += e.dir * 1.2 * dt; }
+        else e.s += e.v * dt;
+      }
+      if (e.type === "heron" && !e.fly && sx(e.s, e.k) < 190) { e.fly = e.t; log("白サギが飛び立った"); }
+      if (e.type === "fireworks") updateFireworks(e, dt);
+      if (e.type === "crows") for (const b of e.birds) b.x -= b.v * dt + S.v * 0.05 * dt;
+      let dead = e.t > e.dur;
+      if (e.k && e.type !== "fireworks") { const xb = sx(e.s + e.L, e.k); if (xb < -60 && e.type !== "passenger") dead = true; }
+      if (dead) S.events.splice(i, 1);
+    }
+  }
+  function updateFireworks(e, dt) {
+    e.next -= dt;
+    if (e.next <= 0 && e.t < e.dur - 3) { e.next = 0.6 + Math.random(); e.rockets.push({ ds: (Math.random() - 0.5) * 260, y: Y_FAR, ty: 38 + Math.random() * 22, t: 0 }); }
+    for (let i = e.rockets.length - 1; i >= 0; i--) {
+      const r = e.rockets[i]; r.t += dt; r.y = lerp(Y_FAR, r.ty, Math.min(1, r.t / 0.9));
+      if (r.t >= 0.9) {
+        const pal = [[255, 80, 80], [255, 210, 90], [120, 255, 140], [120, 170, 255], [255, 130, 220]];
+        const c = pal[(Math.random() * 5) | 0], n = 30 + ((Math.random() * 14) | 0), sp = 13 + Math.random() * 9;
+        for (let j = 0; j < n; j++) { const a = j / n * Math.PI * 2; e.parts.push({ ds: r.ds, x: 0, y: r.ty, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0, life: 1.4 + Math.random() * 0.5, c }); }
+        e.rockets.splice(i, 1);
+      }
+    }
+    for (let i = e.parts.length - 1; i >= 0; i--) { const p = e.parts[i]; p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 9 * dt; p.vx *= 1 - dt * 0.8; p.vy *= 1 - dt * 0.6; if (p.t > p.life) e.parts.splice(i, 1); }
+  }
+
+  // ---------- step ----------
+  function step(dt) {
+    S.time += dt;
+    if (S.todMode === "auto") S.tod = mod(S.tod + dt / S.cycle, 1);
+    computeTOD(S.tod);
+    stepTrain(dt);
+    const g = segAt(S.camD);
+    const key = g.b === "station" ? "station:" + g.idx : g.b;
+    if (key !== S.area) {
+      S.area = key;
+      if (g.b !== "station") log(STY[g.b].msg, "area");
+    }
+    updateEvents(dt);
+  }
+
+  // ---------- sky ----------
+  function sunPos() {
+    const t = S.tod;
+    if (t < 0.64) { const f = t / 0.64; return { x: lerp(GX1 + 5, GX0 - 5, f), y: Y_FAR - Math.sin(Math.PI * f) * 58 + 4, sun: true }; }
+    const f = (t - 0.66) / 0.34; return { x: lerp(GX1 + 5, GX0 - 5, f), y: Y_FAR - Math.sin(Math.PI * clamp(f, 0, 1)) * 50 + 4, sun: false };
+  }
+  function drawSky() {
+    const g = ctx.createLinearGradient(0, GY0, 0, Y_FAR);
+    g.addColorStop(0, rgb(T.top)); g.addColorStop(1, rgb(T.bot));
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, Y_FAR + 1);
+    const n = T.night;
+    if (n > 0.3) for (let i = 0; i < 70; i++) {
+      const tw = hash(i * 3 + 2), x = mod(hash(i * 3) * W - S.camD * 0.01, W), y = GY0 + hash(i * 3 + 1) * 46;
+      ctx.fillStyle = rgba([230, 230, 255], (n - 0.3) * (0.5 + 0.5 * Math.sin(S.time * (1 + tw * 3) + tw * 20)));
+      ctx.fillRect(x | 0, y | 0, 1, 1);
+    }
+    const p = sunPos();
+    if (p.sun && S.tod < 0.64) {
+      const low = 1 - clamp((Y_FAR - p.y) / 50, 0, 1);
+      const c = mix([255, 250, 225], [255, 150, 70], low);
+      glow(p.x, p.y, 40, c, 0.35);
+      ctx.fillStyle = rgb(c); ctx.beginPath(); ctx.arc(Math.round(p.x), Math.round(p.y), 6, 0, Math.PI * 2); ctx.fill();
+    } else if (!p.sun && S.tod > 0.67) {
+      glow(p.x, p.y, 24, [200, 200, 255], 0.2);
+      ctx.fillStyle = "rgb(240,236,210)"; ctx.beginPath(); ctx.arc(Math.round(p.x), Math.round(p.y), 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = rgb(T.top); ctx.beginPath(); ctx.arc(Math.round(p.x) + 3, Math.round(p.y) - 1, 4, 0, Math.PI * 2); ctx.fill();
+    }
+    // clouds
+    const cl = mix(mix([255, 255, 255], T.bot, 0.35), [60, 64, 90], n * 0.8);
+    const cs = mix(cl, [0, 0, 0], 0.18);
+    for (let i = 0; i < 9; i++) {
+      const w = 34 + hash(i * 17) * 50, hh = 8 + hash(i * 19) * 8;
+      const x = mod(hash(i * 23) * 600 - S.camD * 0.04 - S.time * 1.5, 600) - 100, y = GY0 + 4 + hash(i * 29) * 30;
+      blob(x, y + 2, w, hh, cs);
+      blob(x + 4, y, w - 12, hh - 2, cl);
+      blob(x + w * 0.3, y - 4, w * 0.4, hh, cl);
+    }
+  }
+  function drawMountains() {
+    const c1 = shade([120, 150, 185], 0.55), c2 = shade([60, 110, 80], 0.3);
+    for (let x = 0; x < W; x++) {
+      const s = sAt(x, K_MT), m = mountAt(s);
+      const h = m * (8 + 16 * noise1(s * 0.003) + 6 * noise1(s * 0.012));
+      rect(x, Y_FAR - h, 1, h + 1, c1);
+    }
+    for (let x = 0; x < W; x++) {
+      const s = sAt(x, K_MT2), m = mountAt(s);
+      const h = m * (2 + 10 * noise1(s * 0.007 + 40) + 4 * noise1(s * 0.03));
+      rect(x, Y_FAR - h, 1, h + 1, c2);
+      if (T.night < 0.3 && h > 6 && hash(Math.floor(s * 0.2)) > 0.85) px(x, Y_FAR - h + 2, shade([80, 130, 90], 0.3));
+    }
+  }
+  function waterCol(x, y0, y1, base, u, fog) {
+    rect(x, y0, 1, y1 - y0, shade(base, fog));
+    const p = sunPos();
+    const hl = p.sun ? mix([255, 240, 200], [255, 150, 80], 1 - clamp((Y_FAR - p.y) / 50, 0, 1)) : [220, 220, 200];
+    const glit = Math.abs(x - p.x) < 8 ? 1 - Math.abs(x - p.x) / 8 : 0;
+    for (let y = y0; y < y1; y++) {
+      const v = h2(u * 3 + y * 11, Math.floor(S.time * 4));
+      if (glit > 0 && v > 0.55) px(x, y, rgba(hl, glit * (p.sun ? 0.9 : 0.5)));
+      else if (v > 0.93) px(x, y, rgba(L([200, 230, 255]), 0.5));
+    }
+  }
+
+  // ---------- far ----------
+  function drawFar() {
+    const f = 0.35;
+    for (let x = 0; x < W; x++) {
+      const s = sAt(x, K_FAR), st = styleAt(s), u = Math.floor(s * 2);
+      if (st === "coast" || st === "river") waterCol(x, Y_FAR, Y_MID, [60, 120, 180], u, f);
+      else rect(x, Y_FAR, 1, Y_MID - Y_FAR, shade(st === "town" ? [120, 120, 110] : st === "mountain" || st === "tunnel" ? [50, 100, 60] : [100, 160, 80], f));
+    }
+    cells(K_FAR, 10, 40, (i, s, x, st) => {
+      const h = hash(i * 3 + 1);
+      if (st === "field" || st === "village") {
+        if (h < 0.25) { blob(x - 4, Y_FAR - 5, 9, 6, shade([50, 100, 60], f)); }
+        else if (h < 0.35) { rect(x - 2, Y_FAR - 3, 5, 3, shade([200, 190, 170], f)); rect(x - 3, Y_FAR - 4, 7, 1, shade([80, 90, 110], f)); if (T.night > 0.5) px(x, Y_FAR - 2, [255, 200, 120]); }
+      } else if (st === "town") {
+        const bw = 5 + hash(i * 5) * 6, bh = 3 + hash(i * 7) * 6;
+        rect(x - bw / 2, Y_FAR - bh, bw, bh, shade([150, 140, 130], f));
+        if (T.night > 0.5 && hash(i * 9) > 0.4) px(x, Y_FAR - bh + 2, [255, 200, 120]);
+        if (h > 0.96) { rect(x, Y_FAR - 18, 2, 18, shade([170, 110, 90], f)); smoke(x + 1, Y_FAR - 19, i, 0.6); }
+      } else if (st === "coast") {
+        if (h < 0.05) { rect(x - 8, Y_FAR - 4, 16, 4, shade([70, 110, 80], f)); blob(x - 5, Y_FAR - 7, 10, 5, shade([60, 100, 70], f)); }
+        if (h > 0.93) { rect(x - 3, Y_FAR - 1, 6, 2, shade([230, 230, 230], f)); px(x, Y_FAR - 2, shade([200, 60, 50], f)); }
+      } else if (st === "mountain" || st === "tunnel") {
+        blob(x - 5, Y_FAR - 7, 11, 8, shade([40, 90, 55], f));
+      }
+    });
+  }
+  function smoke(x, y, i, a) {
+    for (let j = 0; j < 6; j++) {
+      const t = mod(S.time * 0.5 + j / 6, 1);
+      const c = mix(L([230, 230, 230]), T.bot, 0.3);
+      blob(x - 2 + t * 10 + Math.sin(t * 6 + i) * 2, y - t * 18, 4 + t * 4, 3 + t * 2, rgba(c, a * (1 - t)));
+    }
+  }
+
+  // ---------- mid ----------
+  function drawMid() {
+    const f = 0.12;
+    for (let x = 0; x < W; x++) {
+      const s = sAt(x, K_MID), st = styleAt(s), u = Math.floor(s * K_MID);
+      if (st === "coast" || st === "river") {
+        waterCol(x, Y_MID, Y_NEAR, [50, 110, 170], u, f);
+        if (st === "coast") { rect(x, Y_NEAR - 3, 1, 3, shade([220, 200, 150], f)); if (noise1(u * 0.1 + S.time) > 0.7) px(x, Y_NEAR - 4, L([240, 250, 255])); }
+      } else if (st === "field") {
+        rect(x, Y_MID, 1, Y_NEAR - Y_MID, shade([90, 160, 70], f));
+        for (let y = Y_MID + 2; y < Y_NEAR; y += 3) px(x, y, shade([70, 135, 55], f));
+        if (u % 70 < 2) rect(x, Y_MID, 1, Y_NEAR - Y_MID, shade([120, 110, 80], f));
+      } else if (st === "town") rect(x, Y_MID, 1, Y_NEAR - Y_MID, shade([130, 125, 115], f));
+      else if (st === "village") { rect(x, Y_MID, 1, Y_NEAR - Y_MID, shade([100, 150, 80], f)); if (u % 5 === 0) px(x, Y_MID + 6, shade([80, 125, 60], f)); }
+      else rect(x, Y_MID, 1, Y_NEAR - Y_MID, shade([50, 100, 55], f));
+    }
+    cells(K_MID, 10, 30, (i, s, x, st) => {
+      const h = hash(i * 7 + 2);
+      if (st === "field") {
+        if (h < 0.1) farmhouse(x, i, f);
+        else if (h < 0.22) tree(x, Y_MID, 8, f);
+        else if (h < 0.25) scarecrow(x + 6, f);
+      } else if (st === "village") {
+        if (h < 0.45) woodHouse(x, i, f);
+        else if (h < 0.55) kura(x, f);
+        else if (h < 0.7) persimmon(x, f);
+        else if (h < 0.8) bamboo(x, i, f);
+      } else if (st === "town") {
+        if (h < 0.75) shop(x, i, f);
+        else if (h < 0.8) { rect(x, Y_MID - 50, 4, 50, shade([170, 110, 90], f)); rect(x - 1, Y_MID - 50, 6, 2, shade([90, 60, 50], f)); smoke(x + 2, Y_MID - 52, i, 0.8); }
+      } else if (st === "mountain" || st === "tunnel") {
+        for (let j = 0; j < 3; j++) { const tx = x + hash(i * 5 + j) * 26, th = 26 + hash(i * 9 + j) * 30; conifer(tx, Y_MID + 1, th, f); }
+        if (h > 0.95) { tree(x, Y_MID, 9, f); }
+      } else if (st === "coast") {
+        if (h < 0.12) pine(x, Y_NEAR - 3, f);
+        else if (h < 0.16) { const by = Y_MID + 6 + Math.round(Math.sin(S.time + i)); rect(x - 6, by, 12, 3, shade([230, 230, 225], f)); rect(x - 1, by - 5, 1, 5, shade([120, 90, 60], f)); }
+      }
+    });
+    const g = segAt(S.camD);
+    for (let i = segIndex(sAt(-40, K_MID)); i < route.length && route[i].s0 < sAt(W + 40, K_MID); i++) {
+      if (route[i].b === "station") stationBuilding(route[i], f);
+    }
+  }
+  function farmhouse(x, i, f) {
+    const x0 = Math.round(x - 16);
+    tree(x0 - 4, Y_MID, 9, f);
+    rect(x0, Y_MID - 9, 32, 9, shade([200, 190, 170], f));
+    for (let r = 0; r < 9; r++) rect(x0 - 3 + r * 1.3, Y_MID - 10 - r, 38 - r * 2.6, 1, shade([90, 90, 105], f));
+    rect(x0 + 6, Y_MID - 7, 5, 4, T.night > 0.5 ? [255, 200, 120] : shade([60, 50, 40], f));
+    rect(x0 + 18, Y_MID - 7, 8, 7, shade([110, 80, 55], f));
+  }
+  function woodHouse(x, i, f) {
+    const bw = 22 + Math.round(hash(i * 5) * 8), x0 = Math.round(x - bw / 2);
+    rect(x0, Y_MID - 12, bw, 12, shade([120, 86, 58], f));
+    for (let xx = 2; xx < bw; xx += 3) rect(x0 + xx, Y_MID - 12, 1, 12, shade([100, 70, 48], f));
+    for (let r = 0; r < 7; r++) { const ins = r * bw / 14; rect(x0 - 2 + ins, Y_MID - 13 - r, bw + 4 - ins * 2, 1, shade(r % 2 ? [70, 80, 100] : [80, 90, 112], f)); }
+    const lit = T.night > 0.5 && hash(i * 3) > 0.3;
+    rect(x0 + 3, Y_MID - 9, 5, 4, lit ? [255, 205, 130] : shade([220, 215, 200], f));
+    if (lit) glow(x0 + 5, Y_MID - 7, 8, [255, 190, 110], 0.3);
+    if (hash(i * 11) > 0.5 && T.night < 0.5) {
+      rect(x0 + bw + 2, Y_MID - 10, 1, 10, shade([120, 110, 100], f)); rect(x0 + bw + 12, Y_MID - 10, 1, 10, shade([120, 110, 100], f));
+      rect(x0 + bw + 2, Y_MID - 10, 11, 1, shade([150, 150, 150], f));
+      const cols = [[240, 240, 240], [220, 80, 80], [80, 130, 220], [240, 210, 80]];
+      for (let j = 0; j < 4; j++) rect(x0 + bw + 3 + j * 2.5, Y_MID - 9, 2, 3 + (j % 2), shade(cols[(i + j) % 4], f));
+    }
+  }
+  function kura(x, f) {
+    rect(x - 8, Y_MID - 14, 16, 14, shade([235, 230, 215], f));
+    rect(x - 8, Y_MID - 4, 16, 4, shade([60, 60, 70], f));
+    for (let r = 0; r < 4; r++) rect(x - 10 + r, Y_MID - 15 - r, 20 - r * 2, 1, shade([70, 76, 96], f));
+    rect(x - 2, Y_MID - 11, 4, 3, shade([50, 50, 55], f));
+  }
+  function persimmon(x, f) {
+    rect(x, Y_MID - 10, 2, 10, shade([90, 60, 40], f));
+    blob(x - 8, Y_MID - 22, 18, 13, shade([70, 120, 60], f));
+    for (let j = 0; j < 7; j++) px(x - 6 + hash(j * 3 + x) * 14, Y_MID - 20 + hash(j * 5 + x) * 9, shade([240, 130, 40], f));
+  }
+  function bamboo(x, i, f) {
+    for (let j = 0; j < 5; j++) { const bx = x + j * 3; rect(bx, Y_MID - 34, 1, 34, shade([110, 160, 90], f)); for (let y = Y_MID - 30; y < Y_MID; y += 6) px(bx, y, shade([80, 120, 70], f)); }
+    blob(x - 6, Y_MID - 42, 26, 14, shade([90, 150, 80], f));
+  }
+  function shop(x, i, f) {
+    const bw = 24 + Math.round(hash(i * 5) * 6), x0 = Math.round(x - bw / 2), hh = 20 + Math.round(hash(i * 7) * 6);
+    rect(x0, Y_MID - hh, bw, hh, shade([170, 160, 140], f));
+    rect(x0 - 1, Y_MID - hh - 1, bw + 2, 2, shade([90, 80, 70], f));
+    const sc = [[200, 60, 50], [60, 90, 160], [230, 200, 80], [60, 130, 90]][mod(i, 4)];
+    rect(x0 + 3, Y_MID - hh + 3, bw - 6, 5, shade(sc, f));
+    rect(x0 + 5, Y_MID - hh + 5, bw - 10, 1, shade([245, 245, 235], f));
+    rect(x0 + 2, Y_MID - 9, bw - 4, 9, T.night > 0.5 ? [240, 220, 170] : shade([80, 90, 100], f));
+    rect(x0 + 2, Y_MID - 10, bw - 4, 2, shade(sc, f));
+    if (T.night > 0.5) {
+      glow(x, Y_MID - 5, 16, [255, 210, 150], 0.35);
+      if (hash(i * 13) > 0.6) { rect(x0 + bw - 5, Y_MID - 16, 3, 5, [230, 60, 40]); glow(x0 + bw - 3.5, Y_MID - 13, 6, [255, 80, 40], 0.5); }
+    }
+  }
+  function tree(x, yb, r, f) { rect(x - 1, yb - r, 2, r, shade([90, 64, 44], f)); blob(x - r, yb - r * 2 - 2, r * 2, r + 3, shade([60, 120, 60], f)); }
+  function conifer(x, yb, h, f) {
+    const c = shade([40, 90, 55], f);
+    for (let r = 0; r < h; r++) { const t = r / h, hw = Math.max(0.5, h * 0.18 * t * (0.7 + 0.3 * ((r % 6) / 6))); rect(x - hw, yb - h + r, hw * 2, 1, c); }
+  }
+  function pine(x, yb, f) {
+    pxLine(x, yb, x + 5, yb - 16, shade([100, 70, 50], f), 2);
+    const c = shade([40, 90, 60], f);
+    rect(x - 2, yb - 19, 14, 3, c); rect(x + 1, yb - 23, 9, 3, c); rect(x - 5, yb - 12, 8, 2, c);
+  }
+  function scarecrow(x, f) {
+    rect(x, Y_MID - 10, 1, 10, shade([120, 90, 60], f)); rect(x - 4, Y_MID - 8, 9, 1, shade([120, 90, 60], f));
+    rect(x - 2, Y_MID - 8, 5, 4, shade([90, 110, 170], f)); rect(x - 1, Y_MID - 11, 3, 3, shade([230, 220, 200], f));
+    rect(x - 3, Y_MID - 12, 7, 1, shade([220, 190, 90], f));
+  }
+  function stationBuilding(g, f) {
+    const x = sx(g.s0 + 70, K_MID), x0 = Math.round(x - 30);
+    rect(x0, Y_MID - 14, 60, 14, shade([150, 110, 75], f));
+    for (let xx = 3; xx < 60; xx += 4) rect(x0 + xx, Y_MID - 14, 1, 14, shade([125, 90, 60], f));
+    for (let r = 0; r < 8; r++) rect(x0 - 4 + r * 1.5, Y_MID - 15 - r, 68 - r * 3, 1, shade([80, 90, 110], f));
+    rect(x0 + 24, Y_MID - 10, 12, 10, T.night > 0.5 ? [250, 230, 180] : shade([70, 60, 50], f));
+    if (T.night > 0.5) glow(x, Y_MID - 5, 20, [255, 210, 150], 0.4);
+  }
+
+  // ---------- near ----------
+  function drawNear() {
+    for (let x = 0; x < W; x++) {
+      const s = sAt(x, K_NEAR), st = styleAt(s), u = Math.floor(s * K_NEAR);
+      let c = st === "coast" ? [160, 150, 130] : st === "town" ? [130, 125, 120] : [90, 130, 60];
+      rect(x, Y_NEAR - 2, 1, GY1 - Y_NEAR + 4, shade(c, 0));
+      if (st !== "town" && st !== "coast" && hash(u) > 0.6) px(x, Y_NEAR - 3, shade([70, 120, 50], 0));
+      if (st === "field" || st === "village") {
+        const patch = hash(Math.floor(s / 40) * 13 + 5);
+        if (patch > 0.55 && hash(u * 7) > 0.8) {
+          if (patch > 0.8) { rect(x, Y_NEAR - 12, 1, 10, shade([70, 120, 50], 0)); rect(x - 1, Y_NEAR - 15, 3, 3, shade([250, 200, 40], 0)); px(x, Y_NEAR - 14, shade([120, 80, 30], 0)); }
+          else px(x, Y_NEAR - 4 - (u % 3), shade([[240, 120, 170], [250, 240, 245], [210, 60, 140]][u % 3], 0));
+        }
+      }
+    }
+    // crossing roads / farm lanes (perpendicular, drawn with perspective shear)
+    cells(K_NEAR, 90, 30, (i, s, x, st) => { if ((st === "field" || st === "village") && hash(i * 5 + 7) > 0.55) lane(s, [180, 170, 140], 2.5); });
+    // fence & kilometer posts
+    cells(K_NEAR, 3, 4, (i, s, x, st) => {
+      if (st === "tunnel" || st === "river" || segAt(s).b === "station") return;
+      if (hash(Math.floor(s / 60)) > 0.5) { rect(x, Y_NEAR - 8, 1, 8, shade([120, 100, 80], 0)); }
+      if (mod(i, 67) === 0) { rect(x, Y_NEAR - 7, 3, 7, shade([235, 235, 230], 0)); px(x + 1, Y_NEAR - 5, [30, 30, 30]); }
+    });
+    // catenary poles every 50 m, with feeder wire
+    const poles = [];
+    for (let n = Math.floor(sAt(-80, K_NEAR) / 50); n * 50 < sAt(W + 80, K_NEAR); n++) { const st = segAt(n * 50).b; if (st !== "tunnel") poles.push({ n, x: sx(n * 50, K_NEAR) }); }
+    for (let j = 0; j < poles.length - 1; j++) {
+      const a = poles[j], b = poles[j + 1];
+      if (b.n !== a.n + 1) continue;
+      for (const [yy, sag] of [[GY0 + 6, 6], [GY0 + 12, 5]]) {
+        ctx.fillStyle = rgb(shade([60, 60, 60], 0));
+        for (let x = Math.max(0, Math.ceil(a.x)); x <= Math.min(W, b.x); x++) { const t = (x - a.x) / (b.x - a.x); ctx.fillRect(x, Math.round(yy + sag * 4 * t * (1 - t)), 1, 1); }
+      }
+    }
+    for (const p of poles) {
+      const x = Math.round(p.x); if (x < -10 || x > W + 10) continue;
+      rect(x - 2, 0, 4, Y_NEAR, shade([110, 110, 105], 0)); px(x - 2, 60, shade([150, 150, 145], 0));
+      rect(x - 2, 0, 1, Y_NEAR, shade([140, 140, 135], 0));
+      rect(x - 8, GY0 + 4, 16, 2, shade([90, 90, 90], 0));
+    }
+  }
+  function lane(s, col, w) {
+    const pts = [[sx(s - w, K_NEAR), Y_NEAR], [sx(s + w, K_NEAR), Y_NEAR], [sx(s + w, K_FAR), Y_FAR], [sx(s - w, K_FAR), Y_FAR]];
+    if (Math.max(pts[0][0], pts[1][0]) < 0 && Math.max(pts[2][0], pts[3][0]) < 0) return;
+    ctx.fillStyle = rgb(shade(col, 0.1));
+    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (const p of pts.slice(1)) ctx.lineTo(p[0], p[1]); ctx.closePath(); ctx.fill();
+  }
+  function drawStructures() {
+    const sL = sAt(-20, K_NEAR), sR = sAt(W + 20, K_NEAR);
+    for (let i = segIndex(sL); i < route.length && route[i].s0 < sR; i++) {
+      const g = route[i];
+      if (g.b === "river") truss(g);
+      if (g.b === "tunnel") tunnel(g);
+      if (g.b === "station") platform(g);
+    }
+  }
+  function truss(g) {
+    const c = shade([60, 70, 80], 0), hi = shade([100, 110, 120], 0);
+    const xa = sx(g.s0, K_NEAR), xb = sx(g.s1, K_NEAR);
+    for (let x = Math.max(0, Math.floor(xa)); x < Math.min(W, xb); x++) { rect(x, GY0 + 2, 1, 4, c); px(x, GY0 + 2, hi); rect(x, Y_NEAR - 6, 1, 8, c); }
+    for (let n = Math.max(0, Math.floor((sL(K_NEAR) - g.s0) / 8)); ; n++) {
+      const s = g.s0 + n * 8; if (s > g.s1 || sx(s, K_NEAR) > W + 30) break;
+      const x = sx(s, K_NEAR), x2 = sx(Math.min(g.s1, s + 8), K_NEAR);
+      rect(x - 2, GY0 + 2, 4, Y_NEAR - GY0, c); rect(x - 2, GY0 + 2, 1, Y_NEAR - GY0, hi);
+      if (s + 8 <= g.s1) { if (n % 2) pxLine(x, GY0 + 6, x2, Y_NEAR - 6, c, 3); else pxLine(x, Y_NEAR - 6, x2, GY0 + 6, c, 3); }
+    }
+  }
+  const sL = k => sAt(-30, k);
+  let inTunnel = 0;
+  function tunnel(g) {
+    const xa = Math.max(0, Math.floor(sx(g.s0, K_NEAR))), xb = Math.min(W, Math.ceil(sx(g.s1, K_NEAR)));
+    if (xb <= xa) return;
+    for (let x = xa; x < xb; x++) {
+      const s = sAt(x, K_NEAR), d = mod(s - g.s0, 20) - 10, li = 0.25 + 0.9 * Math.exp(-d * d / 4);
+      rect(x, 0, 1, H, [30 * li, 28 * li, 26 * li]);
+      if (mod(Math.floor(s * K_NEAR), 36) === 0) rect(x, 40, 1, 70, [18 * li, 16 * li, 14 * li]);
+    }
+    for (let n = Math.floor((sAt(-20, K_NEAR) - g.s0) / 20); ; n++) {
+      const s = g.s0 + n * 20 + 10; if (s > g.s1 || sx(s, K_NEAR) > W + 20) break; if (s < g.s0) continue;
+      const x = sx(s, K_NEAR); rect(x - 4, 60, 8, 2, [255, 230, 170]); glow(x, 61, 16, [255, 200, 120], 0.5);
+    }
+    for (const s of [g.s0, g.s1]) { const x = sx(s, K_NEAR); if (x > -12 && x < W + 12) rect(x - 5, 0, 10, H, shade([140, 135, 125], 0)); }
+    const cx = CX; if (sx(g.s0, K_NEAR) < cx && sx(g.s1, K_NEAR) > cx) inTunnel = 1;
+  }
+  function platform(g) {
+    const xa = sx(g.s0, K_NEAR), xb = sx(g.s1, K_NEAR);
+    const top = 100;
+    for (let x = Math.max(0, Math.floor(xa)); x < Math.min(W, xb); x++) {
+      const u = Math.floor(sAt(x, K_NEAR) * K_NEAR);
+      rect(x, top, 1, H, shade([170, 165, 155], 0));
+      px(x, top, shade([235, 235, 225], 0)); px(x, top + 1, shade([235, 235, 225], 0));
+      if (u % 24 === 0) px(x, top + 6, shade([140, 135, 125], 0));
+      rect(x, GY0 - 2, 1, 10, shade([90, 70, 55], 0)); px(x, GY0 + 7, shade([60, 45, 35], 0));
+    }
+    for (let s = g.s0 + 6; s < g.s1; s += 12) {
+      const x = sx(s, K_NEAR); if (x < -10 || x > W + 10) continue;
+      rect(x - 1, GY0 + 7, 3, top - GY0 - 7, shade([120, 95, 70], 0)); px(x - 1, GY0 + 20, shade([150, 120, 90], 0));
+      if (T.night > 0.4) { rect(x - 3, GY0 + 10, 7, 2, [255, 235, 190]); glow(x, GY0 + 12, 22, [255, 220, 160], 0.45); }
+    }
+    for (const ds of [-30, 30]) {
+      const x = sx(g.s0 + 70 + ds, K_NEAR); if (x < -30 || x > W + 30) continue;
+      rect(x - 10, top - 6, 20, 2, shade([130, 90, 60], 0)); rect(x - 9, top - 4, 1, 4, shade([80, 60, 40], 0)); rect(x + 8, top - 4, 1, 4, shade([80, 60, 40], 0));
+      rect(x - 10, top - 10, 20, 1, shade([130, 90, 60], 0));
+    }
+    // station name board
+    const x = Math.round(sx(g.s0 + 70 + 12, K_NEAR));
+    if (x > -60 && x < W + 60) {
+      rect(x - 1, 70, 2, 30, shade([100, 100, 100], 0)); rect(x + 44, 70, 2, 30, shade([100, 100, 100], 0));
+      rect(x - 4, 52, 54, 22, shade([245, 245, 238], 0));
+      rect(x - 4, 52, 54, 1, shade([60, 60, 60], 0)); rect(x - 4, 73, 54, 1, shade([60, 60, 60], 0));
+      rect(x - 4, 67, 54, 2, shade([40, 110, 60], 0));
+      ctx.fillStyle = rgb(shade([30, 30, 30], 0)); ctx.font = `11px ${FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+      ctx.fillText(g.name, x + 23, 64);
+      ctx.font = `6px ${FONT}`; ctx.fillStyle = rgb(shade([60, 60, 60], 0));
+      ctx.textAlign = "left"; ctx.fillText(NAMES[mod(g.idx - 1, NAMES.length)], x - 2, 73 + 7 > 80 ? 72 : 72);
+      ctx.textAlign = "right"; ctx.fillText(NAMES[mod(g.idx + 1, NAMES.length)], x + 48, 72);
+      ctx.textAlign = "left";
+      if (T.night > 0.4) glow(x + 23, 62, 30, [255, 240, 200], 0.2);
+    }
+    // clock + cat on bench + station master
+    const cx = Math.round(sx(g.s0 + 70 - 30, K_NEAR));
+    if (cx > -20 && cx < W + 20) {
+      const cy = top - 13;
+      rect(cx - 3, cy - 1, 4, 3, shade([200, 150, 60], 0)); px(cx - 3, cy - 2, shade([200, 150, 60], 0)); px(cx, cy - 2, shade([200, 150, 60], 0)); px(cx + 1, cy + 1, shade([200, 150, 60], 0));
+    }
+    const mx = Math.round(sx(g.s0 + 70 - 8, K_NEAR));
+    if (mx > -20 && mx < W + 20) {
+      drawPerson(mx, top, 1, 0, { coat: [40, 50, 80], pants: [40, 50, 80], hair: [40, 50, 80] }, {});
+      rect(mx - 2, top - 16, 5, 1, shade([30, 30, 50], 0)); px(mx, top - 16, [230, 190, 60]);
+      if (S.stopT > 0 && S.stopT < 3) { rect(mx + 2, top - 20, 1, 9, shade([200, 200, 200], 0)); rect(mx + 3, top - 20, 5, 4, [230, 60, 50]); }
+    }
+  }
+
+  // ---------- people & events ----------
+  function drawPerson(x, yb, dir, phase, look, o) {
+    x = Math.round(x); yb = Math.round(yb);
+    const sh = c => shade(c, 0), st = Math.floor(phase) & 1;
+    const pc = sh(look.pants);
+    if (o.bend) { rect(x - 1, yb - 5, 1, 5, pc); rect(x + 1, yb - 5, 1, 5, pc); rect(x - 3, yb - 9, 6, 4, sh(look.coat)); rect(x + 2 * dir, yb - 10, 3, 3, sh([200, 150, 120])); rect(x + dir - 1, yb - 12, 6, 2, sh([220, 190, 90])); return; }
+    if (st) { rect(x - 2, yb - 5, 1, 5, pc); rect(x + 1, yb - 5, 1, 5, pc); } else { rect(x - 1, yb - 5, 1, 5, pc); rect(x, yb - 5, 1, 5, pc); }
+    rect(x - 2, yb - 11, 4, 6, sh(look.coat));
+    if (o.wave) { const up = Math.floor(S.time * 6) & 1; rect(x + 2, yb - (up ? 16 : 14), 1, up ? 5 : 3, sh(look.coat)); }
+    else rect(x + (st ? dir * 2 : -dir * 2), yb - 10, 1, 4, sh(look.coat));
+    rect(x - 1, yb - 14, 3, 3, sh([210, 160, 125]));
+    rect(x - 1, yb - 15, 3, 1, sh(look.hair || [30, 24, 20]));
+    if (look.long) px(x - dir, yb - 13, sh(look.hair));
+    if (o.hat) rect(x - 3, yb - 15, 7, 1, sh([230, 200, 100]));
+  }
+  function tiny(x, yb, c, o = {}) {
+    x = Math.round(x); yb = Math.round(yb);
+    rect(x - 1, yb - 5, 2, 3, shade(c, 0.1)); rect(x - 1, yb - 2, 1, 2, shade([60, 60, 70], 0.1)); px(x, yb - 1, shade([60, 60, 70], 0.1));
+    px(x - 1, yb - 6, shade([210, 160, 125], 0.1)); px(x, yb - 6, shade([210, 160, 125], 0.1));
+    if (o.hat) rect(x - 2, yb - 7, 4, 1, shade([230, 200, 100], 0.1));
+    if (o.wave) { const up = Math.floor(S.time * 6 + (o.ph || 0)) & 1; px(x + 1, yb - (up ? 7 : 6), shade(c, 0.1)); px(x + 1, yb - 5, shade(c, 0.1)); }
+  }
+  function drawEvent(e) {
+    switch (e.type) {
+      case "crossing": {
+        lane(e.s + 4, [110, 110, 115], 3);
+        const near = Math.abs(e.s + 4 - S.camD) < 80, on = near && (Math.floor(S.time * 3) & 1);
+        for (const ds of [-1, 9]) {
+          const x = Math.round(sx(e.s + ds, K_NEAR)); if (x < -20 || x > W + 20) continue;
+          rect(x, 60, 2, Y_NEAR - 60, shade([240, 240, 240], 0));
+          for (let y = 62; y < Y_NEAR; y += 6) rect(x, y, 2, 3, shade([30, 30, 30], 0));
+          pxLine(x - 6, 54, x + 7, 62, shade([240, 240, 240], 0), 2); pxLine(x + 7, 54, x - 6, 62, shade([240, 240, 240], 0), 2);
+          rect(x - 6, 66, 14, 1, shade([30, 30, 30], 0));
+          for (const [dx, lit] of [[-6, on], [5, near && !on]]) { rect(x + dx, 67, 4, 4, lit ? [255, 60, 40] : shade([60, 30, 30], 0)); if (lit) glow(x + dx + 2, 69, 12, [255, 60, 40], 0.7); }
+          for (let j = 0; j < 7; j++) rect(x + 2 + j * 3, 90, 3, 2, j & 1 ? shade([30, 30, 30], 0) : shade([240, 200, 40], 0));
+        }
+        if (e.car) {
+          const x = sx(e.s + 4, 4.2), y = baseY(4.2);
+          rect(x - 7, y - 6, 14, 4, shade(e.col, 0.05)); rect(x - 4, y - 9, 8, 3, shade(e.col, 0.05)); rect(x - 3, y - 8, 6, 2, shade([150, 190, 220], 0.05));
+          rect(x - 6, y - 2, 3, 2, [20, 20, 20]); rect(x + 3, y - 2, 3, 2, [20, 20, 20]);
+          if (T.night > 0.4) { px(x - 6, y - 4, [255, 250, 220]); glow(x - 6, y - 4, 10, [255, 250, 220], 0.5); }
+        }
+        const bx = sx(e.s + 6, 5.5); tiny(bx, baseY(5.5), [220, 220, 220]); rect(bx - 4, baseY(5.5) - 2, 8, 1, shade([40, 40, 40], 0));
+        break;
+      }
+      case "dogwalk": {
+        const x = sx(e.s, e.k), y = baseY(e.k);
+        tiny(x, y, e.look.coat);
+        const dx = x + 5, st = Math.floor(e.t * 5) & 1;
+        rect(dx - 2, y - 3, 4, 2, shade([200, 150, 90], 0.05)); rect(dx + 1, y - 4, 2, 2, shade([200, 150, 90], 0.05));
+        px(dx - 2 + st, y - 1, shade([200, 150, 90], 0.05)); px(dx + 1 - st, y - 1, shade([200, 150, 90], 0.05)); px(dx - 3, y - 4 + st, shade([200, 150, 90], 0.05));
+        pxLine(x + 1, y - 4, dx + 1, y - 3, shade([180, 40, 40], 0.05));
+        break;
+      }
+      case "kids": for (let j = 0; j < 3; j++) tiny(sx(e.s + j * 1.2, e.k), baseY(e.k), [[240, 240, 240], [230, 110, 110], [110, 170, 230]][j], { wave: true, hat: j === 1, ph: j }); break;
+      case "farmer": {
+        const x = sx(e.s, e.k), y = baseY(e.k);
+        rect(x - 2, y - 4, 4, 3, shade([90, 110, 150], 0.1)); px(x + 2, y - 4, shade([210, 160, 125], 0.1)); rect(x + 1, y - 6, 4, 1, shade([230, 200, 100], 0.1)); rect(x - 1, y - 1, 1, 1, shade([60, 60, 60], 0.1)); px(x + 1, y - 1, shade([60, 60, 60], 0.1));
+        break;
+      }
+      case "heron": {
+        let x = sx(e.s, e.k), y = baseY(e.k);
+        const c = shade([250, 250, 245], 0.05);
+        if (e.fly) {
+          const ft = e.t - e.fly; x += ft * 18; y -= ft * 14;
+          const up = Math.floor(e.t * 5) & 1;
+          rect(x - 2, y - 2, 5, 2, c); px(x + 3, y - 3, c); px(x + 4, y - 3, shade([230, 180, 60], 0));
+          pxLine(x - 1, y - 2, x - 5, y - (up ? 6 : 0), c); pxLine(x + 1, y - 2, x + 4, y - (up ? 6 : 0), c);
+        } else {
+          rect(x - 2, y - 5, 4, 2, c); px(x + 1, y - 7, c); px(x + 1, y - 6, c); px(x + 2, y - 8, c); px(x + 3, y - 8, shade([230, 180, 60], 0));
+          px(x, y - 3, shade([60, 60, 60], 0)); px(x, y - 2, shade([60, 60, 60], 0)); px(x, y - 1, shade([60, 60, 60], 0));
+        }
+        break;
+      }
+      case "bike": {
+        const x = Math.round(sx(e.s, e.k)), y = Math.round(baseY(e.k));
+        ctx.strokeStyle = rgb(shade([40, 40, 40], 0.05)); ctx.lineWidth = 1;
+        for (const wx of [x - 4, x + 4]) { ctx.beginPath(); ctx.arc(wx, y - 2.5, 2.5, 0, Math.PI * 2); ctx.stroke(); }
+        pxLine(x - 4, y - 3, x, y - 6, shade([200, 40, 40], 0.05)); pxLine(x, y - 6, x + 4, y - 3, shade([200, 40, 40], 0.05));
+        rect(x - 1, y - 11, 3, 5, shade([240, 240, 240], 0.05)); rect(x - 1, y - 13, 3, 2, shade([210, 160, 125], 0.05)); rect(x - 1, y - 14, 3, 1, shade([30, 30, 30], 0.05));
+        break;
+      }
+      case "oncoming": {
+        const k = e.k;
+        for (let c = 0; c < 6; c++) {
+          const xa = sx(e.s + c * 20 + 0.4, k), xb = sx(e.s + c * 20 + 19.6, k);
+          if (xb < GX0 - 10 || xa > GX1 + 10) continue;
+          rect(xa, 44, xb - xa, 80, shade([230, 130, 50], 0));
+          rect(xa, 90, xb - xa, 14, shade([40, 110, 60], 0));
+          rect(xa, 44, xb - xa, 3, shade([120, 120, 115], 0));
+          for (let wx = xa + 12; wx < xb - 20; wx += 30) {
+            rect(wx, 54, 22, 26, shade([150, 180, 200], 0));
+            rect(wx, 54, 22, 2, shade([240, 240, 235], 0));
+            if (h2(e.seed + c, wx | 0) > 0.4) { rect(wx + 6, 64, 8, 16, shade([60, 50, 60], 0)); rect(wx + 7, 60, 6, 5, shade([60, 50, 50], 0)); }
+          }
+          rect(xa - 2, 44, 3, 80, [20, 20, 20]);
+        }
+        break;
+      }
+      case "crows": {
+        for (const b of e.birds) {
+          const up = Math.floor(e.t * 5 + b.ph) & 1, c = [20, 16, 24];
+          px(b.x, b.y, c); px(b.x + 1, b.y, c);
+          px(b.x - 1, b.y - (up ? 1 : -1), c); px(b.x + 2, b.y - (up ? 1 : -1), c);
+          px(b.x - 2, b.y - (up ? 2 : -1), c); px(b.x + 3, b.y - (up ? 2 : -1), c);
+        }
+        break;
+      }
+      case "plane": {
+        const x = e.x - e.t * 9, y = e.y;
+        const g = ctx.createLinearGradient(x, 0, x + 180, 0);
+        g.addColorStop(0, rgba([255, 255, 255], 0.8)); g.addColorStop(1, rgba([255, 255, 255], 0));
+        ctx.fillStyle = g; ctx.fillRect(Math.round(x + 3), Math.round(y), 180, 1); ctx.fillRect(Math.round(x + 3), Math.round(y) + 2, 150, 1);
+        rect(x - 2, y, 5, 2, [235, 235, 240]); px(x + 1, y - 1, [235, 235, 240]);
+        break;
+      }
+      case "fireflies": {
+        for (const f of e.flies) {
+          const x = sx(f.s, 4) + Math.sin(S.time + f.ph) * 3, y = f.y + Math.sin(S.time * 0.7 + f.ph * 2) * 2;
+          const a = Math.max(0, Math.sin(S.time * 2 + f.ph)) * Math.min(1, e.t) * Math.min(1, e.dur - e.t);
+          if (a > 0.05) { px(x, y, rgba([220, 255, 120], a)); glow(x, y, 4, [200, 255, 100], a * 0.5); }
+        }
+        break;
+      }
+      case "fireworks": {
+        for (const r of e.rockets) px(sx(e.s + r.ds, e.k), r.y, [255, 220, 170]);
+        for (const p of e.parts) { const x = sx(e.s + p.ds, e.k) + p.x, a = 1 - p.t / p.life; px(x, p.y, rgba(p.c, a)); px(x - p.vx * 0.05, p.y - p.vy * 0.05, rgba(p.c, a * 0.4)); }
+        break;
+      }
+      case "shooting": {
+        const p = e.t / e.dur, hx = e.x0 + e.dx * p * 1.5, hy = e.y0 + e.dy * p * 1.5;
+        for (let j = 0; j < 12; j++) px(hx - e.dx * j * 0.012, hy - e.dy * j * 0.012, rgba([255, 255, 230], (1 - j / 12) * (1 - p)));
+        break;
+      }
+      case "fisher": {
+        const x = sx(e.s, e.k), y = baseY(e.k);
+        tiny(x, y, [110, 130, 90], { hat: true });
+        const bend = Math.sin(e.t * 0.8) > 0.8 ? 3 : 0;
+        pxLine(x + 1, y - 4, x + 10, y - 13 + bend, shade([60, 50, 40], 0.1));
+        pxLine(x + 10, y - 13 + bend, x + 14, y + 3, rgba(L([230, 230, 230]), 0.6));
+        break;
+      }
+      case "passenger": {
+        const x = sx(e.s, K_NEAR);
+        drawPerson(x, 100, e.dir, e.t > e.delay ? e.s * 1.5 : 0, e.look, {});
+        break;
+      }
+    }
+  }
+
+  // ---------- cabin ----------
+  function glassSpan(y) {
+    if (y < GY0 || y >= GY1) return null;
+    let dy = 0;
+    if (y < GY0 + GR) dy = GY0 + GR - y - 0.5; else if (y >= GY1 - GR) dy = y - (GY1 - GR) + 0.5;
+    const ins = dy > 0 ? GR - Math.sqrt(Math.max(0, GR * GR - dy * dy)) : 0;
+    return [GX0 + Math.round(ins), GX1 - Math.round(ins)];
+  }
+  function drawCabin() {
+    const lamp = Math.max(T.night, inTunnel);
+    const day = T.li;
+    const cl = [Math.min(1.1, day[0] * 0.8 + lamp * 0.7), Math.min(1.1, day[1] * 0.8 + lamp * 0.7), Math.min(1.1, day[2] * 0.8 + lamp * 0.62)];
+    const sh = S.shadow;
+    const C = (c, k = 1) => [c[0] * cl[0] * (0.8 + 0.2 * sh) * k, c[1] * cl[1] * (0.8 + 0.2 * sh) * k, c[2] * cl[2] * (0.8 + 0.2 * sh) * k];
+
+    // reflection on glass at night / in tunnels
+    const refl = Math.max(inTunnel * 0.6, T.night * 0.35);
+    if (refl > 0.02) {
+      ctx.fillStyle = rgba(C([150, 160, 140]), refl * 0.25); ctx.fillRect(GX0, GY0, GX1 - GX0, GY1 - GY0);
+      ctx.fillStyle = rgba(C([40, 40, 50]), refl * 0.6);
+      ctx.beginPath(); ctx.arc(200, 104, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.fillRect(186, 112, 28, 8);
+      for (const [x0, x1] of [[60, 120], [200, 260]]) { ctx.fillStyle = rgba([255, 255, 240], refl * 0.5); ctx.fillRect(x0, GY0 + 3, x1 - x0, 1); }
+    }
+
+    const wallU = C([205, 210, 185]), wallL = C([90, 128, 106]), frame = C([130, 88, 54]), frameHi = C([175, 125, 80]);
+    for (let y = 0; y < GY1 + 6; y++) {
+      const g = glassSpan(y);
+      const fr = (() => { const yy = clamp(y, GY0, GY1 - 1); const gg = glassSpan(yy); return gg; })();
+      if (y < GY0 - 5) { rect(0, y, W, 1, wallU); continue; }
+      if (!g) {
+        const inFrame = y >= GY0 - 5 && y < GY1 + 5;
+        rect(0, y, W, 1, wallU);
+        if (inFrame && fr) rect(fr[0] - 5, y, fr[1] - fr[0] + 10, 1, y === GY0 - 5 ? frameHi : frame);
+        continue;
+      }
+      rect(0, y, g[0] - 5, 1, wallU); rect(g[1] + 5, y, W - g[1] - 5, 1, wallU);
+      rect(g[0] - 5, y, 5, 1, frame); rect(g[1], y, 5, 1, frame);
+      px(g[0] - 5, y, frameHi); px(g[1] + 4, y, C([90, 60, 36]));
+    }
+    // sash (window split)
+    rect(GX0, SASH0, GX1 - GX0, SASH1 - SASH0, frame); rect(GX0, SASH0, GX1 - GX0, 1, frameHi);
+    for (const lx of [110, 210]) { rect(lx, SASH0 + 1, 6, 2, C([200, 200, 195])); px(lx, SASH0 + 1, C([255, 255, 250])); }
+    // table / sill
+    rect(20, GY1 + 5, 280, 8, C([160, 112, 66])); rect(20, GY1 + 5, 280, 1, C([200, 150, 95])); rect(20, GY1 + 12, 280, 2, C([90, 60, 36]));
+    // lower wall with heater grille
+    rect(0, GY1 + 14, W, H, wallL);
+    rect(0, GY1 + 14, W, 1, C([60, 90, 74]));
+    for (let y = 152; y < 170; y += 3) rect(80, y, 160, 1, C([50, 76, 62]));
+    rect(78, 150, 164, 1, C([120, 150, 130])); rect(0, 176, W, 4, C([60, 50, 44]));
+    // frozen mandarins in a red net + ramune bottle
+    for (const [ox, oy] of [[92, 120], [98, 120], [95, 115], [101, 116]]) {
+      ctx.fillStyle = rgb(C([240, 140, 40])); ctx.beginPath(); ctx.arc(ox, oy, 3, 0, Math.PI * 2); ctx.fill();
+      px(ox - 1, oy - 1, C([255, 200, 120]));
+    }
+    for (let y = 113; y < 123; y += 3) rect(89, y, 16, 1, rgba(C([210, 40, 40]), 0.7));
+    rect(95, 110, 2, 3, C([210, 40, 40]));
+    ctx.fillStyle = rgba(C([150, 210, 230]), 0.85); ctx.fillRect(226, 109, 6, 14); ctx.fillRect(227, 102, 4, 7);
+    rect(227, 100, 4, 2, C([60, 120, 200])); px(229, 105, C([230, 250, 255])); px(227, 111, C([255, 255, 255])); px(227, 112, C([255, 255, 255]));
+    // seat backs with white headrest cloths
+    for (const [x0, x1, dir] of [[0, 30, 1], [290, W, -1]]) {
+      for (let y = 36; y < H; y++) {
+        const round = y < 44 ? Math.round(Math.sqrt(64 - (44 - y) ** 2) - 8) : 0;
+        const a = dir > 0 ? x0 : x0 - round, b = dir > 0 ? x1 + round : x1;
+        rect(a, y, b - a, 1, y < 60 ? C([238, 238, 228]) : C([60, 90, 130]));
+        px(dir > 0 ? b - 1 : a, y, y < 60 ? C([200, 200, 190]) : C([90, 120, 160]));
+      }
+      for (let y = 64; y < H; y += 3) rect(dir > 0 ? 2 : 292, y, 26, 1, C([52, 80, 118]));
+    }
+    // luggage rack with suitcase and straw hat
+    rect(24, 8, 272, 12, rgba(C([40, 40, 40]), 0.35));
+    for (let y = 9; y < 20; y += 2) for (let x = 24 + (y % 4); x < 296; x += 4) px(x, y, C([150, 150, 150]));
+    rect(24, 19, 272, 2, C([200, 200, 205])); rect(24, 7, 272, 1, C([200, 200, 205]));
+    rect(56, 0, 34, 8, C([140, 80, 50])); rect(56, 3, 34, 1, C([90, 50, 30])); rect(70, 0, 6, 1, C([60, 40, 30]));
+    ctx.fillStyle = rgb(C([230, 200, 110])); ctx.beginPath(); ctx.ellipse(236, 6, 14, 3, 0, 0, Math.PI * 2); ctx.fill();
+    rect(229, 1, 14, 5, C([230, 200, 110])); rect(229, 4, 14, 1, C([200, 50, 50]));
+    // ceiling fan (partially visible)
+    const fa = S.time * 7;
+    for (let j = 0; j < 3; j++) { const a = fa + j * 2.094; pxLine(160, 2, 160 + Math.cos(a) * 14, 2 + Math.sin(a) * 3, C([90, 90, 95]), 2); }
+    rect(157, 0, 7, 4, C([120, 120, 125]));
+    // fluorescent lamps
+    for (const [x0, x1] of [[34, 120], [200, 286]]) {
+      rect(x0, 0, x1 - x0, 2, lamp > 0.3 ? [250, 252, 240] : C([220, 220, 215]));
+      if (lamp > 0.3) glow((x0 + x1) / 2, 2, 50, [255, 255, 235], 0.25 * lamp);
+    }
+    // hanging advert
+    rect(138, 20, 44, 10, C([240, 235, 215])); rect(140, 22, 18, 3, C([200, 60, 60])); rect(160, 22, 20, 1, C([60, 60, 60])); rect(160, 25, 16, 1, C([60, 60, 60])); rect(140, 27, 30, 1, C([60, 100, 180]));
+    rect(159, 19, 2, 1, C([80, 80, 80]));
+    // hanging straps swing with acceleration and rail joints
+    for (const [i, x] of [[0, 72], [1, 114], [2, 206], [3, 248]]) {
+      const a = clamp(-S.accel * 0.25, -0.5, 0.5) + Math.sin(S.time * 1.8 + i) * 0.04 + S.bob * 0.05 * (i % 2 ? 1 : -1);
+      const ex = x + Math.sin(a) * 12, ey = 20 + Math.cos(a) * 12;
+      pxLine(x, 20, ex, ey, C([230, 230, 220]), 2);
+      ctx.strokeStyle = rgb(C([245, 240, 225])); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(ex + 1, ey + 3, 3, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+
+  // ---------- frame ----------
+  function render() {
+    inTunnel = 0;
+    // shadow flicker when poles pass in front of the sun side
+    S.shadow = 1;
+    const pp = mod(sx(Math.round(S.camD / 50) * 50, K_NEAR) - 170, 400);
+    if (pp < 12) S.shadow = 0.6;
+
+    ctx.save(); ctx.translate(0, S.bob);
+    drawSky();
+    for (const e of S.events) if (["crows", "plane", "shooting", "fireworks"].includes(e.type)) drawEvent(e);
+    drawMountains();
+    drawFar();
+    drawMid();
+    for (const e of S.events) if (e.k && e.k > 2 && e.k < K_NEAR && e.type !== "fireworks") drawEvent(e);
+    for (const e of S.events) if (e.type === "fireflies") drawEvent(e);
+    drawNear();
+    for (const e of S.events) if (e.type === "crossing") drawEvent(e);
+    drawStructures();
+    for (const e of S.events) if (e.type === "passenger") drawEvent(e);
+    for (const e of S.events) if (e.type === "oncoming") drawEvent(e);
+    ctx.restore();
+    drawCabin();
+  }
+
+  // ---------- post-process ----------
+  const LEVELS = [0, 30, 72, 128, 190, 255];
+  const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  const LO = new Uint8Array(256), FR = new Uint8Array(256), NR = new Uint8Array(256);
+  for (let v = 0; v < 256; v++) {
+    let i = 0; while (i < 4 && v >= LEVELS[i + 1]) i++;
+    const a = LEVELS[i], b = LEVELS[i + 1];
+    LO[v] = i; FR[v] = Math.round(((v - a) / (b - a)) * 16); NR[v] = v - a < b - v ? i : i + 1;
+  }
+  const indexBuf = new Uint8Array(W * H);
+  function postProcess() {
+    const img = ctx.getImageData(0, 0, W, H), d = img.data;
+    for (let y = 0, p = 0; y < H; y++) for (let x = 0; x < W; x++, p++) {
+      const o = p * 4, th = BAYER[(x & 3) + ((y & 3) << 2)];
+      let r, g, b;
+      if (S.dither) { r = LO[d[o]] + (FR[d[o]] > th ? 1 : 0); g = LO[d[o + 1]] + (FR[d[o + 1]] > th ? 1 : 0); b = LO[d[o + 2]] + (FR[d[o + 2]] > th ? 1 : 0); }
+      else { r = NR[d[o]]; g = NR[d[o + 1]]; b = NR[d[o + 2]]; }
+      if (r > 5) r = 5; if (g > 5) g = 5; if (b > 5) b = 5;
+      indexBuf[p] = r * 36 + g * 6 + b;
+      d[o] = LEVELS[r]; d[o + 1] = LEVELS[g]; d[o + 2] = LEVELS[b]; d[o + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    return indexBuf;
+  }
+  const hudArea = document.getElementById("hud-area"), hudTime = document.getElementById("hud-time");
+  function frame(dt) {
+    step(dt); render();
+    const idx = postProcess();
+    vctx.drawImage(low, 0, 0, view.width, view.height);
+    const g = segAt(S.camD);
+    hudArea.textContent = g.b === "station" ? `${g.name}駅` : STY[g.b].name;
+    hudTime.textContent = `${todName(S.tod)} ${clockStr()}`;
+    return idx;
+  }
+
+  // ---------- GIF ----------
+  const PALETTE = new Uint8Array(768);
+  for (let i = 0; i < 216; i++) { PALETTE[i * 3] = LEVELS[(i / 36) | 0]; PALETTE[i * 3 + 1] = LEVELS[((i / 6) | 0) % 6]; PALETTE[i * 3 + 2] = LEVELS[i % 6]; }
+  function lzw(ix, out) {
+    let size = 9, next = 258, cur = 0, bits = 0; const dict = new Map(), bytes = [];
+    const emit = c => { cur |= c << bits; bits += size; while (bits >= 8) { bytes.push(cur & 255); cur >>>= 8; bits -= 8; } };
+    emit(256); let prefix = ix[0];
+    for (let i = 1; i < ix.length; i++) {
+      const k = ix[i], key = prefix * 256 + k, v = dict.get(key);
+      if (v !== undefined) { prefix = v; continue; }
+      emit(prefix);
+      if (next < 4095) { dict.set(key, next++); if (next > (1 << size) && size < 12) size++; } else { emit(256); dict.clear(); size = 9; next = 258; }
+      prefix = k;
+    }
+    emit(prefix); emit(257); if (bits > 0) bytes.push(cur & 255);
+    out.push(8);
+    for (let i = 0; i < bytes.length; i += 255) { const n = Math.min(255, bytes.length - i); out.push(n); for (let j = 0; j < n; j++) out.push(bytes[i + j]); }
+    out.push(0);
+  }
+  function upscale(ix, k) {
+    if (k === 1) return ix.slice();
+    const w = W * k, o = new Uint8Array(w * H * k);
+    for (let y = 0; y < H * k; y++) { const sy = ((y / k) | 0) * W, row = y * w; for (let x = 0; x < w; x++) o[row + x] = ix[sy + ((x / k) | 0)]; }
+    return o;
+  }
+  async function makeGif(seconds = 8, scale = 2, fps = 20, onProgress) {
+    const n = Math.round(seconds * fps), w = W * scale, h = H * scale, delay = Math.round(100 / fps);
+    const out = []; for (const ch of "GIF89a") out.push(ch.charCodeAt(0));
+    out.push(w & 255, w >> 8, h & 255, h >> 8, 0xf7, 0, 0); for (let i = 0; i < 768; i++) out.push(PALETTE[i]);
+    out.push(0x21, 0xff, 0x0b); for (const ch of "NETSCAPE2.0") out.push(ch.charCodeAt(0)); out.push(3, 1, 0, 0, 0);
+    for (let i = 0; i < n; i++) {
+      const ix = frame(1 / fps);
+      out.push(0x21, 0xf9, 4, 4, delay & 255, delay >> 8, 0, 0, 0x2c, 0, 0, 0, 0, w & 255, w >> 8, h & 255, h >> 8, 0);
+      lzw(upscale(ix, scale), out);
+      if (i % 4 === 3) { onProgress && onProgress(i + 1, n); await new Promise(r => setTimeout(r, 0)); }
+    }
+    out.push(0x3b); return new Uint8Array(out);
+  }
+
+  // ---------- UI ----------
+  let last = performance.now(), busy = false;
+  function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; if (!S.paused && !busy) frame(dt); requestAnimationFrame(loop); }
+  const status = document.getElementById("status"), out = document.getElementById("out");
+  const tButtons = [...document.querySelectorAll("[data-t]")];
+  function setTod(v) {
+    tButtons.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.t === v)));
+    if (v === "auto") S.todMode = "auto"; else { S.todMode = "fixed"; S.tod = +v; }
+  }
+  tButtons.forEach(b => b.addEventListener("click", () => setTod(b.dataset.t)));
+  document.getElementById("cycle").addEventListener("change", e => { S.cycle = +e.target.value; });
+  const stopsBtn = document.getElementById("stops");
+  stopsBtn.addEventListener("click", () => { S.stops = !S.stops; stopsBtn.setAttribute("aria-pressed", String(S.stops)); stopsBtn.textContent = S.stops ? "各駅に停まる" : "駅を通過する"; if (!S.stops && S.stopT > 0) S.stopT = 0.01; });
+  const pBtn = document.getElementById("pause");
+  function togglePause() { S.paused = !S.paused; pBtn.setAttribute("aria-pressed", String(S.paused)); pBtn.textContent = S.paused ? "再生" : "一時停止"; }
+  pBtn.addEventListener("click", togglePause);
+  window.addEventListener("keydown", e => { if (e.code === "Space" && e.target === document.body) { e.preventDefault(); togglePause(); } });
+  const gifBtn = document.getElementById("gif");
+  gifBtn.addEventListener("click", async () => {
+    busy = true; gifBtn.disabled = true;
+    try {
+      const bytes = await makeGif(+document.getElementById("gifsec").value, +document.getElementById("gifscale").value, 20, (i, n) => { status.textContent = `GIF 生成中… ${i}/${n} フレーム`; });
+      const img = new Image(); img.src = URL.createObjectURL(new Blob([bytes], { type: "image/gif" })); img.alt = "書き出した車窓GIF"; out.prepend(img);
+      status.textContent = `GIF ができました（${(bytes.length / 1048576).toFixed(1)} MB）。右クリック／長押しで保存できます。`;
+    } catch (err) { status.textContent = `GIF の生成に失敗しました: ${err.message}`; }
+    finally { busy = false; gifBtn.disabled = false; last = performance.now(); }
+  });
+  const webmBtn = document.getElementById("webm"); let rec = null;
+  webmBtn.addEventListener("click", () => {
+    if (rec) { rec.stop(); return; }
+    if (!view.captureStream || typeof MediaRecorder === "undefined") { status.textContent = "このブラウザは動画録画に対応していません。GIF をお使いください。"; return; }
+    const chunks = [], type = ["video/webm;codecs=vp9", "video/webm", "video/mp4"].find(t => MediaRecorder.isTypeSupported(t)) || "";
+    rec = new MediaRecorder(view.captureStream(30), type ? { mimeType: type, videoBitsPerSecond: 8e6 } : undefined);
+    rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+    rec.onstop = () => {
+      const v = document.createElement("video"); v.src = URL.createObjectURL(new Blob(chunks, { type: rec.mimeType || "video/webm" }));
+      v.controls = v.loop = v.muted = v.autoplay = true; out.prepend(v);
+      status.textContent = "録画しました。動画の右クリック／長押しで保存できます。"; rec = null; webmBtn.textContent = "動画を録画";
+    };
+    rec.start(); webmBtn.textContent = "録画を止める"; status.textContent = "録画中… もう一度押すと停止します。";
+  });
+
+  S.v = 10;
+  for (let i = 0; i < 20; i++) step(1 / 30);
+  window.Train = { S, frame, makeGif, spawnSpecial, route, segIndex, setTod };
+  requestAnimationFrame(loop);
+})();
+</script>
