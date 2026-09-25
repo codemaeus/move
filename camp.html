@@ -1,0 +1,753 @@
+<title>Campfire Rest</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #eef0ff;
+    --dim: #8f96c2;
+    --ground: #06081a;
+    --panel: #10163a;
+    --line: #2c3a7a;
+    --gold: #ffd36b;
+    --sky: #9fc2ff;
+    --font: "DotGothic16", "MS Gothic", "Osaka-Mono", ui-monospace, monospace;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--font); font-size: 15px;
+    padding-inline: 16px; padding-block: 16px 24px; box-sizing: border-box; }
+  .wrap { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 22px; font-weight: 400; letter-spacing: 0.08em; color: var(--gold); }
+  .sub { color: var(--dim); font-size: 13px; }
+  .row { display: grid; grid-template-columns: minmax(0, 640px) 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 860px) { .row { grid-template-columns: 1fr; } }
+  .screen { position: relative; width: 100%; aspect-ratio: 256 / 224; max-width: 100%; background: #000; border: 1px solid var(--line); }
+  #view { width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  .side { display: flex; flex-direction: column; gap: 12px; }
+  .group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .label { color: var(--dim); font-size: 12px; letter-spacing: 0.1em; }
+  button, select { font-family: var(--font); font-size: 14px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); padding: 6px 10px; cursor: pointer; }
+  button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+  button.play { border-color: #7a6a2a; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; }
+  button:disabled { opacity: 0.5; cursor: wait; }
+  input[type="range"] { accent-color: var(--gold); width: 110px; }
+  .log { margin: 0; padding: 10px 12px; list-style: none; background: var(--panel); border: 1px solid var(--line); min-height: 170px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+  .log li { display: flex; gap: 8px; }
+  .log time { color: var(--dim); font-variant-numeric: tabular-nums; flex: none; }
+  .log li.sys { color: var(--gold); } .log li.wx { color: var(--sky); }
+  #status { color: var(--sky); font-size: 13px; min-height: 1.2em; }
+  .out { display: flex; flex-direction: column; gap: 8px; }
+  .out img, .out video { max-width: 100%; image-rendering: pixelated; border: 1px solid var(--line); }
+  .hint { color: var(--dim); font-size: 12px; line-height: 1.6; margin: 0; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>焚き火の夜</h1>
+    <span class="sub">RPG の野営 / 256×224 ピクセル / 16ビット風</span>
+  </header>
+  <div class="row">
+    <div class="screen"><canvas id="view" width="1024" height="896"></canvas></div>
+    <div class="side">
+      <div class="group">
+        <button id="music" class="play" aria-pressed="false">音楽を流す</button>
+        <label class="label" for="vol">音量</label>
+        <input id="vol" type="range" min="0" max="100" value="70">
+        <button id="amb" aria-pressed="true">環境音</button>
+      </div>
+      <div class="group" role="group" aria-label="天気">
+        <span class="label">天気</span>
+        <button data-w="auto" aria-pressed="true">自動</button>
+        <button data-w="rain" aria-pressed="false">雨あり</button>
+        <button data-w="dry" aria-pressed="false">雨なし</button>
+      </div>
+      <div class="group" role="group" aria-label="イベントを起こす">
+        <span class="label">イベント</span>
+        <button data-ev="battle">魔物</button>
+        <button data-ev="merchant">行商人</button>
+        <button data-ev="chest">宝箱</button>
+        <button data-ev="stew">シチュー</button>
+        <button data-ev="save">セーブ</button>
+      </div>
+      <div class="group">
+        <button id="stats" aria-pressed="true">ステータス</button>
+        <button id="pause" aria-pressed="false">一時停止</button>
+      </div>
+      <div class="group">
+        <label class="label" for="gifsec">GIF</label>
+        <select id="gifsec"><option value="4">4秒</option><option value="8" selected>8秒</option><option value="12">12秒</option></select>
+        <select id="gifscale" aria-label="GIFサイズ"><option value="1">256×224</option><option value="2" selected>512×448</option></select>
+        <button id="gif">GIFを作る</button>
+        <button id="webm">動画を録画</button>
+      </div>
+      <ul class="log" id="log" aria-live="polite"></ul>
+      <p class="hint">森の空き地で焚き火を囲むオリジナルのパーティー。茂みからスライムが出て戦闘になったり、行商人が来たり、宝箱やセーブポイントが見つかったり、レベルが上がったりします。雨になると僧侶が結界を張ります。音楽は 6/8 拍子の野営のテーマを毎回ブラウザ内で作曲・合成し、戦闘・勝利・レベルアップ・アイテム入手のジングルも鳴ります。</p>
+      <div id="status" role="status"></div>
+      <div class="out" id="out"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const W = 256, H = 224, FX = 128, FY = 134;
+  const low = document.createElement("canvas"); low.width = W; low.height = H;
+  const ctx = low.getContext("2d", { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = false;
+  const view = document.getElementById("view"), vctx = view.getContext("2d");
+  vctx.imageSmoothingEnabled = false;
+  const FONT = '"DotGothic16", "MS Gothic", monospace';
+  if (document.fonts && document.fonts.load) document.fonts.load(`10px ${FONT}`).catch(() => {});
+
+  // ---------- helpers ----------
+  function hash(i) { let h = Math.imul((i | 0) ^ 0x9e3779b9, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16; return (h >>> 0) / 4294967296; }
+  const mod = (a, n) => ((a % n) + n) % n;
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const rgb = c => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
+  const rgba = (c, a) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${clamp(a, 0, 1).toFixed(3)})`;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const pick = a => a[(Math.random() * a.length) | 0];
+  function rect(x, y, w, h, c) { ctx.fillStyle = typeof c === "string" ? c : rgb(c); ctx.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(w)), Math.max(1, Math.round(h))); }
+  const px = (x, y, c) => { ctx.fillStyle = typeof c === "string" ? c : rgb(c); ctx.fillRect(Math.round(x), Math.round(y), 1, 1); };
+  function disc(x, y, rx, ry, c) { ctx.fillStyle = typeof c === "string" ? c : rgb(c); for (let dy = -ry; dy <= ry; dy++) { const w = Math.round(rx * Math.sqrt(Math.max(0, 1 - (dy / (ry + 0.5)) ** 2))); ctx.fillRect(Math.round(x - w), Math.round(y + dy), w * 2 + 1, 1); } }
+  function line(x0, y0, x1, y1, c) { ctx.fillStyle = typeof c === "string" ? c : rgb(c); const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) | 0; for (let i = 0; i <= n; i++) { const f = n ? i / n : 0; ctx.fillRect(Math.round(lerp(x0, x1, f)), Math.round(lerp(y0, y1, f)), 1, 1); } }
+  function glow(x, y, r, c, a) {
+    if (a <= 0.01) return;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, rgba(c, a)); g.addColorStop(0.4, rgba(c, a * 0.35)); g.addColorStop(1, rgba(c, 0));
+    const p = ctx.globalCompositeOperation; ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); ctx.globalCompositeOperation = p;
+  }
+
+  // ---------- state ----------
+  const PARTY = [
+    { id: "hero", name: "レオ", job: "剣士", lv: 12, hp: 88, mhp: 120 },
+    { id: "mage", name: "ミナ", job: "魔法使い", lv: 11, hp: 54, mhp: 70 },
+    { id: "thief", name: "カイ", job: "盗賊", lv: 12, hp: 70, mhp: 96 },
+    { id: "priest", name: "セラ", job: "僧侶", lv: 10, hp: 66, mhp: 78 },
+  ];
+  const S = {
+    time: 0, weather: "auto", rain: 0, lastWx: 0, flash: 0, fire: 1, flick: 1,
+    parts: [], drops: [], splash: [], wisps: [], events: [], nextEvent: 4, nextTalk: 6,
+    dialog: [], cur: null, barrier: 0, stats: true, paused: false,
+    heroAwake: 0, pupSneeze: 0, chestGlint: 0, save: 0, stew: 0, owl: 0, slime: null, merchant: null, chest: null, shoot: null,
+    nums: [], lvFx: 0, gold: 342,
+  };
+  const logEl = document.getElementById("log");
+  const clock = () => { const m = 22 * 60 + 30 + Math.floor(S.time / 12); return `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; };
+  function log(msg, cls = "") {
+    const li = document.createElement("li"); li.className = cls;
+    const t = document.createElement("time"); t.textContent = clock();
+    const sp = document.createElement("span"); sp.textContent = msg;
+    li.append(t, sp); logEl.prepend(li);
+    while (logEl.children.length > 9) logEl.lastChild.remove();
+  }
+  function say(who, text, hold = 1.8) { if (S.dialog.length > 2) S.dialog.shift(); S.dialog.push({ who, text, hold }); log(who ? `${who}「${text}」` : text, who ? "" : "sys"); }
+
+  // ---------- static background (trees, canopy, ground) ----------
+  const TRUNKS = [
+    { x: 30, y0: 150, w: 14, lean: 6 }, { x: 62, y0: 108, w: 10, lean: -4 }, { x: 96, y0: 96, w: 9, lean: 3 }, { x: 150, y0: 92, w: 9, lean: -3 },
+    { x: 186, y0: 100, w: 11, lean: 5 }, { x: 222, y0: 124, w: 14, lean: -6 }, { x: 118, y0: 90, w: 7, lean: 2 }, { x: 242, y0: 170, w: 12, lean: -2 },
+  ];
+  const CANOPY = [];
+  for (let i = 0; i < 26; i++) { const t = i / 25; CANOPY.push({ x: t * 280 - 12 + hash(i) * 10, y: 6 + Math.sin(t * Math.PI) * -4 + hash(i + 9) * 12, r: 18 + hash(i + 3) * 14 }); }
+  CANOPY.push({ x: 8, y: 70, r: 30 }, { x: 20, y: 110, r: 26 }, { x: 250, y: 64, r: 30 }, { x: 240, y: 100, r: 22 }, { x: -4, y: 150, r: 20 });
+  const BUSHES = [];
+  for (let i = 0; i < 18; i++) BUSHES.push({ x: -6 + i * 16 + hash(i * 7) * 6, y: 214 - Math.sin(i / 17 * Math.PI) * 6 + hash(i) * 8, r: 12 + hash(i * 3) * 8 });
+  BUSHES.push({ x: 4, y: 188, r: 16 }, { x: 250, y: 196, r: 16 });
+  const GRASS = Array.from({ length: 60 }, (_, i) => { const a = hash(i) * Math.PI * 2, r = Math.sqrt(hash(i + 100)) ; return { x: FX + Math.cos(a) * r * 104, y: FY + 6 + Math.sin(a) * r * 58 }; }).filter(g => Math.hypot(g.x - FX, (g.y - FY) * 1.6) > 22);
+
+  function drawTrunk(t) {
+    const top = 20, lightSide = t.x < FX ? 1 : -1;
+    for (let y = top; y < t.y0; y++) {
+      const k = (y - top) / (t.y0 - top), w = t.w * 1.5 * (0.75 + 0.35 * k) + (k > 0.85 ? (k - 0.85) * 40 : 0);
+      const cx = t.x + Math.sin(k * 3 + t.x) * 2 + t.lean * (1 - k);
+      rect(cx - w / 2, y, w, 1, [54, 44, 112]);
+      rect(cx - w / 2, y, 2, 1, [30, 26, 70]); rect(cx + w / 2 - 2, y, 2, 1, [30, 26, 70]);
+      const hx = lightSide > 0 ? cx + w / 2 - 4 : cx - w / 2 + 1;
+      rect(hx, y, 3, 1, [196, 156, 62]);
+      if ((y + t.x) % 7 < 3) px(hx - lightSide, y, [110, 90, 44]);
+      if ((y * 3 + t.x) % 11 === 0) rect(cx - 1, y, 2, 1, [60, 50, 110]);
+    }
+    // forked branches up into the canopy
+    for (const s of [-1, 1]) line(t.x + t.lean, top + 20, t.x + t.lean + s * 12, top - 4, [36, 30, 80]);
+  }
+  function drawCanopy(list, dark, edge, edge2) {
+    for (const c of list) disc(c.x, c.y, c.r, c.r * 0.8, dark);
+    for (const c of list) for (let i = 0; i < c.r * 9; i++) {
+      const a = hash(c.x * 13 + i) * Math.PI * 2, rr = c.r * (0.8 + hash(c.y * 7 + i) * 0.22);
+      const x = c.x + Math.cos(a) * rr, y = c.y + Math.sin(a) * rr * 0.8;
+      if (Math.sin(a) < 0.5) px(x, y, hash(i + c.x) > 0.4 ? edge : edge2);
+    }
+  }
+  function drawGround() {
+    const g = ctx.createRadialGradient(FX, FY + 6, 10, FX, FY + 6, 130);
+    g.addColorStop(0, "rgb(40,52,120)"); g.addColorStop(1, "rgb(14,20,60)");
+    ctx.fillStyle = g; ctx.fillRect(0, 60, W, H - 60);
+    ctx.fillStyle = "rgb(8,10,34)"; ctx.fillRect(0, 0, W, 64);
+    for (let i = 0; i < 900; i++) { const x = hash(i * 3) * W, y = 60 + hash(i * 3 + 1) * (H - 60); px(x, y, hash(i * 5) > 0.5 ? [26, 36, 96] : [48, 62, 140]); }
+    for (const gr of GRASS) { for (let j = -1; j <= 1; j++) line(gr.x + j * 2, gr.y, gr.x + j * 3, gr.y - 3 - Math.abs(j), [120, 120, 70]); }
+    // stones & logs to sit on
+    disc(FX - 30, FY + 22, 3, 2, [90, 90, 110]); disc(FX + 34, FY + 20, 2, 2, [90, 90, 110]); disc(FX - 44, FY - 4, 2, 1, [90, 90, 110]);
+  }
+
+  // ---------- sprites (all original characters) ----------
+  function hero(x, y, awake) {
+    if (!awake) { // asleep on the ground, rolled in a red blanket
+      rect(x - 10, y - 4, 20, 6, [170, 50, 50]); rect(x - 10, y - 4, 20, 1, [210, 90, 80]); for (let i = 0; i < 4; i++) px(x - 8 + i * 5, y - 2, [230, 200, 80]);
+      rect(x + 8, y - 6, 6, 5, [240, 200, 170]); rect(x + 8, y - 8, 7, 3, [230, 120, 40]); px(x + 14, y - 8, [230, 120, 40]); px(x + 13, y - 9, [230, 120, 40]); px(x + 10, y - 4, [60, 40, 40]);
+      rect(x - 16, y - 2, 6, 2, [150, 150, 170]); px(x - 17, y - 2, [230, 200, 80]);
+      return;
+    }
+    rect(x - 4, y - 8, 8, 8, [60, 90, 170]); rect(x - 5, y - 1, 10, 2, [80, 60, 50]);
+    rect(x - 3, y - 14, 7, 6, [240, 200, 170]); rect(x - 4, y - 17, 9, 4, [230, 120, 40]); px(x + 5, y - 16, [230, 120, 40]); px(x - 5, y - 15, [230, 120, 40]);
+    px(x - 1, y - 11, [40, 30, 30]); px(x + 2, y - 11, [40, 30, 30]); rect(x + 5, y - 12, 1, 12, [190, 190, 210]);
+  }
+  function mage(x, y, cast) {
+    // lying on her stomach reading a spellbook, pointed hat
+    rect(x - 9, y - 4, 16, 5, [110, 60, 150]); rect(x - 9, y - 4, 16, 1, [150, 90, 190]);
+    rect(x - 13, y - 2, 5, 2, [80, 50, 40]);
+    rect(x + 6, y - 7, 6, 5, [240, 210, 180]); rect(x + 5, y - 8, 8, 2, [60, 70, 170]); rect(x + 7, y - 12, 4, 4, [60, 70, 170]); px(x + 10, y - 13, [60, 70, 170]); px(x + 11, y - 14, [60, 70, 170]);
+    rect(x + 12, y - 5, 2, 4, [220, 180, 90]);
+    rect(x + 13, y - 3, 7, 4, [240, 235, 220]); rect(x + 16, y - 3, 1, 4, [120, 90, 60]);
+    if (cast) { glow(x + 16, y - 6, 10, [150, 200, 255], 0.7); px(x + 16, y - 8, [255, 255, 255]); }
+  }
+  function thief(x, y, t) {
+    rect(x - 5, y - 9, 10, 9, [50, 110, 70]); rect(x - 6, y - 1, 12, 2, [60, 50, 40]);
+    rect(x - 4, y - 15, 8, 7, [60, 130, 80]); rect(x - 2, y - 13, 5, 4, [230, 190, 150]); px(x - 1, y - 12, [30, 30, 30]); px(x + 1, y - 12, [30, 30, 30]);
+    const s = Math.sin(t * 6) > 0 ? 1 : 0;
+    rect(x + 4, y - 6 - s, 4, 1, [200, 200, 220]); rect(x + 3, y - 6 - s, 1, 2, [120, 80, 50]);
+    if (Math.sin(t * 6) > 0.95) { px(x + 8, y - 7, [255, 255, 220]); px(x + 9, y - 8, [255, 255, 220]); }
+  }
+  function priest(x, y, pray) {
+    rect(x - 5, y - 9, 10, 9, [230, 230, 240]); rect(x - 5, y - 9, 10, 1, [255, 255, 255]); rect(x - 1, y - 8, 2, 7, [220, 180, 80]);
+    rect(x - 3, y - 15, 7, 6, [240, 210, 180]); rect(x - 4, y - 17, 9, 4, [250, 220, 110]); rect(x - 4, y - 13, 2, 5, [250, 220, 110]);
+    px(x - 1, y - 12, [40, 40, 60]); px(x + 1, y - 12, [40, 40, 60]);
+    rect(x - 2, y - 7, 4, 2, [240, 210, 180]);
+    if (pray) glow(x, y - 8, 12, [255, 240, 180], 0.4 + 0.2 * Math.sin(S.time * 4));
+  }
+  function golem(x, y) {
+    rect(x - 10, y - 16, 20, 16, [120, 116, 104]); rect(x - 10, y - 16, 20, 2, [160, 154, 136]);
+    rect(x - 13, y - 12, 4, 10, [100, 96, 88]); rect(x + 9, y - 12, 4, 10, [100, 96, 88]);
+    rect(x - 7, y - 26, 14, 10, [134, 128, 114]); rect(x - 7, y - 26, 14, 2, [170, 164, 146]);
+    const blink = Math.sin(S.time * 0.8) > 0.97;
+    if (!blink) { rect(x - 4, y - 22, 3, 2, [120, 220, 255]); rect(x + 1, y - 22, 3, 2, [120, 220, 255]); glow(x, y - 21, 8, [120, 220, 255], 0.35); }
+    for (let i = 0; i < 5; i++) px(x - 8 + hash(i) * 16, y - 14 + hash(i + 5) * 12, [80, 140, 80]);
+    px(x + 6, y - 27, [120, 180, 90]); px(x + 7, y - 28, [240, 120, 150]);
+  }
+  function pup(x, y) {
+    const b = Math.round(Math.sin(S.time * 1.4));
+    disc(x, y - 3, 6, 3 + b * 0.3, [200, 90, 70]); rect(x - 6, y - 3, 3, 2, [230, 190, 90]);
+    rect(x + 4, y - 7, 5, 4, [210, 100, 76]); px(x + 8, y - 6, [40, 20, 20]); px(x + 5, y - 8, [240, 220, 180]);
+    rect(x - 3, y - 7, 5, 2, [150, 60, 60]); px(x - 1, y - 8, [150, 60, 60]);
+    if (S.pupSneeze > 0) { const k = 1 - S.pupSneeze / 1; for (let i = 0; i < 6; i++) px(x + 10 + i * 2 * k + rnd(-1, 1), y - 6 + rnd(-2, 2), pick([[255, 200, 60], [255, 120, 40]])); }
+    else if (Math.sin(S.time * 0.9) > 0.8) { const z = mod(S.time * 8, 10); px(x + 10, y - 10 - z, [220, 230, 255]); }
+  }
+  function loner(x, y) {
+    rect(x - 5, y - 20, 10, 20, [40, 30, 70]); rect(x - 5, y - 20, 2, 20, [60, 44, 100]);
+    rect(x - 3, y - 27, 7, 7, [220, 200, 200]); rect(x - 5, y - 29, 10, 5, [200, 200, 230]); rect(x - 5, y - 24, 2, 12, [200, 200, 230]);
+    if (Math.sin(S.time * 0.5) > -0.3) { px(x, y - 24, [255, 60, 60]); px(x + 2, y - 24, [255, 60, 60]); }
+    rect(x + 4, y - 18, 1, 18, [150, 150, 170]);
+  }
+  function slime(x, y, t, flash) {
+    const sq = Math.abs(Math.sin(t * 5)) * 2, c = flash ? [255, 255, 255] : [80, 170, 240];
+    disc(x, y - 4 + sq * 0.5, 7 + sq * 0.4, 5 - sq * 0.4, c);
+    px(x - 3, y - 7, [255, 255, 255]); px(x - 2, y - 8, [255, 255, 255]);
+    rect(x - 3, y - 5 + sq * 0.5, 1, 2, [20, 30, 60]); rect(x + 2, y - 5 + sq * 0.5, 1, 2, [20, 30, 60]);
+  }
+  function merchant(x, y, t) {
+    const st = Math.floor(t * 4) & 1;
+    rect(x - 9, y - 22, 12, 16, [150, 110, 60]); rect(x - 9, y - 22, 12, 2, [190, 150, 90]); rect(x - 7, y - 26, 8, 4, [200, 80, 60]);
+    rect(x - 4, y - 12, 8, 10, [100, 80, 140]); rect(x - 3, y - 18, 7, 6, [240, 200, 170]); rect(x - 4, y - 20, 9, 3, [90, 70, 50]); rect(x - 5, y - 18, 11, 1, [90, 70, 50]);
+    px(x + 1, y - 15, [40, 30, 30]); rect(x - 1, y - 13, 3, 1, [180, 130, 110]);
+    rect(x - 3 + st, y - 2, 2, 2, [60, 50, 40]); rect(x + 1 - st, y - 2, 2, 2, [60, 50, 40]);
+  }
+  function chest(x, y, open) {
+    rect(x - 7, y - 8, 14, 8, [150, 90, 40]); rect(x - 7, y - 8, 14, 1, [200, 140, 70]); rect(x - 7, y - 5, 14, 1, [230, 190, 80]);
+    rect(x - 1, y - 6, 2, 3, [230, 190, 80]);
+    if (open) { rect(x - 7, y - 13, 14, 5, [170, 104, 50]); glow(x, y - 8, 16, [255, 230, 140], 0.7); }
+  }
+  function savePoint(x, y) {
+    const k = Math.min(1, S.save / 1.5);
+    for (let i = 0; i < 10; i++) { const a = S.time * 2 + i * 0.63, r = 6 + Math.sin(S.time * 3 + i) * 2; px(x + Math.cos(a) * r, y - 6 + Math.sin(a) * r * 0.5 - mod(S.time * 10 + i * 3, 14), rgba([200, 255, 255], k)); }
+    rect(x - 2, y - 10, 4, 8, rgba([150, 240, 255], k)); px(x, y - 12, rgba([255, 255, 255], k));
+    glow(x, y - 6, 18, [120, 230, 255], 0.5 * k);
+  }
+
+  // ---------- events ----------
+  const TALK_DRY = [
+    ["カイ", "明日はいよいよ霧の塔か。"], ["ミナ", "この魔導書、続きが気になって眠れないわ。"], ["セラ", "みんなが無事でありますように…"],
+    ["ゴーレム", "……ゴゴ。（火の番は まかせろ）"], ["レオ", "むにゃ… もう食べられない…"], ["？？？", "……星が騒がしい夜だ。"],
+    ["カイ", "おい、チビ竜がまた火をつまみ食いしてるぞ。"], ["ミナ", "レオったら、また寝言ね。"], ["セラ", "薪、もう少し足しておきますね。"],
+    ["カイ", "旅のはじまりは、ちっぽけな村だったよな。"], ["ミナ", "ねえ、魔王を倒したら何がしたい？"], ["セラ", "わたしは… 教会の庭に花を植えたいです。"],
+  ];
+  const TALK_RAIN = [["ミナ", "雨の音、嫌いじゃないわ。"], ["カイ", "薪がしけっちまう…"], ["ゴーレム", "……ゴゴ。（雨は苦手だ）"], ["？？？", "……雨か。悪くない。"]];
+  const add = e => { e.t = 0; S.events.push(e); return e; };
+  function startEvent(kind) {
+    switch (kind) {
+      case "battle": if (S.slime) return; S.slime = { x: 16, y: 170, t: 0, phase: "in", hp: 18 }; say("", "スライムが あらわれた！"); sfx("battle"); break;
+      case "merchant": if (S.merchant) return; S.merchant = { x: -20, y: 118, t: 0, phase: "in" }; say("", "旅の行商人が 焚き火に ちかづいてきた。"); break;
+      case "chest": if (S.chest) return; S.chest = { x: 206, y: 176, t: 0, phase: "glint" }; say("カイ", "ん？ あの茂みで何か光ったぞ。"); break;
+      case "stew": if (S.stew > 0) return; S.stew = 12; say("セラ", "シチューが煮えましたよ。"); break;
+      case "save": if (S.save > 0) return; S.save = 14; say("", "不思議な光が あらわれた。セーブポイントだ！"); break;
+      case "watch": S.heroAwake = S.heroAwake ? 0 : 1; say("", S.heroAwake ? "レオが目をさまし、見張りを交代した。" : "レオは また眠りについた。"); break;
+      case "sneeze": S.pupSneeze = 1; S.fire = Math.min(1.8, S.fire + 0.6); say("", "チビ竜が くしゃみをした！ 焚き火が ぼうっと燃え上がった。"); sfx("whoosh"); break;
+      case "wisp": for (let i = 0; i < 3; i++) S.wisps.push({ x: rnd(40, 220), y: rnd(70, 100), t: 0, ph: rnd(0, 6) }); say("", "森の奥に 青い鬼火が ゆらめいている…"); break;
+      case "owl": S.owl = 6; say("", "ホウ… ホウ…　フクロウが鳴いている。"); sfx("owl"); break;
+      case "shooting": S.shoot = { t: 0, x: rnd(110, 150) }; say("ミナ", "あっ、流れ星！ …願いごと、間に合った？"); break;
+    }
+  }
+  function trySpecial() {
+    const dry = S.rain < 0.1;
+    const c = [["battle", 3], ["merchant", 1.6], ["chest", 1.6], ["stew", 1.4], ["save", 1.2], ["watch", 1.2], ["sneeze", 1.4], ["wisp", 1.2], ["owl", 1.4], ["shooting", dry ? 1.2 : 0]].filter(x => x[1] > 0);
+    let r = Math.random() * c.reduce((a, x) => a + x[1], 0), t = c[0][0];
+    for (const [n, w] of c) if ((r -= w) <= 0) { t = n; break; }
+    startEvent(t);
+  }
+  function gainExp(n) {
+    const who = pick(PARTY);
+    if (Math.random() < 0.45) {
+      who.lv++; who.mhp += 6; who.hp = who.mhp; S.lvFx = 2.2; S.lvWho = who.id;
+      setTimeout(() => { say("", `${who.name}の レベルが ${who.lv}に あがった！`); sfx("levelup"); }, 900);
+    }
+  }
+  function popNum(x, y, text, col) { S.nums.push({ x, y, text, col, t: 0 }); }
+
+  function updateEvents(dt) {
+    // slime battle
+    const sl = S.slime;
+    if (sl) {
+      sl.t += dt;
+      if (sl.phase === "in") { sl.x += dt * 30; if (sl.x > 52) { sl.phase = "atk"; sl.t = 0; say("ミナ", "まかせて！ ファイア！"); sfx("cast"); } }
+      else if (sl.phase === "atk") {
+        if (!sl.ball) sl.ball = { x: 96, y: 152, t: 0 };
+        sl.ball.t += dt; sl.ball.x = lerp(104, sl.x, Math.min(1, sl.ball.t / 0.6)); sl.ball.y = lerp(150, sl.y - 5, Math.min(1, sl.ball.t / 0.6)) - Math.sin(Math.min(1, sl.ball.t / 0.6) * Math.PI) * 14;
+        if (Math.random() < 0.8) S.parts.push({ type: "spark", x: sl.ball.x, y: sl.ball.y, vx: rnd(-10, 10), vy: rnd(-10, 10), t: 0, life: 0.3 });
+        if (sl.ball.t > 0.6) { sl.phase = "hit"; sl.t = 0; sl.ball = null; S.flash = 0.6; sfx("hit"); popNum(sl.x, sl.y - 14, String(18 + ((Math.random() * 10) | 0)), [255, 255, 255]); for (let i = 0; i < 16; i++) S.parts.push({ type: "spark", x: sl.x, y: sl.y - 5, vx: rnd(-50, 50), vy: rnd(-60, 10), t: 0, life: 0.5 }); }
+      } else if (sl.phase === "hit") { if (sl.t > 0.9) { sl.phase = "die"; sl.t = 0; } }
+      else if (sl.phase === "die") { if (sl.t > 0.6) { const g = 5 + ((Math.random() * 8) | 0); S.gold += g; say("", `スライムを たおした！ 4の けいけんちと ${g}ゴールドを てにいれた。`); sfx("victory"); gainExp(4); S.slime = null; } }
+    }
+    // merchant
+    const m = S.merchant;
+    if (m) {
+      m.t += dt;
+      if (m.phase === "in") { m.x += dt * 16; if (m.x > 58) { m.phase = "talk"; m.t = 0; say("行商人", "やあ旅の人。やくそう、1こ 8ゴールドだよ。"); sfx("merchant"); } }
+      else if (m.phase === "talk") { if (m.t > 3.2) { m.phase = "buy"; m.t = 0; S.gold -= 24; say("", "カイは やくそうを 3こ かった。"); sfx("coin"); } }
+      else if (m.phase === "buy") { if (m.t > 3) { m.phase = "out"; say("行商人", "まいど！ よい旅を〜。"); } }
+      else { m.x -= dt * 16; if (m.x < -24) S.merchant = null; }
+    }
+    // treasure chest
+    const c = S.chest;
+    if (c) {
+      c.t += dt;
+      if (c.phase === "glint" && c.t > 3) { c.phase = "open"; c.t = 0; const item = pick(["ぎんのゆびわ", "エーテル", "ふしぎなたね", "まもりのルーン", "ほしのかけら"]); say("", `たからばこを あけた！ ${item} を てにいれた！`); sfx("item"); }
+      else if (c.phase === "open" && c.t > 5) S.chest = null;
+    }
+    if (S.stew > 0) {
+      const before = S.stew; S.stew -= dt;
+      if (before > 6 && S.stew <= 6) { for (const p of PARTY) { p.hp = Math.min(p.mhp, p.hp + 30); } say("", "みんなで シチューを たべた。HPが かいふくした！"); sfx("heal"); for (const [x, y] of [[92, 160], [76, 112], [180, 124], [158, 170]]) popNum(x, y - 18, "+30", [120, 255, 160]); }
+    }
+    if (S.save > 0) { const b = S.save; S.save -= dt; if (b > 8 && S.save <= 8) { say("", "ぼうけんのしょに きろくしました。"); sfx("save"); } }
+    S.pupSneeze = Math.max(0, S.pupSneeze - dt); S.owl = Math.max(0, S.owl - dt); S.lvFx = Math.max(0, S.lvFx - dt);
+    if (S.shoot) { S.shoot.t += dt; if (S.shoot.t > 0.9) S.shoot = null; }
+    for (let i = S.wisps.length - 1; i >= 0; i--) { const w = S.wisps[i]; w.t += dt; w.x += Math.sin(w.t * 0.7 + w.ph) * dt * 10; w.y += Math.cos(w.t * 0.5 + w.ph) * dt * 4; if (w.t > 14) S.wisps.splice(i, 1); }
+    for (let i = S.nums.length - 1; i >= 0; i--) { S.nums[i].t += dt; if (S.nums[i].t > 1.2) S.nums.splice(i, 1); }
+    // regular chatter
+    S.nextTalk -= dt;
+    if (S.nextTalk <= 0 && !S.dialog.length && !S.cur) { S.nextTalk = rnd(9, 16); const [who, text] = pick(S.rain > 0.2 && Math.random() < 0.6 ? TALK_RAIN : TALK_DRY); say(who, text); }
+    S.nextEvent -= dt; if (S.nextEvent <= 0) { S.nextEvent = rnd(8, 14); trySpecial(); }
+  }
+
+  // ---------- update ----------
+  function weatherTarget() {
+    if (S.weather === "rain") return 0.8;
+    if (S.weather === "dry") return 0;
+    const c = S.time % 120; return c < 50 ? 0 : c < 57 ? (c - 50) / 7 * 0.8 : c < 105 ? 0.8 : Math.max(0, 0.8 - (c - 105) / 7);
+  }
+  function step(dt) {
+    S.time += dt;
+    S.rain += (weatherTarget() - S.rain) * Math.min(1, dt * 0.5);
+    if (S.lastWx === 0 && S.rain > 0.2) { S.lastWx = 1; log("雨が降ってきた…", "wx"); setTimeout(() => { if (S.rain > 0.2) { say("セラ", "雨が強くなってきました。結界を張りますね。"); S.barrier = 0.01; sfx("barrier"); } }, 2500); }
+    else if (S.lastWx === 1 && S.rain < 0.08) { S.lastWx = 0; log("雨があがった。森の匂いがする", "wx"); say("セラ", "雨がやみました。結界を解きますね。"); }
+    S.barrier = S.rain > 0.2 && S.barrier > 0 ? Math.min(1, S.barrier + dt * 0.8) : Math.max(0, S.barrier - dt * 0.6);
+    // fire strength and flicker
+    const target = 1 - S.rain * (S.barrier > 0.5 ? 0.15 : 0.45);
+    S.fire += (target - S.fire) * Math.min(1, dt * 0.8);
+    S.flick = 0.88 + 0.08 * Math.sin(S.time * 11) * Math.sin(S.time * 4.3) + 0.04 * Math.sin(S.time * 23);
+    // sparks, embers and the smoke column
+    if (Math.random() < dt * 20 * S.fire) S.parts.push({ type: "ember", x: FX + rnd(-5, 5), y: FY - 6, vx: rnd(-8, 8), vy: rnd(-40, -20), t: 0, life: rnd(0.6, 1.4) });
+    if (Math.random() < dt * 6) S.parts.push({ type: "smoke", x: FX + rnd(-3, 3), y: FY - 16, vx: rnd(-2, 4), vy: rnd(-14, -9), t: 0, life: rnd(5, 8), s: rnd(3, 5) });
+    for (let i = S.parts.length - 1; i >= 0; i--) { const p = S.parts[i]; p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; if (p.type === "smoke") p.x += Math.sin(p.t + p.y * 0.05) * dt * 3; if (p.t > p.life) S.parts.splice(i, 1); }
+    // rain
+    const want = Math.round(S.rain * 170);
+    while (S.drops.length < want) S.drops.push({ x: rnd(0, W + 20), y: rnd(-H, 0), ty: rnd(70, H), v: rnd(170, 230) });
+    if (S.drops.length > want) S.drops.length = want;
+    for (const d of S.drops) {
+      d.y += d.v * dt; d.x -= d.v * 0.15 * dt;
+      const inDome = S.barrier > 0.5 && Math.hypot((d.x - FX) / 76, (d.y - (FY + 4)) / 50) < 1;
+      if (inDome) { S.splash.push({ x: d.x, y: d.y, t: 0, dome: true }); d.y = rnd(-40, 0); d.x = rnd(0, W + 20); continue; }
+      if (d.y > d.ty) { S.splash.push({ x: d.x, y: d.ty, t: 0 }); d.y = rnd(-40, 0); d.x = rnd(0, W + 20); d.ty = rnd(70, H); }
+    }
+    for (let i = S.splash.length - 1; i >= 0; i--) { S.splash[i].t += dt; if (S.splash[i].t > 0.3) S.splash.splice(i, 1); }
+    S.flash = Math.max(0, S.flash - dt * 2);
+    if (S.rain > 0.7 && Math.random() < dt * 0.03) { S.flash = 1; log("遠くで雷が鳴った", "wx"); setTimeout(() => sfx("thunder"), 600); }
+    // dialog typing
+    if (!S.cur && S.dialog.length) { S.cur = S.dialog.shift(); S.cur.t = 0; }
+    if (S.cur) { S.cur.t += dt; if (S.cur.t > S.cur.text.length / 28 + S.cur.hold) S.cur = null; }
+    updateEvents(dt);
+    audioUpdate(dt);
+  }
+
+  // ---------- render ----------
+  const SCENE = new Uint8ClampedArray(W * H * 4);
+  function render() {
+    // night sky visible through the canopy gap
+    ctx.fillStyle = "rgb(8,10,34)"; ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 30; i++) px(90 + hash(i) * 80, hash(i + 40) * 30, rgba([220, 220, 255], (1 - S.rain) * (0.4 + 0.6 * Math.abs(Math.sin(S.time + i)))));
+    if (S.shoot) { const k = S.shoot.t / 0.9; for (let j = 0; j < 8; j++) px(S.shoot.x + k * 30 - j * 2, 4 + k * 12 - j * 0.8, rgba([255, 255, 230], (1 - j / 8) * (1 - k))); }
+    drawGround();
+    // back canopy and trunks
+    for (const t of TRUNKS) if (t.y0 < 130) drawTrunk(t);
+    drawCanopy(CANOPY, [16, 30, 40], [160, 176, 64], [96, 124, 44]);
+    // fire pit
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; disc(FX + Math.cos(a) * 9, FY + 2 + Math.sin(a) * 4, 2, 1, [90, 90, 100]); }
+    line(FX - 8, FY + 3, FX + 8, FY - 1, [100, 60, 36]); line(FX - 8, FY - 1, FX + 8, FY + 3, [110, 70, 40]);
+    if (S.stew > 0) { rect(FX - 1, FY - 20, 2, 6, [80, 80, 90]); line(FX - 10, FY - 20, FX + 10, FY - 20, [80, 80, 90]); disc(FX, FY - 10, 6, 4, [60, 60, 70]); rect(FX - 5, FY - 13, 10, 2, [200, 140, 80]); if (Math.random() < 0.3) px(FX + rnd(-4, 4), FY - 14, [255, 230, 190]); }
+    const fh = 10 * S.fire * S.flick;
+    for (let i = 0; i < 5; i++) {
+      const ox = (i - 2) * 2.5, h = fh * (1 - Math.abs(i - 2) * 0.22) * (0.8 + 0.2 * Math.sin(S.time * 13 + i * 2));
+      rect(FX + ox - 1.5, FY - h, 3, h, [255, 120, 30]);
+      rect(FX + ox - 0.5, FY - h * 0.75, 2, h * 0.7, [255, 210, 80]);
+      rect(FX + ox, FY - h * 0.45, 1, h * 0.4, [255, 250, 210]);
+    }
+    // characters, sorted by their feet
+    const actors = [
+      { y: 104, f: () => golem(122, 104) }, { y: 108, f: () => pup(144, 110) },
+      { y: 120, f: () => thief(78, 120, S.time) }, { y: 128, f: () => priest(182, 128, S.save > 8 || S.barrier > 0 && S.barrier < 1) },
+      { y: 160, f: () => mage(96, 160, !!(S.slime && S.slime.phase === "atk")) }, { y: 170, f: () => hero(160, 170, S.heroAwake) },
+      { y: 138, f: () => loner(224, 138) },
+    ];
+    if (S.slime) actors.push({ y: S.slime.y, f: () => { if (S.slime.phase !== "die" || Math.floor(S.slime.t * 20) & 1) slime(S.slime.x, S.slime.y, S.slime.t, S.slime.phase === "hit" && Math.floor(S.slime.t * 16) & 1); } });
+    if (S.merchant) actors.push({ y: S.merchant.y, f: () => merchant(S.merchant.x, S.merchant.y, S.merchant.phase === "in" || S.merchant.phase === "out" ? S.merchant.t : 0) });
+    if (S.chest) actors.push({ y: S.chest.y, f: () => chest(S.chest.x, S.chest.y, S.chest.phase === "open") });
+    if (S.save > 0) actors.push({ y: 150, f: () => savePoint(52, 150) });
+    actors.sort((a, b) => a.y - b.y).forEach(a => a.f());
+    // trunks in front
+    for (const t of TRUNKS) if (t.y0 >= 130) drawTrunk(t);
+    // smoke
+    for (const p of S.parts) if (p.type === "smoke") { const k = p.t / p.life, s = p.s * (1 + k * 2); ctx.fillStyle = rgba([150, 150, 170], 0.45 * (1 - k)); ctx.fillRect(Math.round(p.x - s / 2), Math.round(p.y - s / 2), Math.round(s), Math.round(s)); }
+    // front bushes
+    drawCanopy(BUSHES, [14, 28, 30], [150, 176, 60], [80, 116, 40]);
+    if (S.chest && S.chest.phase === "glint" && Math.sin(S.time * 8) > 0.5) { px(S.chest.x, S.chest.y - 10, [255, 255, 220]); px(S.chest.x - 1, S.chest.y - 10, [255, 255, 180]); px(S.chest.x + 1, S.chest.y - 10, [255, 255, 180]); px(S.chest.x, S.chest.y - 11, [255, 255, 180]); }
+    // owl on a branch
+    if (S.owl > 0) { const x = 62, y = 36; rect(x - 3, y - 6, 6, 6, [110, 90, 70]); px(x - 1, y - 5, [255, 220, 90]); px(x + 1, y - 5, [255, 220, 90]); px(x, y - 3, [220, 170, 70]); }
+    // wisps
+    for (const w of S.wisps) { const a = Math.min(1, w.t, (14 - w.t)) * (0.6 + 0.4 * Math.sin(S.time * 5 + w.ph)); px(w.x, w.y, rgba([200, 240, 255], a)); px(w.x, w.y - 1, rgba([150, 200, 255], a)); glow(w.x, w.y, 8, [100, 170, 255], a * 0.6); }
+  }
+  function lighting() {
+    // dithered fire light like a 16-bit palette: brighten near the fire, cool blue far away
+    const img = ctx.getImageData(0, 0, W, H), d = img.data;
+    const R = (92 + 10 * S.fire) * S.flick * (0.75 + 0.25 * S.fire);
+    for (let y = 0, p = 0; y < H; y++) for (let x = 0; x < W; x++, p++) {
+      const dx = x - FX, dy = (y - FY - 2) * 1.55, dist = Math.sqrt(dx * dx + dy * dy);
+      let L = Math.max(0, 1 - dist / R); L = L * L;
+      const th = BAYER[(x & 3) + ((y & 3) << 2)] / 16;
+      const Lq = Math.floor(L * 6 + th) / 6;
+      const o = p * 4, k = 0.62 + 1.25 * Lq;
+      d[o] = d[o] * k + 120 * Lq; d[o + 1] = d[o + 1] * k + 80 * Lq; d[o + 2] = d[o + 2] * (0.8 + 0.4 * Lq) + 6 * Lq;
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  function overlay() {
+    // glows and particles that should not be re-lit
+    glow(FX, FY - 6, 26 * S.fire, [255, 170, 60], 0.55 * S.flick);
+    for (const p of S.parts) {
+      if (p.type === "ember") { const k = p.t / p.life; px(p.x, p.y, rgba(k < 0.5 ? [255, 230, 120] : [255, 120, 40], 1 - k)); }
+      if (p.type === "spark") px(p.x, p.y, [255, 220, 120]);
+    }
+    if (S.slime && S.slime.ball) { glow(S.slime.ball.x, S.slime.ball.y, 10, [255, 150, 60], 0.9); rect(S.slime.ball.x - 1, S.slime.ball.y - 1, 3, 3, [255, 240, 180]); }
+    // barrier dome
+    if (S.barrier > 0) {
+      const a = S.barrier;
+      ctx.strokeStyle = rgba([170, 230, 255], 0.35 * a); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.ellipse(FX, FY + 4, 76, 50, 0, Math.PI, 0); ctx.stroke();
+      for (let i = 0; i < 24; i++) { const t = i / 24 * Math.PI, x = FX + Math.cos(t + S.time * 0.2) * 76, y = FY + 4 - Math.abs(Math.sin(t + S.time * 0.2)) * 50; px(x, y, rgba([220, 250, 255], 0.6 * a)); }
+      ctx.fillStyle = rgba([120, 200, 255], 0.06 * a); ctx.beginPath(); ctx.ellipse(FX, FY + 4, 76, 50, 0, Math.PI, 0); ctx.fill();
+    }
+    // rain
+    for (const dr of S.drops) { ctx.fillStyle = "rgba(170,190,240,0.4)"; ctx.fillRect(Math.round(dr.x), Math.round(dr.y), 1, 4); px(dr.x + 1, dr.y - 1, "rgba(170,190,240,0.25)"); }
+    for (const s of S.splash) { const k = s.t / 0.3; ctx.fillStyle = rgba(s.dome ? [200, 240, 255] : [180, 200, 255], 0.7 * (1 - k)); ctx.fillRect(Math.round(s.x - 1 - k * 2), Math.round(s.y - k * 2), 1, 1); ctx.fillRect(Math.round(s.x + 1 + k * 2), Math.round(s.y - k * 2), 1, 1); }
+    if (S.rain > 0.3 && S.barrier < 0.5 && Math.random() < 0.3) { px(FX + rnd(-4, 4), FY - 12 - rnd(0, 8), "rgba(220,220,230,0.6)"); }
+    if (S.flash > 0) { ctx.fillStyle = rgba([220, 220, 255], S.flash * 0.35); ctx.fillRect(0, 0, W, H); }
+    // level-up column of light
+    if (S.lvFx > 0) {
+      const pos = { hero: [160, 170], mage: [100, 160], thief: [78, 120], priest: [182, 128] }[S.lvWho] || [128, 150];
+      const a = Math.min(1, S.lvFx);
+      ctx.fillStyle = rgba([255, 250, 200], 0.25 * a); ctx.fillRect(pos[0] - 6, 0, 12, pos[1]);
+      for (let i = 0; i < 8; i++) px(pos[0] + rnd(-6, 6), pos[1] - mod(S.time * 60 + i * 20, pos[1]), [255, 255, 220]);
+    }
+    // damage / heal numbers
+    ctx.font = `10px ${FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    for (const n of S.nums) { const y = n.y - Math.min(1, n.t * 4) * 6 + (n.t > 0.25 ? 0 : 0); ctx.lineWidth = 3; ctx.strokeStyle = "rgb(10,10,30)"; ctx.strokeText(n.text, n.x, y); ctx.fillStyle = rgb(n.col); ctx.fillText(n.text, n.x, y); }
+    ctx.textAlign = "left";
+  }
+  function windowBox(x, y, w, h) {
+    const g = ctx.createLinearGradient(0, y, 0, y + h);
+    g.addColorStop(0, "rgba(40,60,170,0.92)"); g.addColorStop(1, "rgba(14,20,80,0.92)");
+    ctx.fillStyle = g; ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+    ctx.strokeStyle = "rgb(230,230,245)"; ctx.lineWidth = 1; ctx.strokeRect(x + 1.5, y + 1.5, w - 3, h - 3);
+    ctx.strokeStyle = "rgb(120,120,160)"; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  }
+  function ui() {
+    if (S.stats) {
+      windowBox(4, 4, 96, 50);
+      ctx.font = `8px ${FONT}`; ctx.textBaseline = "top";
+      PARTY.forEach((p, i) => {
+        const y = 8 + i * 11;
+        ctx.fillStyle = "rgb(255,255,255)"; ctx.fillText(p.name, 9, y);
+        ctx.fillStyle = "rgb(200,210,255)"; ctx.fillText(`Lv${p.lv}`, 36, y);
+        rect(60, y + 3, 34, 3, [20, 20, 50]); rect(60, y + 3, 34 * p.hp / p.mhp, 3, p.hp / p.mhp > 0.5 ? [120, 230, 140] : [240, 200, 80]);
+      });
+      windowBox(W - 62, 4, 58, 16);
+      ctx.fillStyle = "rgb(255,230,120)"; ctx.fillText(`${S.gold} G`, W - 56, 8);
+    }
+    if (S.cur) {
+      const d = S.cur, y = H - 44;
+      windowBox(6, y, W - 12, 40);
+      ctx.font = `10px ${FONT}`; ctx.textBaseline = "top";
+      let tx = 14;
+      if (d.who) { ctx.fillStyle = "rgb(255,220,120)"; ctx.fillText(d.who, tx, y + 6); }
+      const shown = d.text.slice(0, Math.floor(d.t * 28));
+      ctx.fillStyle = "rgb(255,255,255)";
+      const maxW = W - 30, lines = []; let cur = "";
+      for (const ch of shown) { if (ctx.measureText(cur + ch).width > maxW) { lines.push(cur); cur = ch; } else cur += ch; }
+      lines.push(cur);
+      lines.slice(0, 2).forEach((l, i) => ctx.fillText(l, tx, y + (d.who ? 18 : 10) + i * 12));
+      if (shown.length === d.text.length && Math.floor(S.time * 3) & 1) { rect(W - 20, y + 32, 4, 2, [255, 255, 255]); px(W - 19, y + 34, [255, 255, 255]); }
+    }
+    ctx.textBaseline = "alphabetic";
+  }
+
+  // ---------- post-process ----------
+  const LEVELS = [0, 34, 76, 128, 190, 255];
+  const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  const LO = new Uint8Array(256), FR = new Uint8Array(256);
+  for (let v = 0; v < 256; v++) { let i = 0; while (i < 4 && v >= LEVELS[i + 1]) i++; const a = LEVELS[i], b = LEVELS[i + 1]; LO[v] = i; FR[v] = Math.round(((v - a) / (b - a)) * 16); }
+  const indexBuf = new Uint8Array(W * H);
+  function postProcess() {
+    const img = ctx.getImageData(0, 0, W, H), d = img.data;
+    for (let y = 0, p = 0; y < H; y++) for (let x = 0; x < W; x++, p++) {
+      const o = p * 4, th = BAYER[(x & 3) + ((y & 3) << 2)];
+      let r = LO[d[o]] + (FR[d[o]] > th ? 1 : 0), g = LO[d[o + 1]] + (FR[d[o + 1]] > th ? 1 : 0), b = LO[d[o + 2]] + (FR[d[o + 2]] > th ? 1 : 0);
+      if (r > 5) r = 5; if (g > 5) g = 5; if (b > 5) b = 5;
+      indexBuf[p] = r * 36 + g * 6 + b;
+      d[o] = LEVELS[r]; d[o + 1] = LEVELS[g]; d[o + 2] = LEVELS[b]; d[o + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    return indexBuf;
+  }
+  function frame(dt) {
+    step(dt); render(); lighting(); overlay(); ui();
+    const idx = postProcess();
+    vctx.drawImage(low, 0, 0, view.width, view.height);
+    return idx;
+  }
+
+  // ---------- music: campfire theme (6/8, flute + harp + strings) and jingles ----------
+  const Snd = { ac: null, on: false, vol: 0.7, amb: true, n: null, next: 0, step: 0, phrase: null, duck: 0 };
+  let busy = false;
+  const live = () => Snd.on && Snd.ac && !busy;
+  const BPM = 66, EIGHTH = 60 / BPM / 3;
+  const CH = [
+    { name: "Dm9", bass: 38, notes: [57, 60, 64, 65] }, { name: "B♭maj7", bass: 34, notes: [57, 62, 65, 69] },
+    { name: "Fmaj7", bass: 41, notes: [57, 60, 64, 69] }, { name: "C6", bass: 36, notes: [55, 60, 64, 69] },
+    { name: "Gm7", bass: 43, notes: [58, 62, 65, 67] }, { name: "B♭maj7", bass: 34, notes: [57, 62, 65, 69] },
+    { name: "A7sus", bass: 45, notes: [55, 62, 64, 69] }, { name: "A7", bass: 45, notes: [55, 61, 64, 69] },
+  ];
+  const SCALE = [62, 64, 65, 67, 69, 72, 74, 76, 77, 79];
+  const RHY = [[1, 0, 1, 1, 0, 0], [1, 0, 0, 1, 0, 1], [1, 1, 1, 1, 0, 0], [1, 0, 0, 0, 0, 0], [1, 0, 1, 0, 1, 0], [1, 0, 0, 1, 1, 1]];
+  const mf = m => 440 * Math.pow(2, (m - 69) / 12);
+  function makePhrase() {
+    const bar = () => { const r = pick(RHY); let i = 3 + ((Math.random() * 5) | 0); return r.map(on => { if (!on) return null; i = clamp(i + pick([-2, -1, -1, 1, 1, 2, 0]), 0, SCALE.length - 1); return SCALE[i]; }); };
+    const A = [bar(), bar(), bar(), [SCALE[4], null, null, null, null, null], bar(), bar(), bar(), [SCALE[5], null, null, null, null, null]];
+    const B = [bar(), bar(), bar(), bar(), bar(), bar(), bar(), [SCALE[4], null, null, null, null, null]];
+    return [...A, ...B];
+  }
+  function audioInit() {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
+    const ac = new AC(); Snd.ac = ac;
+    const master = ac.createGain(); master.gain.value = Snd.vol;
+    const comp = ac.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 3; master.connect(comp); comp.connect(ac.destination);
+    const conv = ac.createConvolver(), len = ac.sampleRate * 2.5, ir = ac.createBuffer(2, len, ac.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+    conv.buffer = ir;
+    const music = ac.createGain(); music.gain.value = 0.85;
+    const echo = ac.createDelay(1); echo.delayTime.value = EIGHTH * 3; const fb = ac.createGain(); fb.gain.value = 0.28; const echoG = ac.createGain(); echoG.gain.value = 0.25;
+    music.connect(master); music.connect(conv); const wet = ac.createGain(); wet.gain.value = 0.35; conv.connect(wet); wet.connect(master);
+    music.connect(echo); echo.connect(fb); fb.connect(echo); echo.connect(echoG); echoG.connect(master);
+    const jingle = ac.createGain(); jingle.gain.value = 0.9; jingle.connect(master); jingle.connect(conv);
+    const white = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate), wd = white.getChannelData(0); for (let i = 0; i < wd.length; i++) wd[i] = Math.random() * 2 - 1;
+    const pink = ac.createBuffer(1, ac.sampleRate * 3, ac.sampleRate), pd = pink.getChannelData(0); let b0 = 0, b1 = 0, b2 = 0;
+    for (let i = 0; i < pd.length; i++) { const w = Math.random() * 2 - 1; b0 = 0.997 * b0 + w * 0.029; b1 = 0.985 * b1 + w * 0.032; b2 = 0.95 * b2 + w * 0.048; pd[i] = (b0 + b1 + b2) * 0.9; }
+    const loop = (buf, type, f) => { const s = ac.createBufferSource(); s.buffer = buf; s.loop = true; const fl = ac.createBiquadFilter(); fl.type = type; fl.frequency.value = f; const g = ac.createGain(); g.gain.value = 0; s.connect(fl); fl.connect(g); g.connect(master); s.start(); return g; };
+    Snd.n = { master, music, jingle, conv, white, pink, rainG: loop(pink, "lowpass", 2000), hissG: loop(white, "highpass", 5000), fireG: loop(pink, "lowpass", 300), windG: loop(pink, "bandpass", 500) };
+    Snd.next = ac.currentTime + 0.1; Snd.phrase = makePhrase();
+    return true;
+  }
+  function envG(t0, a, peak, dur, dest) { const g = Snd.ac.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(peak, t0 + a); g.gain.exponentialRampToValueAtTime(0.0005, t0 + dur); g.connect(dest); return g; }
+  function osc(type, f, t0, dur, g) { const o = Snd.ac.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t0); o.connect(g); o.start(t0); o.stop(t0 + dur + 0.05); return o; }
+  function flute(m, t0, dur, vel, dest) {
+    const g = Snd.ac.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.07 * vel, t0 + 0.06); g.gain.setValueAtTime(0.06 * vel, t0 + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0005, t0 + dur); g.connect(dest);
+    const o = osc("sine", mf(m), t0, dur, g); const o2 = osc("triangle", mf(m) * 2, t0, dur, envG(t0, 0.06, 0.008 * vel, dur, dest));
+    const v = Snd.ac.createOscillator(), vg = Snd.ac.createGain(); v.frequency.value = 5.2; vg.gain.setValueAtTime(0, t0); vg.gain.linearRampToValueAtTime(7, t0 + 0.35); v.connect(vg); vg.connect(o.detune); vg.connect(o2.detune); v.start(t0); v.stop(t0 + dur);
+  }
+  function harp(m, t0, vel) { const lp = Snd.ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2400; lp.connect(Snd.n.music); osc("triangle", mf(m), t0, 1.3, envG(t0, 0.004, 0.055 * vel, 1.3, lp)); }
+  function strings(ch, t0, dur) {
+    const lp = Snd.ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 900; lp.connect(Snd.n.music);
+    const g = Snd.ac.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.018, t0 + 0.9); g.gain.setValueAtTime(0.018, t0 + dur - 0.5); g.gain.linearRampToValueAtTime(0.0001, t0 + dur + 0.5); g.connect(lp);
+    for (const m of ch.notes) for (const det of [-7, 7]) { const o = Snd.ac.createOscillator(); o.type = "sawtooth"; o.frequency.value = mf(m - 12); o.detune.value = det; o.connect(g); o.start(t0); o.stop(t0 + dur + 0.6); }
+  }
+  function scheduleEighth(st, t0) {
+    const bar = Math.floor(st / 6), s = st % 6, ch = CH[bar % CH.length];
+    if (bar % 16 === 0 && s === 0 && st > 0) Snd.phrase = makePhrase();
+    const duck = Snd.ac.currentTime < Snd.duck ? 0.2 : 1;
+    if (s === 0) { osc("triangle", mf(ch.bass), t0, EIGHTH * 5.5, envG(t0, 0.01, 0.16 * duck, EIGHTH * 5.5, Snd.n.music)); strings(ch, t0, EIGHTH * 6); }
+    const arp = [0, 1, 2, 3, 2, 1][s]; harp(ch.notes[arp] + (s === 3 ? 12 : 0), t0, 0.8 * duck);
+    const mel = Snd.phrase[bar % 16][s];
+    if (mel) { let len = 1; while (s + len < 6 && !Snd.phrase[bar % 16][s + len]) len++; flute(mel, t0, EIGHTH * len * 0.95 + 0.1, duck, Snd.n.music); }
+  }
+  function jingle(notes, step, type = "square", vol = 0.06) {
+    const t0 = Snd.ac.currentTime + 0.02; Snd.duck = t0 + notes.length * step + 0.8;
+    notes.forEach((m, i) => { if (m == null) return; const lp = Snd.ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 3000; lp.connect(Snd.n.jingle); osc(type, mf(m), t0 + i * step, step * 1.6, envG(t0 + i * step, 0.005, vol, step * 1.6, lp)); });
+  }
+  function audioUpdate(dt) {
+    if (!live()) return;
+    const ac = Snd.ac, n = Snd.n, amb = Snd.amb ? 1 : 0;
+    while (Snd.next < ac.currentTime + 0.2) { scheduleEighth(Snd.step, Snd.next); Snd.next += EIGHTH; Snd.step++; }
+    n.rainG.gain.setTargetAtTime(S.rain * 0.3 * amb, ac.currentTime, 0.3);
+    n.hissG.gain.setTargetAtTime(S.rain * 0.035 * amb, ac.currentTime, 0.3);
+    n.fireG.gain.setTargetAtTime(0.08 * S.fire * amb, ac.currentTime, 0.2);
+    n.windG.gain.setTargetAtTime((0.015 + 0.012 * Math.sin(S.time * 0.3)) * amb, ac.currentTime, 0.5);
+    const t0 = ac.currentTime;
+    if (amb && Math.random() < dt * 9 * S.fire) { const s = ac.createBufferSource(); s.buffer = n.white; const f = ac.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = rnd(1500, 4000); s.connect(f); f.connect(envG(t0, 0.001, rnd(0.02, 0.08), 0.02, n.master)); s.start(t0, Math.random()); s.stop(t0 + 0.03); }
+    if (amb && S.rain < 0.1 && Math.random() < dt * 2.2) for (let i = 0; i < 3; i++) osc("sine", 4200 + Math.random() * 300, t0 + i * 0.07, 0.05, envG(t0 + i * 0.07, 0.005, 0.006, 0.05, n.master));
+  }
+  function sfx(kind) {
+    if (!live()) return;
+    const ac = Snd.ac, t0 = ac.currentTime, m = Snd.n.master;
+    const noise = (type, f, dur, vol, f1) => { const s = ac.createBufferSource(); s.buffer = Snd.n.white; const fl = ac.createBiquadFilter(); fl.type = type; fl.frequency.setValueAtTime(f, t0); if (f1) fl.frequency.exponentialRampToValueAtTime(f1, t0 + dur); s.connect(fl); fl.connect(envG(t0, 0.005, vol, dur, m)); s.start(t0); s.stop(t0 + dur + 0.05); };
+    switch (kind) {
+      case "battle": jingle([50, 53, 56, 59, 62, null, 62, 62], 0.09, "sawtooth", 0.05); noise("lowpass", 400, 0.5, 0.2); break;
+      case "cast": osc("sine", 400, t0, 0.5, envG(t0, 0.01, 0.06, 0.5, Snd.n.jingle)).frequency.exponentialRampToValueAtTime(1600, t0 + 0.45); noise("bandpass", 1200, 0.5, 0.1, 3000); break;
+      case "hit": noise("lowpass", 1800, 0.25, 0.3); osc("square", 150, t0, 0.15, envG(t0, 0.002, 0.08, 0.15, m)).frequency.exponentialRampToValueAtTime(60, t0 + 0.15); break;
+      case "victory": jingle([72, 72, 72, 72, null, 68, 70, 72, null, 70, 72, null, null, 79], 0.1, "square", 0.05); break;
+      case "levelup": jingle([67, 71, 74, 79, 83, 86, null, 91], 0.07, "square", 0.05); break;
+      case "item": jingle([67, 69, 71, 72, 74, 76, 79], 0.08, "triangle", 0.08); break;
+      case "save": jingle([84, 88, 91, 96, null, 91, 96], 0.12, "sine", 0.07); break;
+      case "heal": jingle([72, 76, 79, 84, 79, 84, 88], 0.08, "sine", 0.07); break;
+      case "merchant": jingle([72, 74, 76, 72, 79, null, 76, 79], 0.1, "triangle", 0.07); break;
+      case "coin": jingle([88, 95], 0.06, "square", 0.04); break;
+      case "barrier": osc("sine", 300, t0, 1.6, envG(t0, 0.3, 0.07, 1.6, Snd.n.jingle)).frequency.exponentialRampToValueAtTime(900, t0 + 1.4); jingle([79, 84, 88, 91], 0.15, "sine", 0.05); break;
+      case "whoosh": noise("bandpass", 300, 0.6, 0.25, 1500); break;
+      case "owl": for (const d of [0, 0.5]) { const o = osc("sine", 390, t0 + d, 0.35, envG(t0 + d, 0.05, 0.05, 0.35, Snd.n.conv)); o.frequency.linearRampToValueAtTime(350, t0 + d + 0.3); } break;
+      case "thunder": { const s = ac.createBufferSource(); s.buffer = Snd.n.pink; const f = ac.createBiquadFilter(); f.type = "lowpass"; f.frequency.setValueAtTime(800, t0); f.frequency.exponentialRampToValueAtTime(100, t0 + 3); s.connect(f); f.connect(envG(t0, 0.05, 0.45, 3.5, m)); s.start(t0); s.stop(t0 + 3.6); break; }
+    }
+  }
+
+  // ---------- GIF ----------
+  const PALETTE = new Uint8Array(768);
+  for (let i = 0; i < 216; i++) { PALETTE[i * 3] = LEVELS[(i / 36) | 0]; PALETTE[i * 3 + 1] = LEVELS[((i / 6) | 0) % 6]; PALETTE[i * 3 + 2] = LEVELS[i % 6]; }
+  function lzw(ix, out) {
+    let size = 9, next = 258, cur = 0, bits = 0; const dict = new Map(), bytes = [];
+    const emit = c => { cur |= c << bits; bits += size; while (bits >= 8) { bytes.push(cur & 255); cur >>>= 8; bits -= 8; } };
+    emit(256); let prefix = ix[0];
+    for (let i = 1; i < ix.length; i++) {
+      const k = ix[i], key = prefix * 256 + k, v = dict.get(key);
+      if (v !== undefined) { prefix = v; continue; }
+      emit(prefix);
+      if (next < 4095) { dict.set(key, next++); if (next > (1 << size) && size < 12) size++; } else { emit(256); dict.clear(); size = 9; next = 258; }
+      prefix = k;
+    }
+    emit(prefix); emit(257); if (bits > 0) bytes.push(cur & 255);
+    out.push(8);
+    for (let i = 0; i < bytes.length; i += 255) { const n = Math.min(255, bytes.length - i); out.push(n); for (let j = 0; j < n; j++) out.push(bytes[i + j]); }
+    out.push(0);
+  }
+  function upscale(ix, k) {
+    if (k === 1) return ix.slice();
+    const w = W * k, o = new Uint8Array(w * H * k);
+    for (let y = 0; y < H * k; y++) { const sy = ((y / k) | 0) * W, row = y * w; for (let x = 0; x < w; x++) o[row + x] = ix[sy + ((x / k) | 0)]; }
+    return o;
+  }
+  async function makeGif(seconds = 8, scale = 2, fps = 20, onProgress) {
+    const n = Math.round(seconds * fps), w = W * scale, h = H * scale, delay = Math.round(100 / fps);
+    const out = []; for (const ch of "GIF89a") out.push(ch.charCodeAt(0));
+    out.push(w & 255, w >> 8, h & 255, h >> 8, 0xf7, 0, 0); for (let i = 0; i < 768; i++) out.push(PALETTE[i]);
+    out.push(0x21, 0xff, 0x0b); for (const ch of "NETSCAPE2.0") out.push(ch.charCodeAt(0)); out.push(3, 1, 0, 0, 0);
+    for (let i = 0; i < n; i++) {
+      const ix = frame(1 / fps);
+      out.push(0x21, 0xf9, 4, 4, delay & 255, delay >> 8, 0, 0, 0x2c, 0, 0, 0, 0, w & 255, w >> 8, h & 255, h >> 8, 0);
+      lzw(upscale(ix, scale), out);
+      if (i % 4 === 3) { onProgress && onProgress(i + 1, n); await new Promise(r => setTimeout(r, 0)); }
+    }
+    out.push(0x3b); return new Uint8Array(out);
+  }
+
+  // ---------- UI ----------
+  let last = performance.now();
+  function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; if (!S.paused && !busy) frame(dt); requestAnimationFrame(loop); }
+  const status = document.getElementById("status"), out = document.getElementById("out");
+  const mBtn = document.getElementById("music");
+  mBtn.addEventListener("click", async () => {
+    if (!Snd.ac && !audioInit()) { status.textContent = "このブラウザでは音を鳴らせません。"; return; }
+    Snd.on = !Snd.on;
+    if (Snd.on) { await Snd.ac.resume(); Snd.next = Snd.ac.currentTime + 0.1; } else await Snd.ac.suspend();
+    mBtn.setAttribute("aria-pressed", String(Snd.on)); mBtn.textContent = Snd.on ? "音楽を止める" : "音楽を流す";
+  });
+  document.getElementById("vol").addEventListener("input", e => { Snd.vol = e.target.value / 100; if (Snd.n) Snd.n.master.gain.setTargetAtTime(Snd.vol, Snd.ac.currentTime, 0.05); });
+  const aBtn = document.getElementById("amb");
+  aBtn.addEventListener("click", () => { Snd.amb = !Snd.amb; aBtn.setAttribute("aria-pressed", String(Snd.amb)); });
+  const wButtons = [...document.querySelectorAll("[data-w]")];
+  wButtons.forEach(b => b.addEventListener("click", () => { S.weather = b.dataset.w; wButtons.forEach(x => x.setAttribute("aria-pressed", String(x === b))); }));
+  document.querySelectorAll("[data-ev]").forEach(b => b.addEventListener("click", () => startEvent(b.dataset.ev)));
+  const stBtn = document.getElementById("stats");
+  stBtn.addEventListener("click", () => { S.stats = !S.stats; stBtn.setAttribute("aria-pressed", String(S.stats)); });
+  const pBtn = document.getElementById("pause");
+  function togglePause() { S.paused = !S.paused; pBtn.setAttribute("aria-pressed", String(S.paused)); pBtn.textContent = S.paused ? "再生" : "一時停止"; }
+  pBtn.addEventListener("click", togglePause);
+  window.addEventListener("keydown", e => { if (e.code === "Space" && e.target === document.body) { e.preventDefault(); togglePause(); } });
+  const gifBtn = document.getElementById("gif");
+  gifBtn.addEventListener("click", async () => {
+    busy = true; gifBtn.disabled = true;
+    try {
+      const bytes = await makeGif(+document.getElementById("gifsec").value, +document.getElementById("gifscale").value, 20, (i, n) => { status.textContent = `GIF 生成中… ${i}/${n} フレーム`; });
+      const img = new Image(); img.src = URL.createObjectURL(new Blob([bytes], { type: "image/gif" })); img.alt = "書き出した焚き火のGIF"; out.prepend(img);
+      status.textContent = `GIF ができました（${(bytes.length / 1048576).toFixed(1)} MB）。右クリック／長押しで保存できます。`;
+    } catch (err) { status.textContent = `GIF の生成に失敗しました: ${err.message}`; }
+    finally { busy = false; gifBtn.disabled = false; last = performance.now(); }
+  });
+  const webmBtn = document.getElementById("webm"); let rec = null;
+  webmBtn.addEventListener("click", () => {
+    if (rec) { rec.stop(); return; }
+    if (!view.captureStream || typeof MediaRecorder === "undefined") { status.textContent = "このブラウザは動画録画に対応していません。GIF をお使いください。"; return; }
+    const chunks = [], type = ["video/webm;codecs=vp9", "video/webm", "video/mp4"].find(t => MediaRecorder.isTypeSupported(t)) || "";
+    rec = new MediaRecorder(view.captureStream(30), type ? { mimeType: type, videoBitsPerSecond: 6e6 } : undefined);
+    rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+    rec.onstop = () => {
+      const v = document.createElement("video"); v.src = URL.createObjectURL(new Blob(chunks, { type: rec.mimeType || "video/webm" }));
+      v.controls = v.loop = v.muted = v.autoplay = true; out.prepend(v);
+      status.textContent = "録画しました（映像のみ）。動画の右クリック／長押しで保存できます。"; rec = null; webmBtn.textContent = "動画を録画";
+    };
+    rec.start(); webmBtn.textContent = "録画を止める"; status.textContent = "録画中… もう一度押すと停止します。";
+  });
+
+  say("", "森の奥で 野営をすることにした。");
+  for (let i = 0; i < 20; i++) step(1 / 30);
+  window.Camp = { S, frame, makeGif, startEvent };
+  requestAnimationFrame(loop);
+})();
+</script>
