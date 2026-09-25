@@ -30,6 +30,10 @@
   .sub { color: var(--dim); font-size: 13px; }
   .screen { position: relative; width: 100%; aspect-ratio: 16 / 9; max-width: 100%; background: #000; border: 1px solid var(--line); }
   #view { width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  .hud { position: absolute; left: 10px; top: 8px; display: flex; gap: 10px; font-size: 13px; color: var(--amber); text-shadow: 0 0 4px #000, 0 0 2px #000; pointer-events: none; }
+  .hud span:last-child { color: var(--cyan); }
+  .row { display: grid; grid-template-columns: 1fr minmax(0, 320px); gap: 14px; align-items: start; }
+  @media (max-width: 760px) { .row { grid-template-columns: 1fr; } }
   .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
   .group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .label { color: var(--dim); font-size: 12px; letter-spacing: 0.1em; }
@@ -42,63 +46,88 @@
   button.rec { border-color: #7a2a3a; }
   button:disabled { opacity: 0.5; cursor: wait; }
   input[type="range"] { accent-color: var(--amber); width: 120px; }
+  .log { margin: 0; padding: 10px 12px; list-style: none; background: var(--panel); border: 1px solid var(--line); min-height: 150px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+  .log li { display: flex; gap: 8px; }
+  .log time { color: var(--dim); font-variant-numeric: tabular-nums; flex: none; }
+  .log li.area { color: var(--amber); }
+  .log li.ev { color: var(--cyan); }
   #status { color: var(--cyan); font-size: 13px; min-height: 1.2em; }
   .out { display: flex; flex-direction: column; gap: 8px; }
   .out img, .out video { max-width: 100%; image-rendering: pixelated; border: 1px solid var(--line); }
-  .hint { color: var(--dim); font-size: 12px; line-height: 1.6; }
+  .hint { color: var(--dim); font-size: 12px; line-height: 1.6; margin: 0; }
 </style>
 
 <div class="wrap">
   <header>
     <h1>NIGHT DRIVE</h1>
-    <span class="sub">320×180 ピクセル / 手続き生成 / 夜・雨・ワイパー</span>
+    <span class="sub">後部座席の窓から / 320×180 ピクセル / 手続き生成</span>
   </header>
 
-  <div class="screen"><canvas id="view" width="1280" height="720"></canvas></div>
+  <div class="screen">
+    <canvas id="view" width="1280" height="720"></canvas>
+    <div class="hud" aria-hidden="true"><span id="hud-area">市街地</span><span id="hud-time">23:47</span></div>
+  </div>
 
-  <div class="controls">
-    <div class="group" role="group" aria-label="天気">
-      <span class="label">天気</span>
-      <button id="w-auto" data-w="auto" aria-pressed="true">自動</button>
-      <button id="w-clear" data-w="clear" aria-pressed="false">晴れ</button>
-      <button id="w-rain" data-w="rain" aria-pressed="false">雨</button>
-      <button id="w-storm" data-w="storm" aria-pressed="false">嵐</button>
+  <div class="row">
+    <div class="controls">
+      <div class="group" role="group" aria-label="天気">
+        <span class="label">天気</span>
+        <button id="w-auto" data-w="auto" aria-pressed="true">自動</button>
+        <button id="w-clear" data-w="clear" aria-pressed="false">晴れ</button>
+        <button id="w-rain" data-w="rain" aria-pressed="false">雨</button>
+        <button id="w-storm" data-w="storm" aria-pressed="false">嵐</button>
+      </div>
+      <div class="group">
+        <label class="label" for="area">景色</label>
+        <select id="area">
+          <option value="">行き先を選ぶ…</option>
+          <option value="city">市街地</option>
+          <option value="suburb">住宅街</option>
+          <option value="country">田園</option>
+          <option value="forest">山道</option>
+          <option value="tunnel">トンネル</option>
+          <option value="coast">海沿い</option>
+          <option value="bridge">大きな橋</option>
+        </select>
+        <button id="next">次の景色へ</button>
+      </div>
+      <div class="group">
+        <label class="label" for="speed">速度</label>
+        <input id="speed" type="range" min="8" max="40" value="22">
+        <button id="dither" aria-pressed="true">ディザ</button>
+        <button id="pause" aria-pressed="false">一時停止</button>
+      </div>
+      <div class="group">
+        <label class="label" for="gifsec">GIF</label>
+        <select id="gifsec">
+          <option value="4">4秒</option>
+          <option value="8" selected>8秒</option>
+          <option value="12">12秒</option>
+        </select>
+        <select id="gifscale" aria-label="GIFサイズ">
+          <option value="1">320×180</option>
+          <option value="2" selected>640×360</option>
+        </select>
+        <button id="gif" class="rec">GIFを作る</button>
+        <button id="webm" class="rec">動画を録画</button>
+      </div>
+      <p class="hint">景色は約 30〜60 秒ごとに移り変わります。鹿やキツネ、散歩中の人、電車、花火、夜間工事などがときどき現れます。GIF は今の景色と天気のまま書き出します。できた画像や動画は右クリック／長押しで保存できます。スペースキーで一時停止。</p>
     </div>
-    <div class="group">
-      <label class="label" for="speed">速度</label>
-      <input id="speed" type="range" min="8" max="40" value="22">
-    </div>
-    <div class="group">
-      <button id="dither" aria-pressed="true">ディザ</button>
-      <button id="pause" aria-pressed="false">一時停止</button>
-    </div>
-    <div class="group">
-      <label class="label" for="gifsec">GIF</label>
-      <select id="gifsec">
-        <option value="4">4秒</option>
-        <option value="8" selected>8秒</option>
-        <option value="12">12秒</option>
-      </select>
-      <select id="gifscale" aria-label="GIFサイズ">
-        <option value="1">320×180</option>
-        <option value="2" selected>640×360</option>
-      </select>
-      <button id="gif" class="rec">GIFを作る</button>
-      <button id="webm" class="rec">動画を録画</button>
-    </div>
+    <ul class="log" id="log" aria-live="polite"></ul>
   </div>
   <div id="status" role="status"></div>
   <div class="out" id="out"></div>
-  <p class="hint">GIF は現在の天気のまま一定フレームレートで書き出します（ブラウザ内で生成）。できた画像や動画は右クリック／長押しで保存できます。スペースキーで一時停止。</p>
 </div>
 
 <script>
 (() => {
   "use strict";
-  // ---------- constants ----------
-  const W = 320, H = 180, CX = W / 2, HOR = 74;
-  const D = 160, CAMH = 1.2, ROADW = 2.2, DRAW = 200;
-  const LAMP_SP = 16;
+  // ================= constants =================
+  const W = 320, H = 180, CX = 160;
+  const K_MT = 0.1, K_MT2 = 0.25, K_FAR = 0.6, K_MID = 2.8, K_NEAR = 9;
+  const Y_FAR = 86, Y_MID = 104, Y_NEAR = 124, WIN_BOT = 134, WIN_R = 292;
+  const winTop = x => 17 + Math.round(((x - 175) / 140) ** 2 * 7);
+  const winL = y => Math.round(36 + (WIN_BOT - y) * 0.28);
 
   const low = document.createElement("canvas");
   low.width = W; low.height = H;
@@ -108,12 +137,18 @@
   const vctx = view.getContext("2d");
   vctx.imageSmoothingEnabled = false;
 
-  // ---------- helpers ----------
+  // ================= helpers =================
   function hash(i) {
     let h = Math.imul((i | 0) ^ 0x9e3779b9, 0x85ebca6b);
     h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16;
     return (h >>> 0) / 4294967296;
   }
+  const h2 = (a, b) => hash(Math.imul(a | 0, 73856093) ^ Math.imul(b | 0, 19349663));
+  function noise1(t) {
+    const i = Math.floor(t), f = t - i, u = f * f * (3 - 2 * f);
+    return hash(i) + (hash(i + 1) - hash(i)) * u;
+  }
+  const mod = (a, n) => ((a % n) + n) % n;
   const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
   const lerp = (a, b, t) => a + (b - a) * t;
   const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -125,8 +160,9 @@
     ctx.fillStyle = typeof c === "string" ? c : rgb(c);
     ctx.fillRect(x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0));
   }
+  const px = (x, y, c) => { ctx.fillStyle = typeof c === "string" ? c : rgb(c); ctx.fillRect(Math.round(x), Math.round(y), 1, 1); };
   function pxLine(x0, y0, x1, y1, style, t = 1) {
-    ctx.fillStyle = style;
+    ctx.fillStyle = typeof style === "string" ? style : rgb(style);
     const dx = x1 - x0, dy = y1 - y0;
     const n = Math.max(Math.abs(dx), Math.abs(dy)) | 0;
     for (let i = 0; i <= n; i++) {
@@ -140,613 +176,1292 @@
     g.addColorStop(0, rgba(c, a));
     g.addColorStop(0.35, rgba(c, a * 0.35));
     g.addColorStop(1, rgba(c, 0));
+    const prev = ctx.globalCompositeOperation;
+    ctx.globalCompositeOperation = "lighter";
     ctx.fillStyle = g;
     ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    ctx.globalCompositeOperation = prev;
   }
 
-  // 3x5 pixel digits
-  const FONT = {
-    "0": "111101101101111", "1": "010110010010111", "2": "111001111100111", "3": "111001111001111",
-    "4": "101101111001001", "5": "111100111001111", "6": "111100111101111", "7": "111001001010010",
-    "8": "111101111101111", "9": "111101111001111", ":": "000010000010000", " ": "000000000000000",
+  // ================= route / biomes =================
+  const BIOMES = {
+    city:    { name: "市街地",   len: [700, 1100], top: [8, 6, 22], bot: [70, 38, 72], stars: 0.2, mount: 0.3,
+               msg: "街の中心部を走っている" },
+    suburb:  { name: "住宅街",   len: [600, 1000], top: [6, 8, 24], bot: [40, 34, 70], stars: 0.55, mount: 0.55,
+               msg: "静かな住宅街に入った" },
+    country: { name: "田園",     len: [800, 1300], top: [4, 8, 26], bot: [22, 30, 62], stars: 1, mount: 1,
+               msg: "田んぼの広がる田園地帯へ" },
+    forest:  { name: "山道",     len: [600, 1000], top: [3, 6, 18], bot: [16, 22, 46], stars: 1, mount: 1.5,
+               msg: "山道に入った" },
+    tunnel:  { name: "トンネル", len: [250, 450], top: [3, 6, 18], bot: [16, 22, 46], stars: 1, mount: 1.7,
+               msg: "トンネルに入った" },
+    coast:   { name: "海沿い",   len: [900, 1400], top: [4, 8, 28], bot: [26, 36, 74], stars: 1, mount: 0.35,
+               msg: "海沿いの道に出た" },
+    bridge:  { name: "大きな橋", len: [220, 360], top: [6, 8, 26], bot: [36, 34, 72], stars: 0.6, mount: 0.3,
+               msg: "大きな橋を渡っている" },
   };
-  function text(str, x, y, c) {
-    ctx.fillStyle = typeof c === "string" ? c : rgb(c);
-    for (let i = 0; i < str.length; i++) {
-      const g = FONT[str[i]] || FONT[" "];
-      for (let p = 0; p < 15; p++) if (g[p] === "1") ctx.fillRect(x + i * 4 + (p % 3), y + ((p / 3) | 0), 1, 1);
+  const NEXT = {
+    city: ["suburb", "bridge"], suburb: ["city", "country", "bridge", "country"],
+    country: ["forest", "suburb", "coast"], forest: ["tunnel", "country", "tunnel"],
+    tunnel: ["coast", "forest", "country"], coast: ["bridge", "forest", "suburb"],
+    bridge: ["city", "suburb", "coast", "country"],
+  };
+  const route = [{ b: "city", s0: -8000, s1: 900 }];
+  function extendRoute(upto) {
+    while (route[route.length - 1].s1 < upto) {
+      const last = route[route.length - 1], n = route.length;
+      const opts = NEXT[last.b];
+      const b = opts[Math.floor(hash(n * 977 + 13) * opts.length)];
+      const [a, c] = BIOMES[b].len;
+      route.push({ b, s0: last.s1, s1: last.s1 + a + (c - a) * hash(n * 31 + 7) });
     }
   }
-
-  // ---------- world ----------
-  const curv = s => 0.0016 * Math.sin(s * 0.0031) + 0.0007 * Math.sin(s * 0.0107 + 1.3);
-
-  // skyline layers (generated once)
-  function makeSkyline(seed, count, wMin, wMax, hMin, hMax) {
-    const out = []; let x = 0;
-    for (let i = 0; x < 1024; i++) {
-      const w = Math.round(lerp(wMin, wMax, hash(seed + i * 7)));
-      const h = Math.round(lerp(hMin, hMax, Math.pow(hash(seed + i * 13), 1.6)));
-      const wins = [];
-      for (let yy = 3; yy < h - 2; yy += 3) for (let xx = 2; xx < w - 1; xx += 2)
-        if (hash(seed * 31 + i * 977 + yy * 41 + xx) < 0.22) wins.push(xx, yy, hash(i * 3 + xx * yy) < 0.7 ? 0 : 1);
-      out.push({ x, w, h, wins, tower: h > hMax * 0.8 });
-      x += w + (hash(seed + i * 5) < 0.2 ? 3 : 0);
-    }
-    return out;
+  function segIndex(s) {
+    extendRoute(s + 10);
+    if (s < route[0].s1) return 0;
+    let lo = 0, hi = route.length - 1;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (route[m].s0 <= s) lo = m; else hi = m - 1; }
+    return lo;
   }
-  const farCity = makeSkyline(11, 0, 8, 20, 6, 26);
-  const nearCity = makeSkyline(97, 0, 12, 28, 10, 44);
-  const stars = Array.from({ length: 70 }, (_, i) => [hash(i * 3) * W, hash(i * 3 + 1) * (HOR - 20), hash(i * 3 + 2)]);
+  const biomeAt = s => route[segIndex(s)].b;
+  function paramAt(s, key) {
+    const i = segIndex(s), g = route[i], v = BIOMES[g.b][key], B = 150;
+    if (i > 0 && s - g.s0 < B) return lerp(BIOMES[route[i - 1].b][key], v, 0.5 + 0.5 * (s - g.s0) / B);
+    if (g.s1 - s < B) { extendRoute(g.s1 + 10); return lerp(BIOMES[route[i + 1].b][key], v, 0.5 + 0.5 * (g.s1 - s) / B); }
+    return v;
+  }
+  const wallAt = s => biomeAt(s) === "suburb" && hash(Math.floor(s / 14) * 7 + 3) > 0.3;
+  const railAt = s => { const b = biomeAt(s); return (b === "suburb" || b === "country") && hash(Math.floor(s / 1200) * 17 + 5) > 0.35; };
+  function guardrailAt(s, b) {
+    if (b === "forest" || b === "coast") return true;
+    return b === "country" && hash(Math.floor(s / 90) * 3 + 1) > 0.5;
+  }
 
-  // ---------- state ----------
+  // ================= state =================
   const S = {
-    time: 0, camS: 0, speed: 22, baseSpeed: 22, bgX: 0,
-    rain: 0, wet: 0, weather: "auto",
+    time: 0, camD: 0, speed: 22, baseSpeed: 22,
+    rain: 0, wet: 0, weather: "auto", rainState: 0,
     flash: 0, bolt: null, boltT: 0,
-    wpPhase: 0.99, wpAng: Math.PI, wpPrev: Math.PI,
-    drops: [], streaks: [],
-    ahead: [{ s: 45, v: 22, col: [70, 20, 26] }, { s: 110, v: 22, col: [26, 40, 70] }],
-    oncoming: [{ s: 150, col: [80, 80, 90] }, { s: 260, col: [30, 50, 40] }, { s: 380, col: [90, 70, 30] }],
-    dither: true, paused: false,
+    drops: [], streaks: [], events: [],
+    nextEvent: 2.5, nextWalker: 0.5,
+    skyTop: BIOMES.city.top.slice(), skyBot: BIOMES.city.bot.slice(), stars: 0.2,
+    biome: "", dither: true, paused: false, bob: 0, amb: 0.55, fw: [0, 0, 0],
   };
-  const off = new Float32Array(DRAW + 2);
-  let playerX = -ROADW / 2 + 0.35;
-  let hor = HOR;
+  const sx = (s, k) => CX + (s - S.camD) * k;
+  const sAt = (x, k) => S.camD + (x - CX) / k;
+  function baseY(k) {
+    const lk = Math.log(k), a = Math.log(K_FAR), b = Math.log(K_MID), c = Math.log(K_NEAR);
+    if (lk <= b) return Y_FAR + (Y_MID - Y_FAR) * (lk - a) / (b - a);
+    return Y_MID + (Y_NEAR - Y_MID) * (lk - b) / (c - b);
+  }
+  function cells(k, cell, marginM, fn) {
+    const s0 = sAt(-10, k) - marginM, s1 = sAt(W + 10, k) + marginM;
+    for (let i = Math.floor(s0 / cell); i * cell <= s1; i++) {
+      const s = i * cell;
+      fn(i, s, sx(s, k), biomeAt(s));
+    }
+  }
 
+  // light that reaches the cabin / nearby objects (previous frame, per column)
+  const Lr = new Float32Array(W), Lg = new Float32Array(W), Lb = new Float32Array(W);
+  let lights = [];
+  const addLight = (x, c, a) => lights.push([x, c, a]);
+  function lit(c, x, k = 1) {
+    const i = clamp(x | 0, 0, W - 1), a = S.amb;
+    return [c[0] * a + Lr[i] * (c[0] * 0.8 + 45) * k, c[1] * a + Lg[i] * (c[1] * 0.8 + 45) * k, c[2] * a + Lb[i] * (c[2] * 0.8 + 45) * k];
+  }
+
+  // ================= log =================
+  const logEl = document.getElementById("log");
+  function clockStr() {
+    const m = 23 * 60 + 47 + Math.floor(S.time / 20);
+    return `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  }
+  function log(msg, cls = "ev") {
+    const li = document.createElement("li");
+    li.className = cls;
+    const t = document.createElement("time"); t.textContent = clockStr();
+    const sp = document.createElement("span"); sp.textContent = msg;
+    li.append(t, sp);
+    logEl.prepend(li);
+    while (logEl.children.length > 7) logEl.lastChild.remove();
+  }
+
+  // ================= weather =================
   function weatherTarget(t) {
     if (S.weather === "clear") return 0;
     if (S.weather === "rain") return 0.55;
     if (S.weather === "storm") return 1;
-    const c = t % 70;
-    if (c < 18) return 0;
-    if (c < 26) return lerp(0, 0.4, (c - 18) / 8);
-    if (c < 34) return lerp(0.4, 1, (c - 26) / 8);
-    if (c < 48) return 1;
-    if (c < 58) return lerp(1, 0.3, (c - 48) / 10);
-    return lerp(0.3, 0, (c - 58) / 12);
+    const c = t % 90;
+    if (c < 30) return 0;
+    if (c < 38) return lerp(0, 0.45, (c - 30) / 8);
+    if (c < 46) return lerp(0.45, 1, (c - 38) / 8);
+    if (c < 58) return 1;
+    if (c < 66) return lerp(1, 0.3, (c - 58) / 8);
+    if (c < 76) return lerp(0.3, 0, (c - 66) / 10);
+    return 0;
   }
 
-  // ---------- update ----------
+  // ================= events =================
+  const LOOKS = [
+    { coat: [60, 62, 80], pants: [30, 30, 40], hair: [20, 16, 14] },
+    { coat: [120, 40, 50], pants: [40, 36, 50], hair: [50, 30, 20], long: true, bag: true },
+    { coat: [40, 44, 52], pants: [26, 26, 32], hair: [12, 12, 14], bag: true },
+    { coat: [150, 140, 110], pants: [50, 46, 60], hair: [24, 20, 18], long: true },
+    { coat: [40, 90, 120], pants: [30, 30, 40], hair: [16, 14, 14] },
+  ];
+  const YUKATA = [[60, 80, 150], [180, 70, 110], [220, 220, 230], [70, 60, 110]];
+  const UMBRELLA = [[200, 200, 215], [190, 60, 70], [50, 90, 170], [220, 190, 60]];
+
+  function evActive(type) { return S.events.some(e => e.type === type); }
+  function spawnAt(k, L, v) {
+    // choose the side it enters from so it drifts across the window
+    return v < S.speed ? sAt(W + 30, k) : sAt(-30, k) - L;
+  }
+  function addEvent(e) { e.t = 0; e.seed = (Math.random() * 1e9) | 0; S.events.push(e); return e; }
+
+  function spawnWalker(kind, sOverride) {
+    const b = biomeAt(S.camD + 20);
+    let v, type = kind;
+    if (!type) {
+      const r = Math.random();
+      type = r < 0.7 ? "walker" : r < 0.88 ? "cyclist" : "runner";
+    }
+    if (type === "walker" || type === "dogwalker") v = (Math.random() < 0.5 ? -1 : 1) * (1 + Math.random() * 0.5);
+    else if (type === "cyclist") v = (Math.random() < 0.5 ? -1 : 1) * (4 + Math.random() * 2);
+    else v = (Math.random() < 0.5 ? -1 : 1) * 3;
+    const e = addEvent({ type, k: K_NEAR, v, L: 1, dur: 60, look: LOOKS[(Math.random() * LOOKS.length) | 0],
+      umb: UMBRELLA[(Math.random() * UMBRELLA.length) | 0], yukata: b === "festival" });
+    e.s = sOverride !== undefined ? sOverride : spawnAt(K_NEAR, 1, v);
+    return e;
+  }
+
+  const SPECIALS = {
+    city:    [["police", 2], ["construction", 2], ["dogwalker", 2]],
+    suburb:  [["cat", 3], ["dogwalker", 3], ["construction", 1], ["police", 1], ["festival", 2], ["train", 3], ["fireworks", 1.5]],
+    country: [["deer", 2], ["fox", 2], ["tanuki", 2], ["train", 3], ["fireworks", 2], ["festival", 1], ["ufo", 0.5], ["shooting", 1.5]],
+    forest:  [["deer", 4], ["fox", 2], ["tanuki", 2], ["shooting", 1.5]],
+    coast:   [["fireworks", 3], ["shooting", 1.5], ["ufo", 0.4], ["dogwalker", 1]],
+    bridge:  [["fireworks", 2], ["shooting", 1]],
+    tunnel:  [],
+  };
+  function trySpecial() {
+    const b = biomeAt(S.camD + 25);
+    const cands = SPECIALS[b].filter(([t]) => {
+      if (evActive(t)) return false;
+      if (t === "fireworks") return S.rain < 0.3;
+      if (t === "shooting" || t === "ufo") return S.rain < 0.08;
+      if (t === "train") return railAt(S.camD + 40);
+      return true;
+    });
+    if (!cands.length) return;
+    let r = Math.random() * cands.reduce((a, c) => a + c[1], 0), t = cands[0][0];
+    for (const [n, w] of cands) { if ((r -= w) <= 0) { t = n; break; } }
+    spawnSpecial(t);
+  }
+  function spawnSpecial(t) {
+    let e;
+    switch (t) {
+      case "deer": {
+        const v = S.speed * (0.78 + Math.random() * 0.12);
+        const n = 1 + ((Math.random() * 3) | 0);
+        e = addEvent({ type: t, k: 7.5, v, L: 8, dur: 45, herd: Array.from({ length: n }, (_, i) => ({ off: i * 2.6 + Math.random(), stag: i === 0 && Math.random() < 0.6, ph: Math.random() })) });
+        e.s = spawnAt(7.5, 8, v);
+        log(n > 1 ? `鹿の群れ（${n}頭）が並走している！` : "鹿が並走している！");
+        break;
+      }
+      case "fox": e = addEvent({ type: t, k: 7.5, v: S.speed * 0.62, L: 1, dur: 30 }); e.s = spawnAt(7.5, 1, e.v); log("キツネが道路脇を駆けていく"); break;
+      case "tanuki": e = addEvent({ type: t, k: 7.5, v: 0.7, L: 1, dur: 30 }); e.s = spawnAt(7.5, 1, e.v); log("タヌキがのそのそ歩いている"); break;
+      case "cat": {
+        e = addEvent({ type: t, k: K_NEAR, v: 0, L: 1, dur: 30 }); e.s = spawnAt(K_NEAR, 1, 0);
+        e.onWall = wallAt(e.s); log(e.onWall ? "塀の上に猫がいる" : "道ばたに猫がいる");
+        break;
+      }
+      case "dogwalker": spawnWalker("dogwalker"); log("犬の散歩をしている人がいる"); return;
+      case "train": {
+        const over = Math.random() < 0.5, v = over ? S.speed + 12 : -24;
+        e = addEvent({ type: t, k: 2.2, v, L: 120, dur: 60, cars: 6, stripe: [[40, 150, 90], [220, 120, 40], [50, 100, 200]][(Math.random() * 3) | 0] });
+        e.s = spawnAt(2.2, 120, v);
+        log(over ? "電車に追い抜かれた" : "電車とすれ違った");
+        break;
+      }
+      case "fireworks": e = addEvent({ type: t, k: 0.3, v: 0, dur: 16, s: sAt(170 + Math.random() * 110, 0.3), parts: [], rockets: [], next: 0 }); log("遠くで花火が上がっている"); break;
+      case "shooting": e = addEvent({ type: t, dur: 0.9, x0: 90 + Math.random() * 200, y0: 22 + Math.random() * 18, dx: -(60 + Math.random() * 40), dy: 22 + Math.random() * 10 }); log("流れ星！"); break;
+      case "ufo": e = addEvent({ type: t, dur: 9, x0: W + 10, y0: 30 + Math.random() * 20 }); log("……今の光は何だったんだろう？"); break;
+      case "festival": {
+        e = addEvent({ type: t, k: K_NEAR, v: 0, L: 70, dur: 40 }); e.s = spawnAt(K_NEAR, 70, 0);
+        for (let i = 0; i < 6; i++) { const w = spawnWalker("walker", e.s + 5 + i * 11 + Math.random() * 5); w.yukata = true; w.v *= 0.6; }
+        log("夏祭りの提灯が並んでいる");
+        break;
+      }
+      case "police": e = addEvent({ type: t, k: K_NEAR, v: 0, L: 4.6, dur: 30 }); e.s = spawnAt(K_NEAR, 4.6, 0); log("路肩にパトカーが停まっている"); break;
+      case "construction": e = addEvent({ type: t, k: K_NEAR, v: 0, L: 36, dur: 30 }); e.s = spawnAt(K_NEAR, 36, 0); log("夜間工事中。誘導員が赤い棒を振っている"); break;
+    }
+  }
+
+  function updateEvents(dt) {
+    S.nextEvent -= dt;
+    if (S.nextEvent <= 0) { S.nextEvent = 4 + Math.random() * 6; trySpecial(); }
+    S.nextWalker -= dt;
+    if (S.nextWalker <= 0) {
+      const b = biomeAt(S.camD + 20);
+      const rate = { city: 1.3, suburb: 3.5, bridge: 5, coast: 7, country: 9 }[b];
+      if (rate) { spawnWalker(); S.nextWalker = rate * (0.4 + Math.random()); } else S.nextWalker = 2;
+    }
+    for (let i = S.events.length - 1; i >= 0; i--) {
+      const e = S.events[i];
+      e.t += dt;
+      if (e.k) e.s += e.v * dt;
+      let dead = e.t > e.dur;
+      if (e.k && e.type !== "fireworks") {
+        const xa = sx(e.s, e.k), xb = sx(e.s + e.L, e.k);
+        if (e.v <= S.speed && xb < -40) dead = true;
+        if (e.v > S.speed && xa > W + 40) dead = true;
+      }
+      if (e.type === "fireworks") updateFireworks(e, dt);
+      if (dead) S.events.splice(i, 1);
+    }
+  }
+
+  function updateFireworks(e, dt) {
+    e.next -= dt;
+    if (e.next <= 0 && e.t < e.dur - 3) {
+      e.next = 0.5 + Math.random() * 1.1;
+      e.rockets.push({ ds: (Math.random() - 0.5) * 300, y: Y_FAR, ty: 24 + Math.random() * 30, t: 0 });
+    }
+    for (let i = e.rockets.length - 1; i >= 0; i--) {
+      const r = e.rockets[i];
+      r.t += dt; r.y = lerp(Y_FAR, r.ty, Math.min(1, r.t / 0.9));
+      if (r.t >= 0.9) {
+        const pal = [[255, 80, 80], [255, 210, 90], [120, 255, 140], [120, 170, 255], [255, 130, 220], [255, 255, 255]];
+        const c = pal[(Math.random() * pal.length) | 0], c2 = pal[(Math.random() * pal.length) | 0];
+        const n = 34 + ((Math.random() * 16) | 0), sp = 16 + Math.random() * 12;
+        for (let j = 0; j < n; j++) {
+          const a = (j / n) * Math.PI * 2;
+          e.parts.push({ ds: r.ds, x: 0, y: r.ty, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t: 0, life: 1.4 + Math.random() * 0.6, c: j % 3 ? c : c2 });
+        }
+        S.fwFlash = Math.max(S.fwFlash || 0, 1);
+        S.fwCol = c;
+        e.rockets.splice(i, 1);
+      }
+    }
+    for (let i = e.parts.length - 1; i >= 0; i--) {
+      const p = e.parts[i];
+      p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 10 * dt; p.vx *= 1 - dt * 0.8; p.vy *= 1 - dt * 0.6;
+      if (p.t > p.life) e.parts.splice(i, 1);
+    }
+  }
+
+  // ================= update =================
   function step(dt) {
     S.time += dt;
     const target = weatherTarget(S.time);
     S.rain += (target - S.rain) * Math.min(1, dt * 0.6);
+    const inTunnel = biomeAt(S.camD) === "tunnel";
     if (S.rain > 0.08) S.wet = Math.min(1, S.wet + dt * 0.12 * (0.5 + S.rain));
     else S.wet = Math.max(0, S.wet - dt * 0.025);
+    if (S.rainState === 0 && S.rain > 0.15) { S.rainState = 1; log("雨が降ってきた", "wx"); }
+    else if (S.rainState === 1 && S.rain > 0.8) { S.rainState = 2; log("土砂降りになってきた", "wx"); }
+    else if (S.rainState > 0 && S.rain < 0.08) { S.rainState = 0; log("雨が上がった", "wx"); }
+    else if (S.rainState === 2 && S.rain < 0.6) S.rainState = 1;
 
-    S.speed = S.baseSpeed * (1 - 0.18 * S.rain) * (1 + 0.03 * Math.sin(S.time * 0.23));
-    S.camS += S.speed * dt;
-    S.bgX -= curv(S.camS) * S.speed * dt * 1200;
-    playerX = -ROADW / 2 + 0.35 + 0.07 * Math.sin(S.time * 0.37);
+    S.speed = S.baseSpeed * (1 - 0.15 * S.rain) * (1 + 0.04 * Math.sin(S.time * 0.21));
+    S.camD += S.speed * dt;
+    S.bob = (Math.sin(S.camD * 1.3) * Math.sin(S.camD * 0.71) > 0.88) ? 1 : 0;
 
-    // traffic
-    for (const c of S.ahead) {
-      const rel = c.s - S.camS;
-      const want = rel < 18 ? S.speed + 3 : rel > 140 ? S.speed - 3 : c.v;
-      c.v += (want - c.v) * Math.min(1, dt * 0.4);
-      c.s += c.v * dt;
+    const b = biomeAt(S.camD);
+    if (b !== S.biome) {
+      const first = S.biome === "";
+      S.biome = b;
+      log(BIOMES[b].msg, "area");
+      if (first) { S.skyTop = BIOMES[b].top.slice(); S.skyBot = BIOMES[b].bot.slice(); S.stars = BIOMES[b].stars; }
     }
-    for (let i = 0; i < S.oncoming.length; i++) {
-      const c = S.oncoming[i];
-      c.s -= 19 * dt;
-      if (c.s - S.camS < -3) {
-        c.s = S.camS + 200 + Math.random() * 160;
-        c.col = [[80, 80, 90], [30, 50, 40], [90, 70, 30], [60, 20, 20], [120, 120, 125]][(Math.random() * 5) | 0];
-      }
-    }
+    const B = BIOMES[b], r = Math.min(1, dt * 0.35);
+    S.skyTop = mix(S.skyTop, B.top, r); S.skyBot = mix(S.skyBot, B.bot, r);
+    S.stars = lerp(S.stars, B.stars, r);
+    S.fwFlash = (S.fwFlash || 0) * Math.exp(-dt * 4);
 
-    // rain streaks (screen space, rushing from vanishing point)
-    const want = Math.round(S.rain * 320);
+    updateEvents(dt);
+
+    // rain streaks outside (relative wind blows them backward = to the left)
+    const want = Math.round(S.rain * 300);
     while (S.streaks.length < want) S.streaks.push(newStreak(true));
     if (S.streaks.length > want) S.streaks.length = want;
     for (let i = 0; i < S.streaks.length; i++) {
       const p = S.streaks[i];
-      const k = 0.9 + S.speed * 0.05;
-      p.vx = (p.x - CX) * k * p.d; p.vy = 150 + p.d * 120 + (p.y - hor) * k * p.d;
       p.x += p.vx * dt; p.y += p.vy * dt;
-      if (p.y > H || p.x < -10 || p.x > W + 10) S.streaks[i] = newStreak(false);
+      if (p.y > WIN_BOT || p.x < 0) S.streaks[i] = newStreak(false);
     }
 
-    // windshield drops
-    const spawn = S.rain * 110 * dt;
-    let n = Math.floor(spawn) + (Math.random() < spawn % 1 ? 1 : 0);
-    while (n-- > 0 && S.drops.length < 340) {
-      S.drops.push({
-        x: 30 + Math.random() * 262, y: 10 + Math.random() * 130,
-        r: Math.random() < 0.72 ? 1 : 2, vy: -(1 + Math.random() * 5) * (S.speed / 22), age: 0,
-      });
+    // drops on the side glass stream backward
+    if (!inTunnel) {
+      const spawn = S.rain * 70 * dt;
+      let n = Math.floor(spawn) + (Math.random() < spawn % 1 ? 1 : 0);
+      while (n-- > 0 && S.drops.length < 260) {
+        const y = 20 + Math.random() * 112;
+        S.drops.push({ x: winL(y) + Math.random() * (WIN_R - winL(y)), y, r: Math.random() < 0.75 ? 1 : 2,
+          vx: -(2 + Math.random() * S.speed * 0.9), vy: (Math.random() - 0.3) * 3, age: 0 });
+      }
     }
     for (let i = S.drops.length - 1; i >= 0; i--) {
       const d = S.drops[i];
-      d.age += dt; d.y += d.vy * dt; d.x += (d.x - CX) * 0.015 * dt;
-      if (d.y < 6 || d.age > 30) S.drops.splice(i, 1);
+      d.age += dt; d.x += d.vx * dt; d.y += d.vy * dt;
+      if (d.x < winL(d.y) || d.y > WIN_BOT - 1 || d.age > 25) S.drops.splice(i, 1);
     }
-
-    // wipers: intermittent in drizzle, fast in storm
-    const active = S.rain > 0.06 || S.drops.length > 40;
-    const frac = S.wpPhase % 1;
-    if (active || frac < 0.62) {
-      const T = lerp(4.2, 1.25, clamp(S.rain, 0, 1));
-      S.wpPhase += dt / T;
-    }
-    const p = S.wpPhase % 1;
-    const a = p < 0.62 ? Math.sin(Math.PI * p / 0.62) : 0;
-    S.wpPrev = S.wpAng;
-    S.wpAng = Math.PI + a * (Math.PI / 2 + 0.45);
-    wipeDrops(S.wpPrev, S.wpAng);
 
     // lightning
     S.flash *= Math.exp(-dt * 5);
     S.boltT -= dt;
-    if (S.rain > 0.75 && Math.random() < dt * 0.09) {
-      S.flash = 1;
-      S.boltT = 0.18;
-      const b = []; let x = 40 + Math.random() * 240, y = 0;
-      while (y < HOR - 14) { b.push([x, y]); x += (Math.random() - 0.5) * 8; y += 2 + Math.random() * 4; }
-      S.bolt = b;
+    if (S.rain > 0.75 && !inTunnel && Math.random() < dt * 0.09) {
+      S.flash = 1; S.boltT = 0.18;
+      const bolt = []; let x = 60 + Math.random() * 220, y = 10;
+      while (y < Y_FAR - 10) { bolt.push([x, y]); x += (Math.random() - 0.5) * 8; y += 2 + Math.random() * 4; }
+      S.bolt = bolt;
+      if (!S.lastBoltLog || S.time - S.lastBoltLog > 20) { log("遠くで雷が光った", "wx"); S.lastBoltLog = S.time; }
     }
     if (S.flash > 0.3 && S.flash < 0.35 && Math.random() < 0.5) S.flash = 0.8;
   }
-
   function newStreak(anywhere) {
-    return {
-      x: Math.random() * W, y: anywhere ? Math.random() * H : hor - 60 + Math.random() * 70,
-      d: 0.15 + Math.random() * 0.85, vx: 0, vy: 0,
-    };
+    const d = 0.2 + Math.random() * 0.8;
+    return { x: anywhere ? Math.random() * (W + 60) : 20 + Math.random() * (W + 80), y: anywhere ? Math.random() * WIN_BOT : 10 + Math.random() * 20,
+      d, vx: -(60 + S.speed * 5) * d, vy: (140 + 80 * d) };
   }
 
-  const PIVOTS = [[98, 150, 104], [208, 152, 112]];
-  function wipeDrops(a0, a1) {
-    if (Math.abs(a1 - a0) < 1e-4) return;
-    const lo = Math.min(a0, a1) - 0.02, hi = Math.max(a0, a1) + 0.02;
-    S.drops = S.drops.filter(d => {
-      for (const [px, py, L] of PIVOTS) {
-        const dx = d.x - px, dy = d.y - py, dist = Math.hypot(dx, dy);
-        if (dist < 12 || dist > L + 2) continue;
-        let a = Math.atan2(dy, dx); if (a < 0) a += Math.PI * 2;
-        if (a >= lo && a <= hi) return false;
-      }
-      return true;
-    });
-  }
+  // ================= render: sky & distance =================
+  let cloud = 0, fogCol = [0, 0, 0], moonA = 0;
+  const MOON_X = 238, MOON_Y = 36;
 
-  // ---------- render ----------
-  function offAt(z) {
-    if (z >= DRAW) return off[DRAW];
-    const i = z | 0, f = z - i;
-    return off[i] + (off[i + 1] - off[i]) * f;
-  }
-  function project(z, wx) {
-    const sc = D / z;
-    return { sc, x: CX + sc * (offAt(z) + wx - playerX), y: hor + sc * CAMH };
-  }
-  function lampPool(s, side) {
-    // side: 0 = left lamps (even), 1 = right lamps (odd)
-    let e = 0;
-    const n0 = Math.floor(s / LAMP_SP) - 1;
-    for (let n = n0; n <= n0 + 3; n++) {
-      if ((((n % 2) + 2) % 2) !== side) continue;
-      const d = Math.abs(s - n * LAMP_SP) / 8;
-      if (d < 1) e += (1 - d) * (1 - d);
-    }
-    return e;
-  }
-
-  function render() {
-    const cloud = clamp(S.rain * 1.6, 0, 1);
+  function drawSky() {
     const fl = S.flash;
-    const fogCol = mix(mix([20, 16, 42], [44, 46, 62], cloud), [150, 150, 180], fl * 0.5);
-    const fogDist = lerp(190, 85, S.rain);
-    const fogAt = z => Math.pow(clamp(z / fogDist, 0, 1), 1.4);
-    hor = HOR + ((Math.sin(S.camS * 1.7) * Math.sin(S.camS * 0.63) > 0.9) ? 1 : 0);
+    const top = mix(mix(S.skyTop, [22, 24, 34], cloud), [120, 120, 150], fl * 0.6);
+    const bot = mix(mix(S.skyBot, [66, 64, 78], cloud), [190, 190, 210], fl * 0.6);
+    const g = ctx.createLinearGradient(0, 0, 0, Y_FAR);
+    g.addColorStop(0, rgb(top)); g.addColorStop(0.55, rgb(mix(top, bot, 0.35))); g.addColorStop(1, rgb(bot));
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, Y_FAR + 1);
 
-    // curve offsets
-    let x = 0, dx = 0;
-    off[0] = 0;
-    for (let i = 0; i <= DRAW; i++) { dx += curv(S.camS + i); x += dx; off[i + 1] = x; }
-
-    // --- sky ---
-    const top = mix(mix([6, 6, 20], [22, 24, 34], cloud), [120, 120, 150], fl * 0.6);
-    const bot = mix(mix([62, 34, 78], [70, 66, 82], cloud), [190, 190, 210], fl * 0.6);
-    for (let y = 0; y <= hor; y++) {
-      const t = Math.pow(y / hor, 1.8);
-      rect(0, y, W, 1, mix(top, bot, t));
-    }
-    const starA = 1 - cloud;
-    if (starA > 0.02) {
-      for (const [sx, sy, tw] of stars) {
-        const a = starA * (0.5 + 0.5 * Math.sin(S.time * (1 + tw * 3) + tw * 20));
-        const px = ((sx + S.bgX * 0.05) % W + W) % W;
-        ctx.fillStyle = rgba([220, 220, 255], a * (tw > 0.85 ? 1 : 0.6));
-        ctx.fillRect(px | 0, sy | 0, 1, 1);
+    const sa = S.stars * (1 - cloud);
+    if (sa > 0.02) {
+      for (let i = 0; i < 90; i++) {
+        const tw = hash(i * 3 + 2);
+        const x = ((hash(i * 3) * W - S.camD * 0.02) % W + W) % W, y = 18 + hash(i * 3 + 1) * (Y_FAR - 30);
+        const a = sa * (0.45 + 0.55 * Math.sin(S.time * (1 + tw * 3) + tw * 20));
+        ctx.fillStyle = rgba([220, 220, 255], a * (tw > 0.85 ? 1 : 0.55));
+        ctx.fillRect(x | 0, y | 0, 1, 1);
       }
-      const mx = ((250 + S.bgX * 0.08) % (W + 40) + W + 40) % (W + 40) - 20;
-      glow(mx, 22, 26, [200, 190, 255], 0.25 * starA);
-      ctx.fillStyle = rgba([235, 230, 205], starA);
-      ctx.beginPath(); ctx.arc(Math.round(mx), 22, 6, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = rgba([190, 185, 170], starA);
-      ctx.fillRect(Math.round(mx) - 2, 20, 2, 2); ctx.fillRect(Math.round(mx) + 2, 24, 1, 1);
+    }
+    moonA = 1 - cloud;
+    if (moonA > 0.02) {
+      glow(MOON_X, MOON_Y, 30, [200, 190, 255], 0.22 * moonA);
+      ctx.fillStyle = rgba([235, 230, 205], moonA);
+      ctx.beginPath(); ctx.arc(MOON_X, MOON_Y, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = rgba([190, 185, 170], moonA);
+      ctx.fillRect(MOON_X - 2, MOON_Y - 2, 2, 2); ctx.fillRect(MOON_X + 2, MOON_Y + 2, 1, 1);
     }
     if (cloud > 0.02) {
       for (let i = 0; i < 16; i++) {
         const w = 60 + hash(i * 17) * 90, hh = 6 + hash(i * 19) * 12;
-        const cx = ((hash(i * 23) * 700 + S.bgX * 0.3 + S.time * 2) % 700 + 700) % 700 - 100;
-        const cy = 2 + hash(i * 29) * 44;
-        const c = mix([34, 34, 46], [150, 150, 175], fl * 0.7);
-        ctx.fillStyle = rgba(c, cloud * 0.75);
+        const cx = ((hash(i * 23) * 700 - S.camD * 0.08 - S.time * 2) % 700 + 700) % 700 - 100;
+        const cy = 14 + hash(i * 29) * 40;
+        ctx.fillStyle = rgba(mix([34, 34, 46], [150, 150, 175], fl * 0.7), cloud * 0.75);
         ctx.fillRect(Math.round(cx + 6), Math.round(cy), Math.round(w - 12), 2);
         ctx.fillRect(Math.round(cx), Math.round(cy + 2), Math.round(w), Math.round(hh - 4));
         ctx.fillRect(Math.round(cx + 4), Math.round(cy + hh - 2), Math.round(w - 8), 2);
       }
     }
-    if (S.bolt && S.boltT > 0) for (const [bx, by] of S.bolt) { rect(bx, by, 1, 3, [240, 240, 255]); }
+    if (S.bolt && S.boltT > 0) for (const [bx, by] of S.bolt) rect(bx, by, 1, 3, [240, 240, 255]);
+    // city light pollution on the horizon
+    const cityW = paramAt(S.camD, "stars");
+    glow(CX, Y_FAR + 6, 200, [255, 120, 90], 0.12 * (1 - cityW) * (1 - cloud * 0.4));
+  }
 
-    // horizon city glow
-    glow(CX, hor + 4, 180, [255, 120, 90], 0.10 * (1 - cloud * 0.4));
+  function drawMountains() {
+    const c1 = mix([18, 20, 38], fogCol, 0.45), c2 = mix([11, 13, 26], fogCol, 0.3);
+    for (let x = 0; x < W; x++) {
+      const s = sAt(x, K_MT), m = paramAt(s, "mount");
+      const h = m * (10 + 16 * noise1(s * 0.0025) + 6 * noise1(s * 0.011));
+      rect(x, Y_FAR - h, 1, h + 1, c1);
+    }
+    for (let x = 0; x < W; x++) {
+      const s = sAt(x, K_MT2), m = paramAt(s, "mount");
+      const h = m * (3 + 11 * noise1(s * 0.006 + 50) + 4 * noise1(s * 0.02));
+      rect(x, Y_FAR - h, 1, h + 1, c2);
+    }
+  }
 
-    // --- skyline ---
-    drawSkyline(farCity, S.bgX * 0.25, mix([28, 22, 50], fogCol, 0.5), 0.45, 0.8);
-    drawSkyline(nearCity, S.bgX * 0.45, mix([14, 12, 26], fogCol, 0.25), 0.8, 1);
+  function waterBand(x, y0, y1, grad, u) {
+    ctx.fillStyle = grad; ctx.fillRect(x, y0, 1, y1 - y0);
+    const md = Math.abs(x - MOON_X);
+    if (moonA > 0.05 && md < 7) {
+      for (let y = y0; y < y1; y++) if (h2(x * 31 + y, Math.floor(S.time * 6)) > 0.62)
+        px(x, y, rgba([230, 225, 180], moonA * (1 - md / 7)));
+    }
+    for (let y = y0; y < y1; y += 2) if (h2(u * 7 + y, Math.floor(S.time * 3)) > 0.985) px(x, y, rgba([140, 160, 210], 0.6));
+  }
 
-    // --- road (scanline) ---
-    const amb = 0.55 + fl * 1.2;
+  // ---------- far layer ----------
+  function drawFar() {
+    const f = 0.35 + 0.35 * S.rain;
+    const sh = c => mix(c, fogCol, f);
+    const wg = ctx.createLinearGradient(0, Y_FAR, 0, Y_MID);
+    wg.addColorStop(0, rgb(sh([14, 20, 40]))); wg.addColorStop(1, rgb(sh([10, 16, 32])));
+    const GROUND = { city: [18, 16, 28], suburb: [14, 16, 22], country: [10, 16, 16], forest: [8, 12, 12], tunnel: [8, 12, 12] };
+    for (let x = 0; x < W; x++) {
+      const s = sAt(x, K_FAR), b = biomeAt(s);
+      if (b === "coast" || b === "bridge") waterBand(x, Y_FAR, Y_MID, wg, Math.floor(s));
+      else rect(x, Y_FAR, 1, Y_MID - Y_FAR, sh(GROUND[b]));
+    }
+    cells(K_FAR, 12, 40, (i, s, x, b) => {
+      const h = hash(i * 3 + 1);
+      if (b === "city" && h > 0.12) {
+        const bw = 5 + hash(i * 5) * 9, bh = 10 + Math.pow(hash(i * 7), 1.5) * 40;
+        const x0 = Math.round(x - bw / 2), y0 = Math.round(Y_FAR - bh);
+        rect(x0, y0, bw, bh, sh([22, 20, 40]));
+        for (let yy = 2; yy < bh - 1; yy += 3) for (let xx = 1; xx < bw - 1; xx += 2)
+          if (h2(i * 131 + yy, xx) < 0.25) px(x0 + xx, y0 + yy, rgba(h2(i, yy * xx) < 0.75 ? [255, 196, 110] : [170, 210, 255], 0.85 - f * 0.5));
+        if (bh > 40 && Math.sin(S.time * 3 + i) > 0.3) { px(x0 + (bw >> 1), y0 - 1, [255, 50, 50]); glow(x0 + (bw >> 1), y0 - 1, 4, [255, 40, 40], 0.5); }
+      } else if (b === "suburb") {
+        if (h > 0.3) {
+          const bw = 6 + hash(i * 5) * 7, bh = 3 + hash(i * 7) * 7;
+          rect(x - bw / 2, Y_FAR - bh, bw, bh, sh([18, 18, 32]));
+          if (hash(i * 9) > 0.4) px(x + hash(i * 11) * 4 - 2, Y_FAR - bh + 2, rgba([255, 190, 110], 0.7));
+        }
+        if (h < 0.03) pylon(x, 30, sh);
+      } else if (b === "country") {
+        if (h < 0.3) px(x, Y_FAR + 1 + hash(i * 5) * 3, rgba([255, 190, 110], 0.6));
+        if (h > 0.95) pylon(x, 26, sh);
+      } else if (b === "forest" || b === "tunnel") {
+        for (let j = 0; j < 2; j++) {
+          const th = 7 + hash(i * 5 + j) * 9, tx = x + j * 4;
+          for (let r = 0; r < th; r++) rect(tx - (r * 2.5) / th, Y_FAR - th + r, (r * 5) / th + 1, 1, sh([8, 16, 14]));
+        }
+      } else if (b === "coast") {
+        if (h < 0.05) {
+          rect(x - 3, Y_FAR - 1, 6, 2, sh([20, 20, 26]));
+          px(x - 2, Y_FAR - 2, [255, 240, 200]); px(x + 2, Y_FAR - 1, [255, 80, 80]);
+          glow(x, Y_FAR - 1, 5, [255, 230, 180], 0.35);
+        }
+        if (h > 0.975) lighthouse(x, i, sh);
+      } else if (b === "bridge") {
+        const bw = 6 + hash(i * 5) * 6, bh = 2 + hash(i * 7) * 7;
+        rect(x - bw / 2, Y_FAR - bh, bw, bh, sh([20, 18, 34]));
+        for (let j = 0; j < 3; j++) if (hash(i * 13 + j) > 0.3) {
+          const lx = x - bw / 2 + hash(i * 17 + j) * bw, ly = Y_FAR - hash(i * 19 + j) * bh;
+          px(lx, ly, [255, 200, 120]);
+          for (let r = 2; r < 9; r += 2) px(lx, Y_FAR + r, rgba([255, 190, 110], 0.4 - r * 0.04));
+        }
+      }
+    });
+  }
+  function pylon(x, h, sh) {
+    const c = sh([30, 30, 40]), y1 = Y_FAR, y0 = Y_FAR - h;
+    pxLine(x - 3, y1, x, y0, c); pxLine(x + 3, y1, x, y0, c);
+    rect(x - 3, y0 + 4, 7, 1, c); rect(x - 2, y0 + 9, 5, 1, c);
+    if (Math.sin(S.time * 2.5 + x) > 0) { px(x, y0 - 1, [255, 60, 60]); glow(x, y0 - 1, 4, [255, 40, 40], 0.45); }
+  }
+  function lighthouse(x, i, sh) {
+    rect(x - 10, Y_FAR - 3, 22, 4, sh([14, 16, 20]));
+    rect(x - 1, Y_FAR - 15, 3, 12, sh([150, 150, 150]));
+    rect(x - 1, Y_FAR - 17, 3, 2, sh([150, 40, 40]));
+    const a = S.time * 1.1 + i, dir = Math.cos(a), face = Math.sin(a);
+    const lx = x + 0.5, ly = Y_FAR - 16;
+    if (Math.abs(dir) > 0.15) {
+      const len = 150 * Math.abs(dir);
+      const g = ctx.createLinearGradient(lx, 0, lx + dir * len, 0);
+      g.addColorStop(0, "rgba(255,240,200,0.35)"); g.addColorStop(1, "rgba(255,240,200,0)");
+      ctx.globalCompositeOperation = "lighter";
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx + dir * len, ly - 5); ctx.lineTo(lx + dir * len, ly + 4); ctx.closePath(); ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
+    }
+    glow(lx, ly, face > 0.9 ? 22 : 6, [255, 240, 200], face > 0.9 ? 0.9 : 0.5);
+  }
+
+  // ---------- railway (between far and mid) ----------
+  const Y_RAIL = Math.round(baseY(2.2));
+  function drawRailway() {
+    for (let x = 0; x < W; x++) {
+      const s = sAt(x, 2.2);
+      if (!railAt(s)) continue;
+      rect(x, Y_RAIL, 1, 3, lit([30, 28, 30], x, 0.3));
+      px(x, Y_RAIL, lit([80, 80, 90], x, 0.3));
+      px(x, Y_RAIL - 17, [40, 40, 48]);
+      if ((Math.floor(s) % 50) === 0) { rect(x, Y_RAIL - 20, 1, 20, [44, 44, 52]); rect(x, Y_RAIL - 19, 4, 1, [44, 44, 52]); }
+    }
+  }
+
+  // ---------- mid layer ----------
+  function drawMid() {
+    const f = 0.12 + 0.3 * S.rain;
+    const sh = c => mix(c, fogCol, f);
+    const wg = ctx.createLinearGradient(0, Y_MID, 0, Y_NEAR);
+    wg.addColorStop(0, rgb(sh([14, 22, 44]))); wg.addColorStop(1, rgb(sh([10, 18, 34])));
+    const GROUND = { city: [24, 22, 30], suburb: [18, 20, 24], forest: [8, 16, 12], tunnel: [8, 16, 12] };
+    for (let x = 0; x < W; x++) {
+      const s = sAt(x, K_MID), b = biomeAt(s), u = Math.floor(s * K_MID);
+      if (b === "coast" || b === "bridge") {
+        waterBand(x, Y_MID, Y_NEAR, wg, u);
+        if (b === "coast") {
+          rect(x, Y_NEAR - 2, 1, 2, sh([40, 36, 34]));
+          for (let y = Y_NEAR - 6; y < Y_NEAR - 2; y++) if (noise1(u * 0.09 + S.time * 0.9 + y * 3.1) > 0.7) px(x, y, sh([150, 160, 185]));
+        }
+      } else if (b === "country") {
+        rect(x, Y_MID, 1, Y_NEAR - Y_MID, sh([10, 20, 22]));
+        for (const y of [108, 113, 119]) px(x, y, sh(mix([30, 40, 62], S.skyBot, 0.4)));
+        if (u % 84 < 2) rect(x, Y_MID, 1, Y_NEAR - Y_MID, sh([8, 14, 10]));
+        const md = Math.abs(x - MOON_X);
+        if (moonA > 0.05 && md < 5) for (const y of [108, 113, 119]) if (h2(x + y, Math.floor(S.time * 5)) > 0.5) px(x, y, rgba([230, 225, 180], moonA * 0.7));
+      } else rect(x, Y_MID, 1, Y_NEAR - Y_MID, sh(GROUND[b]));
+    }
+    cells(K_MID, 10, 30, (i, s, x, b) => {
+      const h = hash(i * 7 + 2);
+      if (b === "city") {
+        if (h > 0.9) konbini(x, sh);
+        else if (h > 0.2) midBuilding(x, i, sh);
+      } else if (b === "suburb") {
+        if (h < 0.12) apartment(x, i, sh);
+        else if (h < 0.72) house(x, i, sh);
+        else if (h < 0.85) blobTree(x, Y_MID, 9, i, sh);
+        else if (h > 0.96) konbini(x, sh);
+      } else if (b === "country") {
+        if (h < 0.1) farmhouse(x, i, sh);
+        else if (h < 0.14) shrine(x, i, sh);
+        else if (h < 0.2) greenhouse(x, i, sh);
+        else if (h < 0.35) { blobTree(x, Y_MID, 8, i, sh); blobTree(x + 9, Y_MID, 6, i + 1, sh); }
+      } else if (b === "forest" || b === "tunnel") {
+        for (let j = 0; j < 3; j++) conifer(x + hash(i * 5 + j) * 28, Y_MID + 1, 38 + hash(i * 9 + j) * 36, sh);
+      } else if (b === "coast") {
+        if (h < 0.12) pine(x, Y_NEAR - 2, 0.35, i, sh);
+        else if (h < 0.16) {
+          const by = Y_MID + 8 + Math.round(Math.sin(S.time * 1.5 + i));
+          rect(x - 5, by, 10, 2, sh([30, 28, 30])); rect(x - 1, by - 3, 3, 3, sh([40, 38, 40]));
+          px(x, by - 4, [255, 230, 170]); glow(x, by - 4, 7, [255, 220, 150], 0.45);
+          for (let r = 3; r < 10; r += 2) px(x, by + r, rgba([255, 210, 140], 0.35 - r * 0.03));
+        }
+      }
+    });
+  }
+  function midBuilding(x, i, sh) {
+    const bw = Math.round((12 + hash(i * 5) * 12) * K_MID), bh = Math.round((16 + Math.pow(hash(i * 11), 1.3) * 34) * K_MID);
+    const x0 = Math.round(x - bw / 2), y0 = Y_MID - bh;
+    rect(x0, y0, bw, bh, sh([22 + hash(i) * 8, 20, 34]));
+    rect(x0, y0, bw, 1, sh([40, 38, 52]));
+    const p = 0.15 + hash(i * 13) * 0.5;
+    for (let yy = 4; yy < bh - 6; yy += 4) for (let xx = 2; xx < bw - 3; xx += 4) {
+      const v = h2(i * 1013 + yy, xx);
+      if (v < p) rect(x0 + xx, y0 + yy, 2, 2, sh(v < p * 0.15 ? [170, 210, 255] : [255, 196, 110]));
+    }
+    if (hash(i * 19) > 0.62) {
+      const nc = [[255, 80, 180], [80, 230, 255], [255, 220, 90], [140, 255, 120]][mod(i, 4)];
+      const nh = 16 + ((hash(i * 23) * 12) | 0), nx = x0 + 3, ny = y0 + 8;
+      const on = h2(i, Math.floor(S.time * 8)) > 0.04;
+      rect(nx, ny, 5, nh, [10, 8, 14]);
+      if (on) {
+        for (let yy = 1; yy < nh - 1; yy += 5) for (let q = 0; q < 6; q++) if (h2(i * 7 + yy, q) > 0.45) px(nx + 1 + (q % 3), ny + yy + ((q / 3) | 0) * 2, nc);
+        glow(nx + 2.5, ny + nh / 2, 14, nc, 0.35);
+      }
+    }
+  }
+  function konbini(x, sh) {
+    const bw = 45, x0 = Math.round(x - bw / 2), y0 = Y_MID - 14;
+    rect(x0, y0, bw, 14, sh([60, 60, 66]));
+    rect(x0, y0 + 1, bw, 1, [40, 150, 90]); rect(x0, y0 + 2, bw, 1, [240, 240, 240]); rect(x0, y0 + 3, bw, 1, [50, 100, 200]);
+    rect(x0 + 2, y0 + 5, bw - 4, 8, [225, 238, 228]);
+    for (let xx = 4; xx < bw - 4; xx += 6) rect(x0 + xx, y0 + 8, 4, 1, [150, 160, 170]);
+    rect(x0 + 10, y0 + 9, 1, 4, [40, 40, 50]); rect(x0 + 28, y0 + 9, 1, 4, [60, 40, 40]);
+    glow(x, y0 + 9, 40, [220, 240, 255], 0.35);
+  }
+  function house(x, i, sh) {
+    const bw = 22 + Math.round(hash(i * 5) * 9), x0 = Math.round(x - bw / 2), wallH = 13, roofH = 7;
+    const wall = sh([34 + hash(i * 3) * 10, 32, 38]), roof = sh([24, 22, 30]);
+    rect(x0, Y_MID - wallH, bw, wallH, wall);
+    for (let r = 0; r < roofH; r++) { const ins = (r * (bw / 2)) / roofH; rect(x0 - 1 + ins, Y_MID - wallH - 1 - r, bw + 2 - ins * 2, 1, roof); }
+    for (const [wx, wy] of [[3, 3], [bw - 8, 3], [3, 9], [bw - 8, 9]]) {
+      const on = h2(i * 17 + wx, wy) < 0.42;
+      rect(x0 + wx, Y_MID - wallH + wy, 4, 3, on ? sh([255, 190, 110]) : sh([14, 16, 24]));
+      if (on) { px(x0 + wx + 2, Y_MID - wallH + wy, sh([170, 110, 60])); glow(x0 + wx + 2, Y_MID - wallH + wy + 1, 6, [255, 180, 100], 0.2); }
+    }
+    px(x0 + (bw >> 1), Y_MID - 5, [255, 220, 150]);
+  }
+  function apartment(x, i, sh) {
+    const bw = 56, x0 = Math.round(x - bw / 2);
+    rect(x0, Y_MID - 17, bw, 17, sh([44, 42, 48]));
+    rect(x0 - 1, Y_MID - 18, bw + 2, 1, sh([30, 28, 34]));
+    for (const fy of [Y_MID - 9, Y_MID - 1]) {
+      rect(x0, fy, bw, 1, sh([70, 70, 76]));
+      for (let dx = 4; dx < bw - 4; dx += 7) {
+        px(x0 + dx, fy - 7, [230, 235, 255]);
+        rect(x0 + dx - 1, fy - 5, 3, 5, sh([30, 28, 36]));
+        if (h2(i * 5 + dx, fy) < 0.35) rect(x0 + dx + 2, fy - 5, 2, 2, sh([255, 190, 110]));
+      }
+    }
+    pxLine(x0 + bw, Y_MID, x0 + bw + 6, Y_MID - 16, sh([60, 60, 66]));
+  }
+  function blobTree(x, yb, r, i, sh) {
+    const c = sh([12, 26, 20]);
+    rect(x - 1, yb - r, 2, r, sh([24, 20, 18]));
+    rect(x - r, yb - r * 2 + 2, r * 2, r - 1, c);
+    rect(x - r + 2, yb - r * 2, r * 2 - 4, r + 2, c);
+  }
+  function conifer(x, yb, h, sh) {
+    const w = h * 0.34, c = sh([10, 22, 16]);
+    rect(x - 1, yb - 4, 2, 4, sh([20, 16, 14]));
+    for (let r = 0; r < h - 3; r++) {
+      const t = r / (h - 3), tier = 0.7 + 0.3 * ((r % 7) / 7);
+      const hw = Math.max(0.5, w * t * tier / 2);
+      rect(x - hw, yb - h + r, hw * 2, 1, c);
+    }
+  }
+  function farmhouse(x, i, sh) {
+    const bw = 40, x0 = Math.round(x - bw / 2);
+    blobTree(x0 - 6, Y_MID, 8, i, sh);
+    rect(x0, Y_MID - 9, bw, 9, sh([40, 36, 36]));
+    for (let r = 0; r < 11; r++) rect(x0 - 3 + r * 1.2, Y_MID - 10 - r, bw + 6 - r * 2.4, 1, sh([26, 24, 30]));
+    rect(x0 + 8, Y_MID - 7, 6, 4, [255, 190, 110]); glow(x0 + 11, Y_MID - 5, 10, [255, 180, 100], 0.3);
+  }
+  function shrine(x, i, sh) {
+    blobTree(x - 8, Y_MID, 10, i, sh); blobTree(x + 8, Y_MID, 11, i + 3, sh);
+    const red = sh([170, 40, 30]);
+    rect(x - 5, Y_MID - 14, 1, 14, red); rect(x + 5, Y_MID - 14, 1, 14, red);
+    rect(x - 7, Y_MID - 15, 15, 1, red); px(x - 8, Y_MID - 16, red); px(x + 8, Y_MID - 16, red);
+    rect(x - 6, Y_MID - 12, 13, 1, red);
+    for (const lx of [x - 10, x + 10]) { rect(lx - 1, Y_MID - 4, 2, 4, sh([80, 80, 84])); px(lx, Y_MID - 3, [255, 200, 120]); glow(lx, Y_MID - 3, 5, [255, 170, 80], 0.5); }
+  }
+  function greenhouse(x, i, sh) {
+    const bw = 70, x0 = Math.round(x - bw / 2);
+    const c = [255, 225, 150];
+    for (let r = 0; r < 11; r++) {
+      const ins = r > 7 ? (r - 7) * 3 : 0;
+      ctx.fillStyle = rgba(c, 0.55 + S.rain * 0.2); ctx.fillRect(x0 + ins, Y_MID - 1 - r, bw - ins * 2, 1);
+    }
+    for (let xx = 0; xx < bw; xx += 6) rect(x0 + xx, Y_MID - 9, 1, 9, sh([90, 80, 60]));
+    glow(x, Y_MID - 8, 55, [255, 210, 130], 0.25 + S.rain * 0.15);
+  }
+  function pine(x, yb, scale, i, sh) {
+    const k = scale * 9;
+    const tx = x + 0.7 * k * 4;
+    pxLine(x, yb, tx, yb - 3.6 * k, sh([30, 24, 20]), Math.max(1, Math.round(k * 0.25)));
+    const c = sh([14, 30, 24]);
+    rect(tx - 2 * k, yb - 4 * k, 4 * k, 0.5 * k, c);
+    rect(tx - 1.2 * k, yb - 4.6 * k, 3 * k, 0.5 * k, c);
+    rect(x - 0.6 * k, yb - 2.6 * k, 2.4 * k, 0.4 * k, c);
+  }
+
+  // ---------- near layer ----------
+  function drawNearGround() {
     const wet = S.wet;
-    for (let y = hor + 1; y < H; y++) {
-      const z = D * CAMH / (y - hor);
-      const sc = D / z, s = S.camS + z;
-      const cx = CX + sc * (offAt(z) - playerX), hw = sc * ROADW;
-      const stripe = Math.floor(s / 3) & 1;
-      const f = fogAt(z);
-      const pL = lampPool(s, 0), pR = lampPool(s, 1);
-      const warm = [120, 70, 25];
-      const lit = (base, p) => {
-        const c = [base[0] * amb + warm[0] * p * (0.6 + wet * 0.6), base[1] * amb + warm[1] * p * (0.6 + wet * 0.6), base[2] * amb + warm[2] * p * (0.6 + wet * 0.6)];
-        return mix(c, fogCol, f);
-      };
-      const ground = stripe ? [16, 18, 22] : [19, 21, 26];
-      const walk = [44, 42, 50];
-      const curb = stripe ? [78, 76, 84] : [54, 52, 60];
-      let road = stripe ? [30, 31, 38] : [34, 35, 42];
-      road = mix(road, [20, 22, 34], wet * 0.55);
-
-      rect(0, y, W, 1, lit(ground, (pL + pR) * 0.3));
-      rect(cx - hw * 1.55, y, hw * 3.1, 1, lit(walk, (pL + pR) * 0.5));
-      rect(cx - hw * 1.1, y, hw * 2.2, 1, lit(curb, (pL + pR) * 0.6));
-      rect(cx - hw, y, hw, 1, lit(road, pL + pR * 0.35));
-      rect(cx, y, hw, 1, lit(road, pR + pL * 0.35));
-      const lineC = lit([170, 170, 160], (pL + pR) * 0.6);
-      const lw = Math.max(1, sc * 0.07);
-      rect(cx - hw * 0.93, y, lw, 1, lineC);
-      rect(cx + hw * 0.93 - lw, y, lw, 1, lineC);
-      if ((Math.floor(s / 5) & 1) === 0) rect(cx - lw / 2, y, lw, 1, lineC);
-
-      // our headlights on the road
-      if (z < 34) {
-        const i = Math.pow(1 - z / 34, 1.3) * 0.5;
-        ctx.globalCompositeOperation = "lighter";
-        rect(CX - sc * 0.35 - sc * 1.25, y, sc * 2.5, 1, rgba([90, 88, 70], i * (1 - wet * 0.3)));
-        ctx.globalCompositeOperation = "source-over";
+    for (let x = 0; x < W; x++) {
+      const s = sAt(x, K_NEAR), b = biomeAt(s), u = Math.floor(s * K_NEAR);
+      const y0 = Y_NEAR, hgt = WIN_BOT - Y_NEAR + 2;
+      let c;
+      switch (b) {
+        case "city": c = (u % 9 === 0) ? [34, 32, 40] : [46, 44, 52]; break;
+        case "suburb": c = [32, 32, 38]; break;
+        case "country": c = [20, 28, 20]; break;
+        case "forest": case "tunnel": c = [22, 22, 22]; break;
+        case "coast": c = [50, 52, 58]; break;
+        default: c = [40, 40, 46];
+      }
+      if (wet > 0) c = mix(c, [18, 20, 30], wet * 0.35);
+      rect(x, y0, 1, hgt, lit(c, x));
+      px(x, y0, lit(mix(c, [120, 120, 130], 0.35), x));
+      if (b === "suburb") px(x, y0 + 5, lit([150, 150, 150], x));
+      if ((b === "country" || b === "forest") && hash(u) > 0.55) px(x, y0 - 1, lit([22, 40, 24], x));
+      if (b === "suburb" && wallAt(s)) {
+        const top = Y_NEAR - 12;
+        rect(x, top, 1, 12, lit([56, 56, 60], x));
+        px(x, top, lit([80, 80, 84], x));
+        for (let y = top + 3; y < Y_NEAR; y += 3) px(x, y, lit([36, 36, 40], x));
+        const row = Math.floor((Y_NEAR - top) / 3);
+        for (let r = 0; r < row; r++) if ((u + (r % 2) * 4) % 8 === 0) rect(x, top + 1 + r * 3, 1, 2, lit([36, 36, 40], x));
       }
     }
-
-    // --- sprites ---
-    const sprites = [];
-    const sMin = S.camS + 1.2, sMax = S.camS + DRAW - 2;
-    for (let n = Math.ceil(sMin / LAMP_SP); n * LAMP_SP < sMax; n++)
-      sprites.push({ z: n * LAMP_SP - S.camS, kind: "lamp", side: (n & 1) ? 1 : -1 });
-    for (let n = Math.ceil(sMin / 8); n * 8 < sMax; n++) {
-      sprites.push({ z: n * 8 - S.camS, kind: "post", side: -1 });
-      sprites.push({ z: n * 8 + 4 - S.camS, kind: "post", side: 1 });
+  }
+  function drawNearRails() {
+    for (let x = 0; x < W; x++) {
+      const s = sAt(x, K_NEAR), b = biomeAt(s), u = Math.floor(s * K_NEAR);
+      if (guardrailAt(s, b)) {
+        rect(x, 113, 1, 1, lit([170, 170, 175], x)); rect(x, 114, 1, 1, lit([120, 120, 126], x));
+        rect(x, 115, 1, 1, lit([160, 160, 166], x)); rect(x, 116, 1, 1, lit([60, 60, 66], x));
+        if (u % 18 < 2) rect(x, 117, 1, 7, lit([90, 90, 96], x));
+      } else if (b === "city") {
+        if (u % 14 === 0) rect(x, 113, 1, 11, lit([80, 84, 90], x));
+        px(x, 114, lit([90, 94, 100], x)); px(x, 119, lit([90, 94, 100], x));
+      } else if (b === "bridge") {
+        rect(x, 110, 1, 2, lit([100, 110, 130], x));
+        if (u % 9 === 0) rect(x, 112, 1, 10, lit([70, 80, 100], x));
+        px(x, 121, lit([80, 90, 110], x));
+      }
     }
-    for (let n = Math.ceil(sMin / 11); n * 11 < sMax; n++)
-      if (hash(n * 5 + 1) > 0.45) sprites.push({ z: n * 11 - S.camS, kind: "tree", side: -1, id: n });
-    for (let n = Math.ceil(sMin / 9); n * 9 < sMax; n++)
-      for (const side of [-1, 1]) if (hash(n * 7 + side * 3) > 0.35) sprites.push({ z: n * 9 - S.camS, kind: "bldg", side, id: n * 2 + (side > 0 ? 1 : 0) });
-    for (let n = Math.ceil(sMin / 290); n * 290 < sMax; n++) sprites.push({ z: n * 290 - S.camS, kind: "sign", side: -1 });
-    for (const c of S.ahead) { const z = c.s - S.camS; if (z > 2 && z < DRAW - 2) sprites.push({ z, kind: "car", on: false, col: c.col }); }
-    for (const c of S.oncoming) { const z = c.s - S.camS; if (z > 1.5 && z < DRAW - 2) sprites.push({ z, kind: "car", on: true, col: c.col }); }
-    sprites.sort((a, b) => b.z - a.z);
-
-    // wet reflections of every light source, drawn onto the road first
-    if (wet > 0.05) {
-      ctx.globalCompositeOperation = "lighter";
-      for (const sp of sprites) {
-        if (sp.kind === "lamp") {
-          const p = project(sp.z, sp.side * (ROADW - 0.25));
-          const ly = p.y - p.sc * 5.4;
-          reflect(p.x, p.y, (p.y - ly) * 0.9, Math.max(1, p.sc * 0.5), [255, 160, 70], wet * 0.45 * (1 - fogAt(sp.z)));
-        } else if (sp.kind === "car") {
-          const lx = sp.on ? ROADW / 2 : -ROADW / 2;
-          const p = project(sp.z, lx);
-          const c = sp.on ? [230, 230, 255] : [255, 40, 40];
-          for (const s2 of [-1, 1]) reflect(p.x + s2 * p.sc * 0.6, p.y, p.sc * 3 + 6, Math.max(1, p.sc * 0.25), c, wet * 0.5 * (1 - fogAt(sp.z)));
+  }
+  function drawNearObjects() {
+    cells(K_NEAR, 6, 12, (i, s, x, b) => {
+      const h = hash(i * 7 + 1);
+      switch (b) {
+        case "city":
+          if (i % 5 === 0) streetlight(x, false);
+          else if (h < 0.14) vending(x, i);
+          else if (h < 0.32) streetTree(x, i);
+          else if (h < 0.36) busStop(x, false);
+          break;
+        case "suburb":
+          if (i % 5 === 0) break;
+          if (h < 0.09) vending(x, i);
+          else if (h < 0.13) curveMirror(x);
+          break;
+        case "country":
+          if (i % 5 === 0) break;
+          if (h < 0.04) jizo(x);
+          else if (h < 0.07) busStop(x, true);
+          else if (h < 0.12) roadSign(x, "blue");
+          break;
+        case "forest":
+          if (h < 0.4) trunk(x, i);
+          else if (h < 0.46) roadSign(x, "deer");
+          if (i % 3 === 0) { rect(x + 12, Y_NEAR - 8, 1, 8, lit([200, 200, 200], x)); px(x + 12, Y_NEAR - 8, [255, 170, 50]); }
+          break;
+        case "coast":
+          if (i % 7 === 0) streetlight(x, true);
+          else if (h < 0.1) pine(x, Y_NEAR, 1, i, c => lit(c, x));
+          break;
+        case "bridge":
+          if (i % 7 === 0) streetlight(x, true);
+          break;
+      }
+    });
+  }
+  function drawPolesAndWires() {
+    const poles = [];
+    for (let n = Math.floor(sAt(-120, K_NEAR) / 30); n * 30 < sAt(W + 120, K_NEAR); n++) {
+      const b = biomeAt(n * 30);
+      if (b === "suburb" || b === "country") poles.push({ n, x: sx(n * 30, K_NEAR) });
+    }
+    for (let j = 0; j < poles.length - 1; j++) {
+      const a = poles[j], c = poles[j + 1];
+      if (c.n !== a.n + 1) continue;
+      for (const [dx, dy, sag] of [[-6, -86, 7], [0, -88, 7], [6, -86, 7], [-5, -70, 5], [5, -70, 5]]) {
+        const xa = a.x + dx, xb = c.x + dx, y = Y_NEAR + dy;
+        const col = rgb(lit([56, 56, 66], CX, 0.5));
+        ctx.fillStyle = col;
+        for (let x = Math.max(0, Math.ceil(xa)); x <= Math.min(W, xb); x++) {
+          const t = (x - xa) / (xb - xa);
+          ctx.fillRect(x, Math.round(y + sag * 4 * t * (1 - t)), 1, 1);
         }
       }
-      ctx.globalCompositeOperation = "source-over";
     }
-
-    for (const sp of sprites) drawSprite(sp, fogAt(sp.z), fogCol, amb);
-
-    // --- rain streaks outside ---
-    if (S.streaks.length) {
-      for (const p of S.streaks) {
-        const len = 0.018 + p.d * 0.02;
-        const bright = p.y > hor && Math.abs(p.x - CX + 10) < 70 ? 1.4 : 1;
-        pxLine(p.x, p.y, p.x - p.vx * len, p.y - p.vy * len, rgba([170, 190, 235], (0.12 + p.d * 0.3) * bright));
-      }
-    }
-
-    // flash overlay
-    if (fl > 0.02) { ctx.fillStyle = rgba([200, 200, 230], fl * 0.25); ctx.fillRect(0, 0, W, H); }
-
-    // --- windshield ---
-    drawDrops(amb);
-    drawWipers();
-    drawInterior(sprites, fl);
-  }
-
-  function reflect(x, y0, len, w, c, a) {
-    if (a <= 0.01) return;
-    const g = ctx.createLinearGradient(0, y0, 0, y0 + len);
-    g.addColorStop(0, rgba(c, a)); g.addColorStop(1, rgba(c, 0));
-    ctx.fillStyle = g;
-    const wob = Math.sin(S.time * 7 + x) * 0.5;
-    ctx.fillRect(Math.round(x - w / 2 + wob), Math.round(y0), Math.max(1, Math.round(w)), Math.round(len));
-  }
-
-  function drawSkyline(list, ox, col, winA, towerA) {
-    const wrap = 1024;
-    for (const b of list) {
-      const x = ((b.x + ox) % wrap + wrap) % wrap - 60;
-      if (x > W || x + b.w < 0) continue;
-      const y = hor - b.h;
-      rect(x, y, b.w, b.h, col);
-      const a = winA * (1 - S.rain * 0.55);
-      for (let i = 0; i < b.wins.length; i += 3) {
-        ctx.fillStyle = b.wins[i + 2] ? rgba([170, 210, 255], a * 0.8) : rgba([255, 196, 110], a);
-        ctx.fillRect(Math.round(x + b.wins[i]), y + b.wins[i + 1], 1, 1);
-      }
-      if (b.tower && Math.sin(S.time * 3 + b.x) > 0.3) {
-        rect(x + (b.w >> 1), y - 1, 1, 1, [255, 50, 50]);
-        glow(x + (b.w >> 1) + 0.5, y - 0.5, 4, [255, 40, 40], 0.5 * towerA);
+    for (const p of poles) {
+      const x = Math.round(p.x);
+      if (x < -20 || x > W + 20) continue;
+      const c = lit([74, 74, 80], x);
+      rect(x - 1, Y_NEAR - 92, 3, 92, c);
+      rect(x - 7, Y_NEAR - 85, 15, 2, lit([60, 60, 66], x));
+      for (const dx of [-6, 0, 6]) px(x + dx, Y_NEAR - 87, lit([140, 140, 150], x));
+      rect(x - 5, Y_NEAR - 70, 11, 1, lit([60, 60, 66], x));
+      if (hash(p.n * 3) > 0.6) rect(x + 2, Y_NEAR - 66, 5, 8, lit([96, 96, 102], x));
+      rect(x - 1, Y_NEAR - 42, 3, 8, lit([40, 80, 170], x));
+      px(x, Y_NEAR - 40, lit([220, 220, 230], x)); px(x, Y_NEAR - 37, lit([220, 220, 230], x));
+      if (hash(p.n * 5) > 0.55) {
+        // small lamp on the pole (防犯灯)
+        rect(x + 2, Y_NEAR - 56, 4, 1, lit([60, 60, 66], x)); rect(x + 4, Y_NEAR - 55, 3, 1, [230, 240, 255]);
+        glow(x + 5, Y_NEAR - 54, 18, [200, 220, 255], 0.4);
+        addLight(x + 5, [0.7, 0.8, 1], 0.5);
       }
     }
   }
+  function streetlight(x, warm) {
+    const top = Y_NEAR - 64, c = warm ? [255, 160, 70] : [220, 230, 255];
+    rect(x - 1, top, 2, 64, lit([56, 56, 62], x));
+    rect(x, top, 6, 1, lit([56, 56, 62], x));
+    rect(x + 4, top + 1, 6, 2, warm ? [255, 220, 150] : [240, 245, 255]);
+    glow(x + 7, top + 3, 34, c, 0.5);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = rgba(c, 0.07);
+    ctx.beginPath(); ctx.moveTo(x + 4, top + 3); ctx.lineTo(x + 10, top + 3); ctx.lineTo(x + 30, Y_NEAR); ctx.lineTo(x - 16, Y_NEAR); ctx.closePath(); ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
+    glow(x + 7, Y_NEAR + 3, 22, c, 0.25 + S.wet * 0.2);
+    if (S.rain > 0.1) glow(x + 7, top + 16, 16, c, 0.12 * S.rain);
+    addLight(x + 7, warm ? [1, 0.62, 0.28] : [0.8, 0.85, 1], 1);
+  }
+  function vending(x, i) {
+    const bodies = [[190, 40, 40], [40, 80, 180], [220, 220, 225], [40, 140, 80]];
+    const x0 = Math.round(x), y0 = Y_NEAR - 16;
+    rect(x0, y0, 9, 16, mix(bodies[mod(i, 4)], [0, 0, 0], 0.35));
+    rect(x0 + 1, y0 + 1, 7, 7, [235, 240, 230]);
+    const cans = [[220, 60, 50], [60, 120, 220], [240, 200, 60], [80, 180, 90], [240, 240, 240], [150, 90, 50]];
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) rect(x0 + 2 + c * 2, y0 + 2 + r * 3, 1, 2, cans[mod(i + r * 3 + c, 6)]);
+    rect(x0 + 1, y0 + 9, 7, 1, [255, 90, 70]);
+    rect(x0 + 2, y0 + 12, 5, 2, [20, 20, 24]);
+    glow(x0 + 4.5, y0 + 6, 26, [200, 220, 255], 0.45);
+    glow(x0 + 4.5, Y_NEAR + 3, 14, [200, 220, 255], 0.2 + S.wet * 0.2);
+    addLight(x0 + 4, [0.8, 0.88, 1], 0.7);
+  }
+  function streetTree(x, i) {
+    const c = lit([14, 30, 22], x);
+    rect(x - 1, Y_NEAR - 30, 3, 30, lit([30, 24, 20], x));
+    rect(x - 16, Y_NEAR - 52, 32, 16, c);
+    rect(x - 12, Y_NEAR - 58, 24, 26, c);
+    for (let j = 0; j < 10; j++) px(x - 12 + hash(i * 17 + j) * 24, Y_NEAR - 56 + hash(i * 19 + j) * 18, lit([24, 48, 34], x));
+  }
+  function busStop(x, rural) {
+    if (rural) {
+      rect(x - 9, Y_NEAR - 22, 20, 2, lit([60, 50, 44], x));
+      rect(x - 8, Y_NEAR - 20, 1, 20, lit([50, 44, 40], x)); rect(x + 9, Y_NEAR - 20, 1, 20, lit([50, 44, 40], x));
+      rect(x - 7, Y_NEAR - 20, 16, 12, lit([30, 28, 26], x));
+      rect(x - 6, Y_NEAR - 7, 14, 2, lit([80, 60, 40], x));
+      px(x, Y_NEAR - 19, [255, 230, 170]); glow(x, Y_NEAR - 18, 14, [255, 210, 140], 0.5);
+      addLight(x, [1, 0.8, 0.5], 0.4);
+    } else {
+      rect(x, Y_NEAR - 26, 1, 26, lit([90, 90, 96], x));
+      rect(x - 3, Y_NEAR - 30, 7, 6, [60, 110, 200]); px(x, Y_NEAR - 28, [240, 240, 240]);
+      rect(x + 2, Y_NEAR - 20, 4, 8, [220, 230, 230]);
+      rect(x - 8, Y_NEAR - 6, 12, 1, lit([100, 100, 110], x));
+    }
+  }
+  function curveMirror(x) {
+    rect(x, Y_NEAR - 26, 2, 26, lit([220, 120, 40], x));
+    rect(x - 4, Y_NEAR - 34, 10, 9, lit([220, 120, 40], x));
+    rect(x - 3, Y_NEAR - 33, 8, 7, lit([60, 70, 90], x));
+    px(x - 2, Y_NEAR - 32, [200, 210, 230]);
+  }
+  function jizo(x) {
+    rect(x - 8, Y_NEAR - 16, 18, 2, lit([50, 40, 36], x));
+    rect(x - 7, Y_NEAR - 14, 1, 14, lit([40, 34, 30], x)); rect(x + 8, Y_NEAR - 14, 1, 14, lit([40, 34, 30], x));
+    for (const dx of [-3, 3]) {
+      rect(x + dx - 1, Y_NEAR - 8, 4, 8, lit([110, 110, 104], x));
+      rect(x + dx - 1, Y_NEAR - 11, 3, 3, lit([110, 110, 104], x));
+      rect(x + dx - 1, Y_NEAR - 7, 4, 2, lit([190, 40, 40], x));
+    }
+    px(x, Y_NEAR - 2, [255, 200, 120]); glow(x, Y_NEAR - 2, 6, [255, 160, 70], 0.5);
+  }
+  function roadSign(x, kind) {
+    rect(x, Y_NEAR - 26, 1, 26, lit([120, 120, 126], x));
+    if (kind === "blue") {
+      rect(x - 7, Y_NEAR - 36, 15, 10, lit([30, 70, 170], x, 1.4));
+      rect(x - 5, Y_NEAR - 33, 9, 1, lit([230, 230, 230], x, 1.4)); rect(x + 2, Y_NEAR - 35, 1, 5, lit([230, 230, 230], x, 1.4));
+    } else {
+      for (let r = 0; r < 9; r++) { const w = r < 5 ? r * 2 + 1 : (8 - r) * 2 + 1; rect(x - (w >> 1), Y_NEAR - 38 + r, w, 1, lit([230, 190, 40], x, 1.4)); }
+      rect(x - 2, Y_NEAR - 34, 4, 2, [20, 20, 20]); px(x + 2, Y_NEAR - 35, [20, 20, 20]); px(x - 2, Y_NEAR - 32, [20, 20, 20]); px(x + 1, Y_NEAR - 32, [20, 20, 20]);
+    }
+  }
+  function trunk(x, i) {
+    const w = 3 + ((hash(i * 3) * 3) | 0);
+    rect(x, 0, w, Y_NEAR, lit([24, 20, 18], x));
+    px(x, Y_NEAR - 30 - hash(i) * 40, lit([40, 34, 30], x));
+    rect(x - 8, Y_NEAR - 90 + hash(i * 5) * 20, 8, 1, lit([24, 20, 18], x));
+  }
 
-  function drawSprite(sp, f, fogCol, amb) {
-    const fade = 1 - f;
-    const dark = c => mix([c[0] * amb, c[1] * amb, c[2] * amb], fogCol, f);
-    if (sp.kind === "lamp") {
-      const baseX = sp.side * (ROADW + 0.7);
-      const p = project(sp.z, baseX), q = project(sp.z, sp.side * (ROADW - 0.25));
-      const hgt = 5.4 * p.sc;
-      const pw = Math.max(1, p.sc * 0.14);
-      rect(p.x - pw / 2, p.y - hgt, pw, hgt, dark([40, 40, 48]));
-      rect(Math.min(p.x, q.x), p.y - hgt, Math.abs(q.x - p.x) + 1, pw, dark([40, 40, 48]));
-      const hx = q.x, hy = p.y - hgt + pw;
-      rect(hx - p.sc * 0.3, hy, p.sc * 0.6, Math.max(1, p.sc * 0.12), mix([255, 220, 150], fogCol, f * 0.6));
-      ctx.globalCompositeOperation = "lighter";
-      glow(hx, hy + 1, 6 + p.sc * 2.2, [255, 150, 60], 0.55 * fade + 0.1);
-      if (S.rain > 0.1) glow(hx, hy + p.sc * 1.5, p.sc * 3, [255, 170, 90], 0.12 * S.rain * fade);
-      ctx.globalCompositeOperation = "source-over";
-    } else if (sp.kind === "post") {
-      const p = project(sp.z, sp.side * (ROADW + 0.3));
-      const h = 0.8 * p.sc, w = Math.max(1, p.sc * 0.08);
-      rect(p.x - w / 2, p.y - h, w, h, dark([90, 90, 96]));
-      const hl = sp.z < 45 ? (1 - sp.z / 45) : 0;
-      const rc = sp.side < 0 ? [255, 190, 60] : [230, 230, 255];
-      rect(p.x - w / 2, p.y - h, w, Math.max(1, h * 0.2), mix(mix([60, 60, 60], rc, hl), fogCol, f));
-    } else if (sp.kind === "tree") {
-      const p = project(sp.z, -(ROADW + 2.1 + hash(sp.id) * 1.5));
-      const th = 1.4 * p.sc, tw = Math.max(1, p.sc * 0.2);
-      rect(p.x - tw / 2, p.y - th, tw, th, dark([26, 20, 18]));
-      const r = (1.1 + hash(sp.id * 3) * 0.6) * p.sc;
-      const cy = p.y - th - r * 0.7;
-      const pl = lampPool(sp.z + S.camS, 0);
-      const c = mix(dark([14, 32, 26]), [90, 60, 20], pl * 0.35 * (1 - f));
-      rect(p.x - r, cy - r * 0.6, r * 2, r * 1.2, c);
-      rect(p.x - r * 0.7, cy - r, r * 1.4, r * 1.9, c);
-    } else if (sp.kind === "bldg") {
-      const w = 4 + hash(sp.id * 11) * 6, h = 5 + Math.pow(hash(sp.id * 13), 1.5) * 16;
-      const wx = sp.side * (ROADW + 6 + hash(sp.id * 17) * 8 + w / 2);
-      const p = project(sp.z, wx);
-      const x0 = p.x - w * p.sc / 2, y0 = p.y - h * p.sc;
-      rect(x0, y0, w * p.sc, h * p.sc, dark([22, 20, 34]));
-      const pitch = 1.3 * p.sc;
-      if (pitch >= 2) {
-        const cols = Math.floor(w / 1.3), rows = Math.floor(h / 1.6);
-        const ws = Math.max(1, p.sc * 0.55), wh = Math.max(1, p.sc * 0.7);
-        for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-          const hv = hash(sp.id * 1013 + r * 37 + c);
-          if (hv < 0.62) continue;
-          const wc = hv > 0.93 ? [150, 200, 255] : [255, 190, 100];
-          rect(x0 + (c + 0.5) * pitch + (w * p.sc - cols * pitch) / 2, y0 + (r + 0.6) * 1.6 * p.sc, ws, wh, mix(wc, fogCol, f * 0.8));
+  // tunnel walls & bridge truss cover the view where the car is inside them
+  let tunnelRanges = [];
+  function drawStructures() {
+    tunnelRanges = [];
+    const sL = sAt(-20, K_NEAR), sR = sAt(W + 20, K_NEAR);
+    for (let i = segIndex(sL); i < route.length && route[i].s0 < sR; i++) {
+      const g = route[i];
+      if (g.b === "bridge") drawTruss(g);
+      if (g.b === "tunnel") drawTunnel(g);
+    }
+  }
+  function drawTruss(g) {
+    const xa = sx(g.s0, K_NEAR), xb = sx(g.s1, K_NEAR);
+    const c = [50, 70, 96];
+    for (let x = Math.max(0, Math.floor(xa)); x < Math.min(W, xb); x++) {
+      rect(x, 22, 1, 4, lit(c, x)); px(x, 22, lit([90, 110, 140], x));
+      rect(x, 106, 1, 3, lit(c, x));
+    }
+    for (let n = Math.floor((sAt(-30, K_NEAR) - g.s0) / 10); ; n++) {
+      const s = g.s0 + n * 10; if (s > g.s1 || sx(s, K_NEAR) > W + 30) break;
+      if (s < g.s0) continue;
+      const x = sx(s, K_NEAR), x2 = sx(Math.min(g.s1, s + 10), K_NEAR);
+      rect(x - 2, 22, 4, 87, lit(c, x));
+      px(x - 2, 30, lit([90, 110, 140], x));
+      if (s + 10 <= g.s1) {
+        if (n % 2) pxLine(x, 26, x2, 106, rgb(lit(c, x)), 3); else pxLine(x, 106, x2, 26, rgb(lit(c, x)), 3);
+      }
+    }
+  }
+  function drawTunnel(g) {
+    const xa = Math.max(0, Math.floor(sx(g.s0, K_NEAR))), xb = Math.min(W, Math.ceil(sx(g.s1, K_NEAR)));
+    if (xb <= xa) return;
+    tunnelRanges.push([xa, xb]);
+    for (let x = xa; x < xb; x++) {
+      const s = sAt(x, K_NEAR), u = Math.floor(s * K_NEAR);
+      const d = (((s - g.s0) % 8) + 8) % 8 - 4, li = 0.45 + 0.8 * Math.exp(-d * d / 5);
+      const sc = c => [c[0] * li, c[1] * li, c[2] * li];
+      rect(x, 0, 1, 30, sc([34, 30, 26]));
+      rect(x, 30, 1, 66, sc([84, 72, 56]));
+      rect(x, 96, 1, 16, sc([104, 96, 84]));
+      rect(x, 112, 1, 12, sc([54, 50, 44]));
+      rect(x, 124, 1, 12, sc([40, 36, 32]));
+      px(x, 96, sc([60, 54, 46])); px(x, 112, sc([150, 140, 120]));
+      if (u % 45 === 0) rect(x, 30, 1, 82, sc([60, 52, 42]));
+    }
+    for (let n = Math.floor((sAt(-20, K_NEAR) - g.s0) / 8); ; n++) {
+      const s = g.s0 + n * 8 + 4; if (s > g.s1 || sx(s, K_NEAR) > W + 20) break;
+      if (s < g.s0) continue;
+      const x = sx(s, K_NEAR);
+      rect(x - 6, 32, 12, 2, [255, 200, 120]);
+      glow(x, 33, 24, [255, 150, 60], 0.55);
+      addLight(x, [1, 0.55, 0.2], 1.1);
+      if (n % 25 === 3) { rect(x - 4, 84, 9, 6, [40, 170, 90]); rect(x - 2, 85, 2, 4, [240, 250, 240]); px(x + 1, 87, [240, 250, 240]); }
+    }
+    for (const [s, sign] of [[g.s0, -1], [g.s1, 1]]) {
+      const x = sx(s, K_NEAR);
+      if (x < -12 || x > W + 12) continue;
+      rect(sign < 0 ? x - 8 : x, 0, 8, WIN_BOT, lit([86, 86, 90], x));
+      rect(sign < 0 ? x - 8 : x + 7, 0, 1, WIN_BOT, lit([120, 120, 126], x));
+    }
+  }
+
+  // ================= events: drawing =================
+  function drawPerson(x, yb, dir, phase, look, umb, yukata) {
+    x = Math.round(x); yb = Math.round(yb);
+    const L = c => lit(c, x);
+    const st = Math.floor(phase) % 2;
+    if (yukata) {
+      rect(x - 2, yb - 11, 4, 10, L(look));
+      rect(x - 2, yb - 7, 4, 1, L([230, 190, 60]));
+      px(x - 1, yb - 1, L([30, 24, 20])); px(x + st, yb - 1, L([30, 24, 20]));
+    } else {
+      const pc = L(look.pants);
+      if (st) { rect(x - 2, yb - 5, 1, 5, pc); rect(x + 1, yb - 5, 1, 5, pc); } else { rect(x - 1, yb - 5, 1, 5, pc); rect(x, yb - 5, 1, 5, pc); }
+      rect(x - 2, yb - 11, 4, 6, L(look.coat));
+      rect(x + (st ? dir * 2 : -dir * 2), yb - 10, 1, 4, L(look.coat));
+      if (look.bag) rect(x - dir * 3, yb - 8, 2, 3, L([40, 30, 26]));
+    }
+    rect(x - 1, yb - 14, 3, 3, L([130, 96, 80]));
+    rect(x - 1, yb - 15, 3, 1, L(look.hair || [20, 16, 14]));
+    if (look.long) px(x - dir, yb - 13, L(look.hair));
+    if (umb) {
+      ctx.fillStyle = rgba(lit(umb, x, 1.2), 0.85);
+      ctx.fillRect(x - 5, yb - 17, 11, 1); ctx.fillRect(x - 4, yb - 18, 9, 1); ctx.fillRect(x - 2, yb - 19, 5, 1);
+      rect(x + 1, yb - 16, 1, 5, L([40, 40, 40]));
+    }
+  }
+  function scaled(ox, oy, m) {
+    ctx.save(); ctx.translate(ox, oy); ctx.scale(m, m); ctx.translate(-ox, -oy);
+  }
+  function drawEvent(e) {
+    const t = e.t;
+    switch (e.type) {
+      case "walker": case "dogwalker": case "runner": {
+        const x = sx(e.s, K_NEAR), dir = e.v > 0 ? 1 : -1;
+        const umb = S.rain > 0.15 ? e.umb : null;
+        drawPerson(x, Y_NEAR, dir, e.s * (e.type === "runner" ? 2.5 : 1.6), e.yukata ? YUKATA[e.seed % 4] : e.look, umb, e.yukata);
+        if (e.type === "runner") px(x, Y_NEAR - 9, [220, 255, 120]);
+        if (e.type === "dogwalker") {
+          const dx = x + dir * 7, st = Math.floor(e.s * 3) % 2;
+          rect(dx - 3, Y_NEAR - 4, 6, 2, lit([150, 110, 60], dx));
+          rect(dx + dir * 3 - 1, Y_NEAR - 6, 2, 2, lit([150, 110, 60], dx));
+          px(dx - 3 + st, Y_NEAR - 2, lit([150, 110, 60], dx)); px(dx + 2 - st, Y_NEAR - 2, lit([150, 110, 60], dx));
+          px(dx - dir * 3, Y_NEAR - 5, lit([150, 110, 60], dx));
+          pxLine(x + dir, Y_NEAR - 8, dx + dir * 2, Y_NEAR - 5, rgb(lit([90, 40, 40], x)));
         }
+        break;
       }
-    } else if (sp.kind === "sign") {
-      const p = project(sp.z, -(ROADW + 1.4));
-      const pw = Math.max(1, p.sc * 0.1);
-      rect(p.x - p.sc * 1.0, p.y - 2.3 * p.sc, pw, 2.3 * p.sc, dark([60, 60, 66]));
-      rect(p.x + p.sc * 1.0, p.y - 2.3 * p.sc, pw, 2.3 * p.sc, dark([60, 60, 66]));
-      const hl = sp.z < 60 ? 1 - sp.z / 60 : 0;
-      const g = mix(mix([12, 60, 34], [30, 150, 80], hl), fogCol, f);
-      const bx = p.x - 1.3 * p.sc, by = p.y - 3.9 * p.sc, bw = 2.6 * p.sc, bh = 1.6 * p.sc;
-      rect(bx, by, bw, bh, g);
-      const wcol = mix(mix([110, 110, 110], [240, 240, 240], hl), fogCol, f);
-      if (bw > 6) {
-        rect(bx, by, bw, 1, wcol); rect(bx, by + bh - 1, bw, 1, wcol);
-        rect(bx, by, 1, bh, wcol); rect(bx + bw - 1, by, 1, bh, wcol);
-        rect(bx + bw * 0.15, by + bh * 0.3, bw * 0.5, Math.max(1, bh * 0.12), wcol);
-        rect(bx + bw * 0.15, by + bh * 0.6, bw * 0.35, Math.max(1, bh * 0.12), wcol);
-        rect(bx + bw * 0.72, by + bh * 0.3, bw * 0.12, bh * 0.45, wcol);
+      case "cyclist": {
+        const x = Math.round(sx(e.s, K_NEAR)), dir = e.v > 0 ? 1 : -1, yb = Y_NEAR;
+        const wc = rgb(lit([60, 60, 66], x));
+        for (const wx of [x - 5, x + 5]) { ctx.strokeStyle = wc; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(wx, yb - 3.5, 3, 0, Math.PI * 2); ctx.stroke(); }
+        pxLine(x - 5, yb - 4, x, yb - 8, wc); pxLine(x, yb - 8, x + 5, yb - 4, wc); pxLine(x - 1, yb - 4, x + 3, yb - 8, wc);
+        rect(x - 2, yb - 14, 3, 6, lit(e.look.coat, x)); rect(x - 1, yb - 17, 3, 3, lit([130, 96, 80], x));
+        const fx = x + dir * 7;
+        px(fx, yb - 7, [255, 255, 230]); glow(fx, yb - 7, 12, [255, 250, 210], 0.6);
+        px(x - dir * 7, yb - 6, [255, 40, 40]); glow(x - dir * 7, yb - 6, 4, [255, 40, 40], 0.5);
+        addLight(fx, [0.9, 0.9, 0.8], 0.25);
+        break;
       }
-    } else if (sp.kind === "car") {
-      const lx = sp.on ? ROADW / 2 : -ROADW / 2;
-      const p = project(sp.z, lx);
-      const w = 1.8 * p.sc, h = 1.35 * p.sc;
-      rect(p.x - w / 2, p.y - h * 0.55, w, h * 0.55, dark(sp.col.map(v => v * 0.6)));
-      rect(p.x - w * 0.38, p.y - h, w * 0.76, h * 0.46, dark([16, 18, 26]));
-      rect(p.x - w * 0.32, p.y - h * 0.94, w * 0.64, h * 0.3, dark([34, 38, 54]));
-      rect(p.x - w / 2, p.y - Math.max(1, h * 0.08), w, Math.max(1, h * 0.08), [6, 6, 8]);
-      const ls = Math.max(1, p.sc * 0.2), ly = p.y - h * 0.38;
-      const lc = sp.on ? [255, 250, 225] : [255, 40, 40];
-      const fade = 1 - f * 0.6;
-      for (const s2 of [-1, 1]) {
-        const lx2 = p.x + s2 * w * 0.34;
-        rect(lx2 - ls / 2, ly - ls / 2, ls, ls, lc);
-        ctx.globalCompositeOperation = "lighter";
-        glow(lx2, ly, (sp.on ? 8 : 4) + p.sc * (sp.on ? 1.6 : 0.8), sp.on ? [255, 240, 200] : [255, 30, 30], (sp.on ? 0.6 : 0.5) * fade);
-        ctx.globalCompositeOperation = "source-over";
+      case "cat": {
+        const x = Math.round(sx(e.s, K_NEAR)), yb = e.onWall ? Y_NEAR - 12 : Y_NEAR;
+        const c = [14, 14, 18];
+        rect(x - 2, yb - 5, 5, 5, c); rect(x - 1, yb - 8, 4, 3, c);
+        px(x - 1, yb - 9, c); px(x + 2, yb - 9, c);
+        const tw = Math.round(Math.sin(t * 3) * 1.5);
+        px(x + 3, yb - 1, c); px(x + 4, yb - 2 + tw, c); px(x + 4, yb - 3 + tw, c);
+        if (Math.sin(t * 1.3) > -0.9) { px(x, yb - 7, [190, 255, 120]); px(x + 2, yb - 7, [190, 255, 120]); glow(x + 1, yb - 7, 4, [180, 255, 120], 0.4); }
+        break;
       }
-      if (sp.on && sp.z < 45) {
-        // glare streak on the glass
-        const a = (1 - sp.z / 45) * 0.35;
-        ctx.globalCompositeOperation = "lighter";
-        rect(p.x - 30 - p.sc * 3, ly, 60 + p.sc * 6, 1, rgba([200, 210, 255], a));
-        ctx.globalCompositeOperation = "source-over";
+      case "deer": {
+        const y = Math.round(baseY(e.k));
+        for (const d of e.herd) {
+          const x = Math.round(sx(e.s + d.off, e.k)), ph = t * 7 + d.ph * 4;
+          scaled(x, y, 2);
+          const fr = Math.floor(ph) % 4, bob = fr === 1 || fr === 2 ? -1 : 0;
+          const c = lit([92, 64, 44], x, 0.6);
+          rect(x - 5, y - 7 + bob, 10, 4, c);
+          rect(x + 3, y - 10 + bob, 2, 4, c); rect(x + 4, y - 11 + bob, 3, 2, c);
+          px(x - 5, y - 7 + bob, [210, 200, 190]);
+          const legs = [[[-4, 0], [-2, 0], [2, 0], [4, 0]], [[-5, -1], [-3, 1], [3, -1], [5, 1]], [[-3, 0], [-4, 0], [3, 0], [2, 0]], [[-5, 1], [-3, -1], [5, 1], [3, -1]]][fr];
+          for (const [lx, ly] of legs) rect(x + lx, y - 3 + bob, 1, 3 + ly, c);
+          if (d.stag) { px(x + 4, y - 12 + bob, c); px(x + 3, y - 13 + bob, c); px(x + 5, y - 13 + bob, c); px(x + 6, y - 14 + bob, c); }
+          px(x + 6, y - 11 + bob, [230, 255, 220]); glow(x + 6, y - 11 + bob, 3, [220, 255, 220], 0.5);
+          ctx.restore();
+        }
+        break;
+      }
+      case "fox": {
+        const y = Math.round(baseY(e.k)), x = Math.round(sx(e.s, e.k)), fr = Math.floor(t * 9) % 2;
+        scaled(x, y, 2);
+        const c = lit([160, 84, 34], x, 0.7);
+        rect(x - 3, y - 4, 7, 2, c); rect(x + 3, y - 6, 3, 2, c); px(x + 3, y - 7, c); px(x + 5, y - 7, c);
+        rect(x - 7, y - 4 + fr, 4, 2, c); px(x - 8, y - 4 + fr, [230, 230, 230]);
+        rect(x - 2 + fr, y - 2, 1, 2, c); rect(x + 2 - fr, y - 2, 1, 2, c);
+        px(x + 5, y - 6, [240, 255, 200]);
+        ctx.restore();
+        break;
+      }
+      case "tanuki": {
+        const y = Math.round(baseY(e.k)), x = Math.round(sx(e.s, e.k)), fr = Math.floor(t * 3) % 2;
+        scaled(x, y, 2);
+        const c = lit([90, 76, 60], x, 0.7);
+        rect(x - 3, y - 5, 7, 4, c); rect(x + 3, y - 6, 3, 3, c); px(x + 4, y - 5, [20, 16, 14]);
+        rect(x - 4, y - 4, 1, 3, lit([40, 32, 26], x)); px(x - 2 + fr, y - 1, c); px(x + 2 - fr, y - 1, c);
+        px(x + 5, y - 5, [230, 255, 200]);
+        ctx.restore();
+        break;
+      }
+      case "train": drawTrain(e); break;
+      case "festival": drawFestival(e); break;
+      case "police": drawPolice(e); break;
+      case "construction": drawConstruction(e); break;
+      case "fireworks": drawFireworks(e); break;
+      case "shooting": {
+        const p = t / e.dur, hx = e.x0 + e.dx * p * 1.5, hy = e.y0 + e.dy * p * 1.5;
+        for (let j = 0; j < 14; j++) px(hx - e.dx * j * 0.012, hy - e.dy * j * 0.012, rgba([255, 255, 230], (1 - j / 14) * (1 - p)));
+        break;
+      }
+      case "ufo": {
+        const p = t / e.dur;
+        let x = e.x0 - p * 220, y = e.y0 + Math.sin(t * 2) * 4;
+        if (p > 0.8) { y -= (p - 0.8) * 400; x -= (p - 0.8) * 300; }
+        if (cloud > 0.7) break;
+        rect(x - 4, y, 9, 2, [120, 120, 130]); rect(x - 1, y - 1, 3, 1, [160, 200, 220]);
+        for (let j = 0; j < 3; j++) px(x - 3 + j * 3, y + 1, [[255, 80, 80], [80, 255, 120], [120, 160, 255]][(j + Math.floor(t * 6)) % 3]);
+        glow(x, y, 10, [160, 255, 200], 0.3);
+        break;
       }
     }
   }
+  function drawTrain(e) {
+    const k = e.k, y = Y_RAIL, dirR = e.v > 0;
+    for (let c = 0; c < e.cars; c++) {
+      const xa = sx(e.s + c * 20 + 0.6, k), xb = sx(e.s + c * 20 + 19.4, k);
+      if (xb < -5 || xa > W + 5) continue;
+      rect(xa, y - 9, xb - xa, 9, lit([150, 155, 165], xa, 0.4));
+      rect(xa, y - 3, xb - xa, 1, e.stripe);
+      for (let wx = xa + 3; wx < xb - 3; wx += 5) {
+        rect(wx, y - 7, 3, 3, [240, 230, 190]);
+        if (h2(e.seed + c * 17, wx | 0) > 0.6) px(wx + 1, y - 5, [60, 50, 50]);
+      }
+      pxLine(xa + 6, y - 10, xa + 10, y - 14, "rgb(50,50,56)");
+      glow((xa + xb) / 2, y + 2, 20, [255, 230, 170], 0.18);
+    }
+    const head = dirR ? sx(e.s + e.cars * 20, k) : sx(e.s, k);
+    glow(head, y - 5, 14, [255, 250, 220], 0.7);
+  }
+  function drawFestival(e) {
+    const s0 = e.s, s1 = e.s + e.L;
+    for (let s = s0; s <= s1; s += 20) {
+      const x = sx(s, K_NEAR);
+      if (x < -20 || x > W + 20) continue;
+      rect(x, Y_NEAR - 58, 2, 58, lit([60, 44, 34], x));
+    }
+    for (let s = s0; s < s1; s += 2) {
+      const x = sx(s, K_NEAR);
+      if (x < -8 || x > W + 8) continue;
+      const t = ((s - s0) % 20) / 20, y = Y_NEAR - 56 + Math.round(8 * 4 * t * (1 - t));
+      const sway = Math.round(Math.sin(S.time * 2 + s) * 0.6);
+      const col = ((s - s0) / 2) % 3 === 2 ? [240, 230, 210] : [220, 50, 40];
+      rect(x - 1 + sway, y, 4, 5, col);
+      rect(x - 1 + sway, y, 4, 1, [20, 16, 14]); rect(x - 1 + sway, y + 5, 4, 1, [20, 16, 14]);
+      glow(x + 1 + sway, y + 2, 9, col[0] > 230 ? [255, 230, 190] : [255, 90, 60], 0.45);
+    }
+    addLight(sx(s0 + e.L / 2, K_NEAR), [1, 0.4, 0.3], 0.6);
+  }
+  function drawPolice(e) {
+    const xa = Math.round(sx(e.s, K_NEAR)), w = 41, y = Y_NEAR;
+    rect(xa, y - 9, w, 6, lit([230, 230, 235], xa));
+    rect(xa, y - 5, w, 3, lit([20, 20, 24], xa));
+    rect(xa + 9, y - 14, 22, 5, lit([230, 230, 235], xa));
+    rect(xa + 11, y - 13, 8, 3, [40, 50, 70]); rect(xa + 21, y - 13, 8, 3, [40, 50, 70]);
+    for (const wx of [xa + 8, xa + 32]) { rect(wx - 3, y - 4, 7, 4, [10, 10, 12]); px(wx, y - 2, [120, 120, 130]); }
+    const on = Math.floor(S.time * 6) % 2;
+    rect(xa + 16, y - 16, 8, 2, on ? [255, 40, 40] : [90, 20, 20]);
+    if (on) { glow(xa + 20, y - 15, 40, [255, 30, 30], 0.6); addLight(xa + 20, [1, 0.1, 0.1], 1.3); }
+    px(xa + 1, y - 7, [255, 60, 50]); px(xa + w - 1, y - 7, [255, 250, 220]);
+  }
+  function drawConstruction(e) {
+    const s0 = e.s;
+    for (let s = s0; s < s0 + e.L; s += 3) {
+      const x = Math.round(sx(s, K_NEAR));
+      if (x < -6 || x > W + 6) continue;
+      for (let r = 0; r < 7; r++) rect(x - (r >> 1), Y_NEAR - 7 + r, (r >> 1) * 2 + 1, 1, r % 3 === 1 ? lit([220, 220, 220], x) : lit([230, 90, 30], x));
+      if (Math.floor(S.time * 3 + s * 0.3) % 2) { px(x, Y_NEAR - 8, [255, 220, 60]); glow(x, Y_NEAR - 8, 6, [255, 200, 40], 0.5); }
+    }
+    const bx = Math.round(sx(s0 + 6, K_NEAR));
+    rect(bx - 12, Y_NEAR - 26, 24, 16, [16, 16, 18]);
+    rect(bx - 1, Y_NEAR - 10, 2, 10, lit([80, 80, 80], bx));
+    const ph = Math.floor(S.time * 4) % 3;
+    for (let j = 0; j < 3; j++) {
+      const on = j <= ph, cx = bx - 7 + j * 6;
+      if (!on) continue;
+      for (let r = 0; r < 7; r++) px(cx + 2 - Math.abs(r - 3), Y_NEAR - 22 + r, [255, 200, 40]);
+    }
+    glow(bx, Y_NEAR - 18, 24, [255, 190, 40], 0.4);
+    addLight(bx, [1, 0.8, 0.2], 0.6);
+    const gx = Math.round(sx(s0 + e.L - 4, K_NEAR));
+    drawPerson(gx, Y_NEAR, -1, 0, { coat: [60, 120, 70], pants: [40, 60, 90], hair: [240, 240, 240] }, null, false);
+    px(gx - 1, Y_NEAR - 9, [230, 255, 100]); px(gx + 1, Y_NEAR - 9, [230, 255, 100]);
+    const a = -Math.PI / 2 + Math.sin(S.time * 4) * 0.9;
+    const ex = gx + 2 + Math.cos(a) * 8, ey = Y_NEAR - 10 + Math.sin(a) * 8;
+    pxLine(gx + 2, Y_NEAR - 10, ex, ey, "rgb(255,60,50)", 2);
+    glow((gx + 2 + ex) / 2, (Y_NEAR - 10 + ey) / 2, 12, [255, 40, 30], 0.6);
+    addLight(gx, [1, 0.15, 0.1], 0.5);
+  }
+  function drawFireworks(e) {
+    for (const r of e.rockets) {
+      const x = sx(e.s + r.ds, e.k);
+      px(x, r.y, [255, 220, 170]); px(x, r.y + 1, rgba([255, 200, 140], 0.5));
+    }
+    for (const p of e.parts) {
+      const x = sx(e.s + p.ds, e.k) + p.x, a = 1 - p.t / p.life;
+      px(x, p.y, rgba(p.c, a));
+      px(x - p.vx * 0.04, p.y - p.vy * 0.04, rgba(p.c, a * 0.4));
+    }
+    if (e.parts.length) {
+      const any = e.parts[e.parts.length - 1];
+      glow(sx(e.s + any.ds, e.k), 40, 50, any.c, 0.06 * (1 - any.t / any.life));
+    }
+  }
 
-  function drawDrops(amb) {
+  // ================= render: glass + cabin =================
+  function drawGlass() {
     for (const d of S.drops) {
-      const x = Math.round(d.x), y = Math.round(d.y);
-      const a = Math.min(1, d.age * 6);
+      const x = Math.round(d.x), y = Math.round(d.y), a = Math.min(1, d.age * 6);
+      const trail = Math.min(7, Math.round(-d.vx * 0.25));
+      ctx.fillStyle = rgba([150, 160, 200], 0.18 * a);
+      ctx.fillRect(x + 1, y, trail, 1);
       if (d.r === 1) {
         ctx.fillStyle = rgba([190, 200, 235], 0.55 * a); ctx.fillRect(x, y, 1, 1);
-        ctx.fillStyle = rgba([5, 5, 12], 0.4 * a); ctx.fillRect(x + 1, y + 1, 1, 1);
+        ctx.fillStyle = rgba([5, 5, 12], 0.35 * a); ctx.fillRect(x, y + 1, 1, 1);
       } else {
         ctx.fillStyle = rgba([120, 130, 170], 0.35 * a); ctx.fillRect(x - 1, y - 1, 3, 3);
         ctx.fillStyle = rgba([230, 235, 255], 0.75 * a); ctx.fillRect(x - 1, y - 1, 1, 1);
-        ctx.fillStyle = rgba([5, 5, 12], 0.45 * a); ctx.fillRect(x, y + 2, 2, 1); ctx.fillRect(x + 2, y, 1, 2);
+        ctx.fillStyle = rgba([5, 5, 12], 0.4 * a); ctx.fillRect(x - 1, y + 2, 3, 1);
       }
     }
+    if (S.rain > 0.05) { ctx.fillStyle = rgba([70, 74, 90], 0.1 * S.rain); ctx.fillRect(0, 0, W, WIN_BOT); }
+    // faint reflection streak on the glass
+    ctx.fillStyle = "rgba(160,170,210,0.035)";
+    ctx.beginPath(); ctx.moveTo(150, 20); ctx.lineTo(175, 20); ctx.lineTo(120, WIN_BOT); ctx.lineTo(95, WIN_BOT); ctx.closePath(); ctx.fill();
   }
 
-  function drawWipers() {
-    for (const [px, py, L] of PIVOTS) {
-      const a = S.wpAng;
-      const ex = px + Math.cos(a) * L, ey = py + Math.sin(a) * L;
-      pxLine(px, py, px + Math.cos(a) * L * 0.9, py + Math.sin(a) * L * 0.9, "rgb(12,12,16)", 2);
-      pxLine(px + Math.cos(a) * L * 0.25, py + Math.sin(a) * L * 0.25, ex, ey, "rgb(22,22,28)", 1);
+  function computeCabinLight() {
+    Lr.fill(0); Lg.fill(0); Lb.fill(0);
+    for (const [lx, c, a] of lights) {
+      const x0 = Math.max(0, Math.floor(lx - 90)), x1 = Math.min(W - 1, Math.ceil(lx + 90));
+      for (let x = x0; x <= x1; x++) {
+        const w = Math.exp(-(((x - lx) / 38) ** 2)) * a;
+        Lr[x] += c[0] * w; Lg[x] += c[1] * w; Lb[x] += c[2] * w;
+      }
     }
-  }
-
-  function drawInterior(sprites, fl) {
-    // interior light from nearby lamps / oncoming headlights / lightning
-    let lamp = 0, glare = 0;
-    for (const sp of sprites) {
-      if (sp.kind === "lamp" && sp.z < 14) lamp += Math.exp(-((sp.z - 3) ** 2) / 18) * (sp.side < 0 ? 1 : 0.6);
-      if (sp.kind === "car" && sp.on && sp.z < 30) glare += (1 - sp.z / 30) * 0.8;
-    }
-    lamp = Math.min(1, lamp);
-    const L = (base, k = 1) => [
-      base[0] + (lamp * 36 + glare * 30 + fl * 90) * k,
-      base[1] + (lamp * 22 + glare * 30 + fl * 90) * k,
-      base[2] + (lamp * 8 + glare * 40 + fl * 110) * k,
-    ];
-
-    // roof
+    const fl = S.flash * 0.9, fw = (S.fwFlash || 0) * 0.25, fc = S.fwCol || [1, 1, 1];
     for (let x = 0; x < W; x++) {
-      const t = (x - 160) / 175;
-      const rh = Math.round(6 + 5 * (1 - t * t));
-      rect(x, 0, 1, rh, L([10, 10, 14], 0.3));
-      rect(x, rh, 1, 1, L([24, 22, 30], 0.6));
+      Lr[x] = Math.min(1.6, Lr[x] + fl + fw * fc[0] / 255);
+      Lg[x] = Math.min(1.6, Lg[x] + fl + fw * fc[1] / 255);
+      Lb[x] = Math.min(1.6, Lb[x] + fl * 1.1 + fw * fc[2] / 255);
     }
-    // rear-view mirror
-    rect(163, 9, 2, 4, L([14, 14, 18], 0.3));
-    rect(142, 12, 46, 12, L([14, 14, 18], 0.3));
-    rect(144, 14, 42, 8, [18, 16, 34]);
-    const mb = (Math.sin(S.time * 0.3) + 1) * 4;
-    rect(158 + mb, 18, 1, 1, [255, 250, 220]); rect(166 + mb, 18, 1, 1, [255, 250, 220]);
-    glow(162.5 + mb, 18.5, 6, [255, 240, 200], 0.35);
-    rect(144, 14, 42, 1, L([40, 40, 52], 0.5));
+  }
+  const cab = (c, x, k = 1) => { const i = clamp(x | 0, 0, W - 1); return [c[0] + Lr[i] * 55 * k, c[1] + Lg[i] * 55 * k, c[2] + Lb[i] * 55 * k]; };
 
-    // A-pillars (right-hand drive: right pillar is close and thick)
-    for (let y = 0; y < 150; y++) {
-      const le = Math.round(26 - y * 0.12);
-      rect(0, y, le, 1, L([9, 9, 13], 0.35));
-      rect(le, y, 1, 1, L([28, 26, 36], 0.8));
-      const re = Math.round(278 + y * 0.13);
-      rect(re, y, W - re, 1, L([8, 8, 12], 0.45));
-      rect(re - 1, y, 1, 1, L([30, 28, 38], 0.9));
-    }
-
-    // dashboard
-    const dashY = x => {
-      const b = Math.max(0, 1 - ((x - 162) / 44) ** 2);
-      return Math.round(143 - 14 * Math.sqrt(b) + Math.abs(x - 162) * 0.015);
-    };
+  function drawCabin() {
+    // headliner
     for (let x = 0; x < W; x++) {
-      const y = dashY(x);
-      rect(x, y, 1, H - y, L([11, 11, 16], 0.35));
-      rect(x, y, 1, 1, L([34, 32, 44], 0.9));
+      const t = winTop(x);
+      rect(x, 0, 1, t, cab([11, 11, 15], x, 0.3));
+      px(x, t, [4, 4, 6]);
     }
-    // faint dash reflection on the glass
-    ctx.fillStyle = rgba([60, 60, 80], 0.06 + lamp * 0.05);
-    ctx.fillRect(30, 118, 250, 10);
-
-    // meter hood face + gauges
-    rect(126, 131, 72, 20, [6, 6, 10]);
-    const kmh = Math.round(S.speed * 3.6);
-    gauge(144, 143, 9, -2.4 + (kmh / 180) * 3.6, [80, 220, 235]);
-    gauge(180, 143, 9, -2.4 + (0.25 + (kmh / 180) * 0.4 + 0.03 * Math.sin(S.time * 4)) * 3.6, [255, 170, 70]);
-    text(String(kmh).padStart(3, " "), 156, 136, [120, 230, 240]);
-    glow(162, 143, 34, [70, 200, 230], 0.08);
-
-    // center console display (music)
-    rect(58, 147, 50, 20, L([16, 16, 22], 0.4));
-    rect(61, 149, 44, 15, [8, 10, 22]);
-    const mins = 23 * 60 + 47 + Math.floor(S.time / 60);
-    const clock = `${String(Math.floor(mins / 60) % 24).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
-    text(clock, 62, 151, [255, 170, 90]);
-    for (let i = 0; i < 9; i++) {
-      const v = Math.abs(Math.sin(S.time * (2.1 + i * 0.7) + i * 1.9)) * 0.7 + 0.3 * Math.abs(Math.sin(S.time * 5 + i));
-      const bh = Math.max(1, Math.round(v * 6));
-      rect(84 + i * 2, 162 - bh, 1, bh, i % 2 ? [200, 90, 220] : [90, 210, 230]);
+    // C-pillar (rear, left) and B-pillar (right)
+    for (let y = 0; y < WIN_BOT; y++) {
+      const le = winL(y);
+      rect(0, y, le, 1, cab([10, 10, 14], le, 0.35));
+      px(le, y, [4, 4, 6]);
+      px(le - 1, y, cab([30, 28, 36], le, 0.6));
+      rect(WIN_R, y, W - WIN_R, 1, cab([9, 9, 13], WIN_R, 0.4));
+      px(WIN_R, y, [4, 4, 6]); px(WIN_R + 1, y, cab([30, 28, 36], WIN_R, 0.6));
     }
-    glow(83, 156, 24, [120, 120, 255], 0.12);
-    // vents
-    rect(40, 150, 14, 6, [6, 6, 9]); rect(40, 152, 14, 1, L([24, 22, 30], 0.5));
-
-    // steering wheel (ring + slight rotation from curve)
-    const wcx = 166, wcy = 214, ro = 64, ri = 57;
-    for (let y = wcy - ro; y < H; y++) {
-      const dy = y - wcy;
-      const xo = Math.sqrt(Math.max(0, ro * ro - dy * dy));
-      const xi = Math.abs(dy) < ri ? Math.sqrt(ri * ri - dy * dy) : 0;
-      const c = L([15, 15, 20], 0.5);
-      if (xi > 0) { rect(wcx - xo, y, xo - xi, 1, c); rect(wcx + xi, y, xo - xi, 1, c); }
-      else rect(wcx - xo, y, xo * 2, 1, c);
+    // door panel
+    for (let x = 0; x < W; x++) {
+      rect(x, WIN_BOT, 1, H - WIN_BOT, cab([13, 12, 17], x, 0.4));
+      px(x, WIN_BOT, cab([70, 70, 80], x, 1.6));
+      px(x, WIN_BOT + 1, cab([34, 32, 40], x, 0.8));
+      rect(x, WIN_BOT + 2, 1, 5, cab([24, 22, 29], x, 0.6));
+      rect(x, 150, 1, 8, cab([27, 25, 31], x, 0.5));
+      px(x, 150, cab([46, 44, 52], x, 0.9));
+      px(x, 158, [5, 5, 7]);
+      for (let y = 160; y < H; y += 2) if (((x + y) & 3) === 0) px(x, y, cab([17, 16, 22], x, 0.3));
     }
-    for (let a = -Math.PI; a <= 0; a += 0.02) {
-      ctx.fillStyle = rgb(L([34, 32, 42], 0.8));
-      ctx.fillRect(Math.round(wcx + Math.cos(a) * ro), Math.round(wcy + Math.sin(a) * ro), 1, 1);
-    }
-    const steer = -Math.PI / 2 + curv(S.camS + 10) * 260;
-    rect(wcx + Math.cos(steer) * 60.5 - 1, wcy + Math.sin(steer) * 60.5 - 1, 3, 3, [90, 70, 60]);
-    // spokes
-    for (const a of [-0.35, Math.PI + 0.35]) {
-      pxLine(wcx + Math.cos(a + steer + Math.PI / 2) * 12, wcy + Math.sin(a + steer + Math.PI / 2) * 12,
-        wcx + Math.cos(a + steer + Math.PI / 2) * ri, wcy + Math.sin(a + steer + Math.PI / 2) * ri, rgb(L([13, 13, 18], 0.4)), 4);
+    rect(120, 172, 150, 1, [7, 7, 9]);
+    for (let a = 0; a < 40; a++) { const r = 2 + (a % 3) * 2, an = a * 0.9; px(70 + Math.cos(an) * r, 168 + Math.sin(an) * r, cab([30, 28, 36], 70, 0.5)); }
+    ctx.strokeStyle = rgb(cab([26, 24, 32], 70, 0.5)); ctx.beginPath(); ctx.arc(70, 168, 8, 0, Math.PI * 2); ctx.stroke();
+    rect(234, 140, 22, 7, [7, 7, 9]);
+    rect(236, 142, 16, 2, cab([100, 100, 112], 244, 1.6));
+    rect(196, 151, 9, 3, [8, 8, 10]); px(197, 151, cab([60, 60, 70], 200, 1));
+    rect(44, WIN_BOT - 3, 2, 3, cab([80, 80, 88], 44, 1));
+    // front seat back / headrest on the right
+    for (let y = 50; y < H; y++) {
+      let x0;
+      if (y < 82) x0 = 300 + Math.round(((y - 66) / 16) ** 2 * 8);
+      else if (y < 90) x0 = 312;
+      else x0 = 296 - Math.round((y - 90) * 0.06);
+      if (y >= 82 && y < 90) { rect(304, y, 1, 1, cab([60, 60, 66], 304)); rect(314, y, 1, 1, cab([60, 60, 66], 314)); continue; }
+      rect(x0, y, W - x0, 1, cab([17, 16, 21], x0, 0.5));
+      px(x0, y, cab([34, 32, 40], x0, 0.8));
     }
   }
 
-  function gauge(cx, cy, r, ang, col) {
-    ctx.fillStyle = rgba(col, 0.55);
-    for (let a = -2.4; a <= 1.2; a += 0.05) ctx.fillRect(Math.round(cx + Math.cos(a - Math.PI / 2 + 0.6) * r), Math.round(cy + Math.sin(a - Math.PI / 2 + 0.6) * r), 1, 1);
-    for (let t = 0; t <= 6; t++) {
-      const a = -2.4 + t * 0.6 - Math.PI / 2 + 0.6;
-      ctx.fillStyle = rgba(col, 0.9);
-      ctx.fillRect(Math.round(cx + Math.cos(a) * (r - 2)), Math.round(cy + Math.sin(a) * (r - 2)), 1, 1);
+  // ================= frame =================
+  function render() {
+    cloud = clamp(S.rain * 1.6, 0, 1);
+    S.amb = 0.6 + S.flash * 1.2;
+    fogCol = mix(mix(S.skyBot, [44, 46, 62], cloud), [150, 150, 180], S.flash * 0.5);
+    computeCabinLight();
+    lights = [];
+
+    ctx.save();
+    ctx.translate(0, S.bob);
+    drawSky();
+    for (const e of S.events) if (e.type === "fireworks" || e.type === "shooting" || e.type === "ufo") drawEvent(e);
+    drawMountains();
+    drawFar();
+    drawRailway();
+    for (const e of S.events) if (e.type === "train") drawEvent(e);
+    drawMid();
+    for (const e of S.events) if (e.k && e.k > 3 && e.k < K_NEAR) drawEvent(e);
+    drawNearGround();
+    drawNearObjects();
+    for (const e of S.events) if (e.k === K_NEAR) drawEvent(e);
+    drawPolesAndWires();
+    drawNearRails();
+    drawStructures();
+
+    if (S.streaks.length) {
+      for (const p of S.streaks) {
+        if (tunnelRanges.some(([a, b]) => p.x >= a && p.x < b)) continue;
+        const i = clamp(p.x | 0, 0, W - 1), br = 1 + Math.min(1, Lr[i] + Lg[i]) * 0.8;
+        pxLine(p.x, p.y, p.x - p.vx * 0.025, p.y - p.vy * 0.025, rgba([170, 190, 235], (0.1 + p.d * 0.25) * br));
+      }
+      for (let j = 0; j < S.rain * 18; j++) {
+        const x = Math.random() * W;
+        if (!tunnelRanges.some(([a, b]) => x >= a && x < b)) px(x, Y_NEAR + Math.random() * 10, rgba([190, 200, 230], 0.5));
+      }
     }
-    const a = ang - Math.PI / 2 + 0.6;
-    pxLine(cx, cy, cx + Math.cos(a) * (r - 1), cy + Math.sin(a) * (r - 1), "rgb(255,70,60)");
-    ctx.fillStyle = "rgb(40,40,50)"; ctx.fillRect(cx, cy, 1, 1);
+    if (S.flash > 0.02) { ctx.fillStyle = rgba([200, 200, 230], S.flash * 0.22); ctx.fillRect(0, 0, W, WIN_BOT); }
+    ctx.restore();
+
+    drawGlass();
+    drawCabin();
   }
 
-  // ---------- pixel post-process (216-colour palette + Bayer dither) ----------
+  // ================= pixel post-process (216 colours + Bayer dither) =================
   const LEVELS = [0, 16, 38, 72, 140, 255];
   const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
   const LO = new Uint8Array(256), FR = new Uint8Array(256), NEAR = new Uint8Array(256);
@@ -778,15 +1493,18 @@
     return indexBuf;
   }
 
+  const hudArea = document.getElementById("hud-area"), hudTime = document.getElementById("hud-time");
   function frame(dt) {
     step(dt);
     render();
     const idx = postProcess();
     vctx.drawImage(low, 0, 0, view.width, view.height);
+    hudArea.textContent = BIOMES[S.biome].name + (S.rain > 0.6 ? " ・ 大雨" : S.rain > 0.12 ? " ・ 雨" : "");
+    hudTime.textContent = clockStr();
     return idx;
   }
 
-  // ---------- GIF encoder ----------
+  // ================= GIF encoder =================
   const PALETTE = new Uint8Array(256 * 3);
   for (let i = 0; i < 216; i++) {
     PALETTE[i * 3] = LEVELS[(i / 36) | 0]; PALETTE[i * 3 + 1] = LEVELS[((i / 6) | 0) % 6]; PALETTE[i * 3 + 2] = LEVELS[i % 6];
@@ -852,7 +1570,28 @@
     return new Uint8Array(out);
   }
 
-  // ---------- main loop & UI ----------
+  // ================= navigation =================
+  function jumpTo(b) {
+    let i = segIndex(S.camD) + 1;
+    for (let n = 0; n < 400; n++, i++) {
+      while (route.length <= i) extendRoute(route[route.length - 1].s1 + 1);
+      if (route[i].b === b) { goTo(route[i]); return true; }
+    }
+    return false;
+  }
+  function nextArea() {
+    const i = segIndex(S.camD);
+    extendRoute(route[i].s1 + 10);
+    goTo(route[i + 1]);
+  }
+  function goTo(g) {
+    S.camD = g.s0 + (g.b === "tunnel" || g.b === "bridge" ? 20 : 60);
+    S.events.length = 0;
+    S.skyTop = BIOMES[g.b].top.slice(); S.skyBot = BIOMES[g.b].bot.slice(); S.stars = BIOMES[g.b].stars;
+    S.nextEvent = 1.5;
+  }
+
+  // ================= main loop & UI =================
   let last = performance.now(), busy = false;
   function loop(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
@@ -869,6 +1608,9 @@
   }
   wButtons.forEach(b => b.addEventListener("click", () => setWeather(b.dataset.w)));
   document.getElementById("speed").addEventListener("input", e => { S.baseSpeed = +e.target.value; });
+  const areaSel = document.getElementById("area");
+  areaSel.addEventListener("change", () => { if (areaSel.value) jumpTo(areaSel.value); areaSel.value = ""; });
+  document.getElementById("next").addEventListener("click", nextArea);
   const dBtn = document.getElementById("dither");
   dBtn.addEventListener("click", () => { S.dither = !S.dither; dBtn.setAttribute("aria-pressed", String(S.dither)); });
   const pBtn = document.getElementById("pause");
@@ -913,9 +1655,8 @@
     status.textContent = "録画中… もう一度押すと停止します。";
   });
 
-  // warm up so the first frame already shows traffic, lamps and (in auto) a dry road
   for (let i = 0; i < 30; i++) step(1 / 30);
-  window.NightDrive = { S, makeGif, frame, setWeather };
+  window.NightDrive = { S, makeGif, frame, setWeather, jumpTo, spawnSpecial, route };
   requestAnimationFrame(loop);
 })();
 </script>
