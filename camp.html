@@ -286,7 +286,6 @@
     ["カイ", "旅のはじまりは、ちっぽけな村だったよな。"], ["ミナ", "ねえ、魔王を倒したら何がしたい？"], ["セラ", "わたしは… 教会の庭に花を植えたいです。"],
   ];
   const TALK_RAIN = [["ミナ", "雨の音、嫌いじゃないわ。"], ["カイ", "薪がしけっちまう…"], ["ゴーレム", "……ゴゴ。（雨は苦手だ）"], ["？？？", "……雨か。悪くない。"]];
-  const add = e => { e.t = 0; S.events.push(e); return e; };
   function startEvent(kind) {
     switch (kind) {
       case "battle": if (S.slime) return; S.slime = { x: 16, y: 170, t: 0, phase: "in", hp: 18 }; say("", "スライムが あらわれた！"); sfx("battle"); break;
@@ -403,7 +402,6 @@
   }
 
   // ---------- render ----------
-  const SCENE = new Uint8ClampedArray(W * H * 4);
   function render() {
     // night sky visible through the canopy gap
     ctx.fillStyle = "rgb(8,10,34)"; ctx.fillRect(0, 0, W, H);

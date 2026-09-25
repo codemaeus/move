@@ -250,10 +250,6 @@
   }
 
   // ---------- AI & moves ----------
-  const MOVES = {
-    A: ["punch", "combo", "tail", "stomp", "charge", "breath", "roar"],
-    B: ["punch", "combo", "grab", "stomp", "charge", "beam", "rock", "roar"],
-  };
   function decide(k, o) {
     const d = Math.abs(o.x - k.x) - 30;
     if (k.forced) { const m = k.forced; k.forced = null; return start(k, m); }
