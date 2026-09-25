@@ -1,0 +1,720 @@
+<title>Lantern Lake</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #ece6fa;
+    --dim: #9a90bd;
+    --ground: #0d0a1e;
+    --panel: #181335;
+    --line: #34295e;
+    --warm: #ffc37a;
+    --cool: #9fd6ff;
+    --font: "DotGothic16", "MS Gothic", "Osaka-Mono", ui-monospace, monospace;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--font); font-size: 15px;
+    padding-inline: 16px; padding-block: 16px 24px; box-sizing: border-box; }
+  .wrap { max-width: 980px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 420px) 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+  .screen { position: relative; width: 100%; aspect-ratio: 9 / 16; max-width: 100%; background: #000; border: 1px solid var(--line); }
+  #view { width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  .hud { position: absolute; left: 10px; top: 8px; display: flex; gap: 10px; font-size: 13px; color: var(--warm); text-shadow: 0 0 4px #000; pointer-events: none; }
+  .hud span:last-child { color: var(--cool); }
+  .now { position: absolute; right: 10px; bottom: 8px; font-size: 12px; color: var(--dim); text-shadow: 0 0 4px #000; pointer-events: none; }
+  .side { display: flex; flex-direction: column; gap: 14px; }
+  h1 { margin: 0; font-size: 22px; font-weight: 400; letter-spacing: 0.08em; color: var(--warm); }
+  .sub { color: var(--dim); font-size: 13px; margin: 4px 0 0; }
+  .group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .label { color: var(--dim); font-size: 12px; letter-spacing: 0.1em; }
+  button, select { font-family: var(--font); font-size: 14px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); padding: 6px 10px; cursor: pointer; }
+  button[aria-pressed="true"] { border-color: var(--warm); color: var(--warm); }
+  button.play { border-color: #7a5aa8; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--cool); outline-offset: 2px; }
+  button:disabled { opacity: 0.5; cursor: wait; }
+  input[type="range"] { accent-color: var(--warm); width: 110px; }
+  .log { margin: 0; padding: 10px 12px; list-style: none; background: var(--panel); border: 1px solid var(--line); min-height: 170px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+  .log li { display: flex; gap: 8px; }
+  .log time { color: var(--dim); font-variant-numeric: tabular-nums; flex: none; }
+  .log li.wx { color: var(--cool); } .log li.ev { color: var(--warm); }
+  #status { color: var(--cool); font-size: 13px; min-height: 1.2em; }
+  .out { display: flex; flex-direction: column; gap: 8px; }
+  .out img, .out video { max-width: 100%; image-rendering: pixelated; border: 1px solid var(--line); }
+  .hint { color: var(--dim); font-size: 12px; line-height: 1.6; margin: 0; }
+</style>
+
+<div class="wrap">
+  <div class="screen">
+    <canvas id="view" width="720" height="1280"></canvas>
+    <div class="hud" aria-hidden="true"><span id="hud-t">23:40</span><span id="hud-w">晴れ</span></div>
+    <div class="now" id="now" aria-hidden="true"></div>
+  </div>
+  <div class="side">
+    <div>
+      <h1>ランタンの湖</h1>
+      <p class="sub">夜の湖に浮かぶ小さな家 / 180×320 ピクセル / 縦長</p>
+    </div>
+    <div class="group">
+      <button id="music" class="play" aria-pressed="false">音楽を流す</button>
+      <label class="label" for="vol">音量</label>
+      <input id="vol" type="range" min="0" max="100" value="70">
+      <button id="amb" aria-pressed="true">環境音</button>
+    </div>
+    <div class="group" role="group" aria-label="天気">
+      <span class="label">天気</span>
+      <button data-w="auto" aria-pressed="true">自動</button>
+      <button data-w="rain" aria-pressed="false">雨あり</button>
+      <button data-w="dry" aria-pressed="false">雨なし</button>
+    </div>
+    <div class="group">
+      <button id="pause" aria-pressed="false">一時停止</button>
+      <label class="label" for="gifsec">GIF</label>
+      <select id="gifsec"><option value="4">4秒</option><option value="8" selected>8秒</option><option value="12">12秒</option></select>
+      <select id="gifscale" aria-label="GIFサイズ"><option value="1">180×320</option><option value="2" selected>360×640</option></select>
+      <button id="gif">GIFを作る</button>
+      <button id="webm">動画を録画</button>
+    </div>
+    <ul class="log" id="log" aria-live="polite"></ul>
+    <p class="hint">天の川と三日月の下、いかだの上の木の家。デッキでランタンを持つハリネズミ、ボートで釣りをするカエル、バルコニーで星を見るネコ、屋根の上のフクロウ。流れ星、灯籠流し、跳ねる魚、カモの親子、岸に来る鹿、オーロラなどがときどき起こります。音楽は 3 拍子のオルゴールとハープの子守歌で、毎回ブラウザ内で作曲・合成しています。</p>
+    <div id="status" role="status"></div>
+    <div class="out" id="out"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const W = 180, H = 320, H0 = 140;
+  const low = document.createElement("canvas"); low.width = W; low.height = H;
+  const ctx0 = low.getContext("2d", { willReadFrequently: true });
+  let ctx = ctx0;
+  ctx0.imageSmoothingEnabled = false;
+  const view = document.getElementById("view"), vctx = view.getContext("2d");
+  vctx.imageSmoothingEnabled = false;
+  const mk = (w, h) => { const c = document.createElement("canvas"); c.width = w; c.height = h; const x = c.getContext("2d"); x.imageSmoothingEnabled = false; return [c, x]; };
+  const [bgC, bgX] = mk(W, H0 + 2);
+  const [mwC, mwX] = mk(W, H0);
+  const [houseC, houseX] = mk(112, 100);
+  const [boatC, boatX] = mk(60, 34);
+  const [logC, logX] = mk(150, 24);
+
+  // ---------- helpers ----------
+  function hash(i) { let h = Math.imul((i | 0) ^ 0x9e3779b9, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16; return (h >>> 0) / 4294967296; }
+  const mod = (a, n) => ((a % n) + n) % n;
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const mul = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
+  const rgb = c => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
+  const rgba = (c, a) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${clamp(a, 0, 1).toFixed(3)})`;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const pick = a => a[(Math.random() * a.length) | 0];
+  function rect(x, y, w, h, c) { ctx.fillStyle = typeof c === "string" ? c : rgb(c); ctx.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(w)), Math.max(1, Math.round(h))); }
+  const px = (x, y, c) => { ctx.fillStyle = typeof c === "string" ? c : rgb(c); ctx.fillRect(Math.round(x), Math.round(y), 1, 1); };
+  function line(x0, y0, x1, y1, c) { ctx.fillStyle = typeof c === "string" ? c : rgb(c); const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) | 0; for (let i = 0; i <= n; i++) { const f = n ? i / n : 0; ctx.fillRect(Math.round(lerp(x0, x1, f)), Math.round(lerp(y0, y1, f)), 1, 1); } }
+  function disc(x, y, r, c) { ctx.fillStyle = typeof c === "string" ? c : rgb(c); for (let dy = -r; dy <= r; dy++) { const w = Math.floor(Math.sqrt(r * r - dy * dy + r * 0.8)); ctx.fillRect(Math.round(x - w), Math.round(y + dy), w * 2 + 1, 1); } }
+  function glow(x, y, r, c, a) {
+    if (r < 0.5 || a <= 0.01) return;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, rgba(c, a)); g.addColorStop(0.4, rgba(c, a * 0.35)); g.addColorStop(1, rgba(c, 0));
+    const p = ctx.globalCompositeOperation; ctx.globalCompositeOperation = "lighter"; ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); ctx.globalCompositeOperation = p;
+  }
+
+  // ---------- state ----------
+  const S = {
+    time: 0, weather: "auto", rain: 0, wet: 0, lastWx: 0, flash: 0, bolt: null,
+    drops: [], rings: [], splash: [], flies: [], puffs: [], events: [], nextEvent: 3,
+    boatX: 8, fishT: 0, catScope: 0, owl: null, aurora: 0, paused: false, windows: [1, 1, 1, 0, 1],
+  };
+  const logEl = document.getElementById("log"), nowEl = document.getElementById("now");
+  const clock = () => { const m = 23 * 60 + 40 + Math.floor(S.time / 15); return `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; };
+  function log(msg, cls = "ev") {
+    const li = document.createElement("li"); li.className = cls;
+    const t = document.createElement("time"); t.textContent = clock();
+    const sp = document.createElement("span"); sp.textContent = msg;
+    li.append(t, sp); logEl.prepend(li);
+    while (logEl.children.length > 8) logEl.lastChild.remove();
+  }
+
+  // ---------- milky way (pre-rendered once) ----------
+  (function buildMilkyWay() {
+    ctx = mwX;
+    const band = (x, y) => { const u = (x * 0.62 + y * 0.78) - 70, v = (x * 0.78 - y * 0.62); return { u, v }; };
+    for (let i = 0; i < 26; i++) { const t = i / 25, x = lerp(175, 10, t), y = lerp(18, 110, t) + Math.sin(t * 6) * 6; ctx.globalCompositeOperation = "lighter"; const g = ctx.createRadialGradient(x, y, 0, x, y, 26); const c = i % 3 === 0 ? [150, 90, 170] : [110, 90, 190]; g.addColorStop(0, rgba(c, 0.18)); g.addColorStop(1, rgba(c, 0)); ctx.fillStyle = g; ctx.fillRect(x - 26, y - 26, 52, 52); }
+    ctx.globalCompositeOperation = "source-over";
+    for (let i = 0; i < 1400; i++) {
+      const t = hash(i * 3), off = (hash(i * 3 + 1) - 0.5) * (hash(i * 3 + 2) * 30);
+      const x = lerp(178, 4, t) + off * 0.6, y = lerp(16, 112, t) + off + Math.sin(t * 6) * 6;
+      const b = hash(i * 7);
+      ctx.fillStyle = rgba(b > 0.92 ? [255, 240, 255] : [200, 190, 240], 0.25 + b * 0.5);
+      ctx.fillRect(x | 0, y | 0, 1, 1);
+    }
+    for (let i = 0; i < 12; i++) { const t = hash(i * 51), x = lerp(170, 10, t), y = lerp(20, 110, t) + Math.sin(t * 6) * 6; ctx.fillStyle = "rgba(20,12,40,0.35)"; ctx.fillRect(Math.round(x - 6), Math.round(y - 1 + hash(i) * 4), 12, 2); }
+    ctx = ctx0;
+  })();
+
+  // ---------- weather ----------
+  function weatherTarget() {
+    if (S.weather === "rain") return 0.8;
+    if (S.weather === "dry") return 0;
+    const c = S.time % 110;
+    return c < 45 ? 0 : c < 52 ? (c - 45) / 7 * 0.8 : c < 95 ? 0.8 : Math.max(0, 0.8 - (c - 95) / 7);
+  }
+
+  // ---------- events ----------
+  const add = e => { e.t = 0; S.events.push(e); return e; };
+  const active = t => S.events.some(e => e.type === t);
+  function spawnSpecial(t) {
+    switch (t) {
+      case "shooting": add({ type: t, x: rnd(60, 170), y: rnd(10, 60), dur: 0.9 }); log("流れ星！ そっと願いごと"); break;
+      case "fish": { const x = rnd(20, 160), y = rnd(215, 300); add({ type: t, x, y, dur: 1.2 }); log("湖で魚がぴちゃんと跳ねた"); sfx("splash"); break; }
+      case "catch": S.fishT = 4; log("カエルの釣り竿がしなった。魚が釣れた！"); setTimeout(() => sfx("splash"), 1500); break;
+      case "owl": S.owl = { t: 0 }; log("フクロウが夜空を一周して戻ってきた"); sfx("hoot"); break;
+      case "scope": S.catScope = 12; log("ネコが望遠鏡で星をのぞいている"); break;
+      case "lanterns": for (let i = 0; i < 5; i++) add({ type: "lantern", x: 40 - i * 12, y: 222 + (i % 2) * 10 + rnd(-3, 3), v: rnd(2.2, 3.2), dur: 80 }); log("灯籠流し。小さな灯りが水面をすべっていく"); break;
+      case "paperboat": add({ type: "paperboat", x: -10, y: rnd(236, 250), v: 3.5, dur: 70 }); log("紙の舟がゆっくり流れてきた"); break;
+      case "ducks": add({ type: "ducks", x: 190, y: rnd(155, 170), v: -4, dur: 70 }); log("カモの親子が一列に泳いでいく"); sfx("quack"); break;
+      case "deer": add({ type: "deer", dur: 20 }); log("向こう岸に鹿が水を飲みにきた"); break;
+      case "aurora": S.aurora = 25; log("空にうっすらオーロラが揺れている"); break;
+      case "window": { const i = (Math.random() * S.windows.length) | 0; S.windows[i] = S.windows[i] ? 0 : 1; log(S.windows[i] ? "家の窓に灯りがともった" : "窓の灯りがひとつ消えた"); break; }
+      case "loon": log("遠くで水鳥が長く鳴いた"); sfx("loon"); break;
+      case "bottle": add({ type: "bottle", x: 190, y: rnd(270, 285), v: -2.5, dur: 90 }); log("手紙入りの瓶がぷかぷか流れてきた"); break;
+      case "wave": add({ type: "wave", dur: 8 }); log("ハリネズミがランタンを大きく振っている"); break;
+    }
+  }
+  function trySpecial() {
+    const dry = S.rain < 0.1;
+    const c = [["shooting", dry ? 2.5 : 0], ["fish", 2.5], ["catch", 1.8], ["owl", 1.5], ["scope", dry ? 1.8 : 0], ["lanterns", dry ? 1.5 : 0],
+      ["paperboat", 1.2], ["ducks", 1.5], ["deer", 1.2], ["aurora", dry ? 0.5 : 0], ["window", 1.5], ["loon", 1.2], ["bottle", 0.8], ["wave", 1]]
+      .filter(([t, w]) => w > 0 && !active(t) && !(t === "owl" && S.owl) && !(t === "scope" && S.catScope > 0) && !(t === "aurora" && S.aurora > 0) && !(t === "catch" && S.fishT > 0) && !(t === "lanterns" && active("lantern")));
+    let r = Math.random() * c.reduce((a, x) => a + x[1], 0), t = c[0][0];
+    for (const [n, w] of c) if ((r -= w) <= 0) { t = n; break; }
+    spawnSpecial(t);
+  }
+
+  // ---------- update ----------
+  function step(dt) {
+    S.time += dt;
+    S.rain += (weatherTarget() - S.rain) * Math.min(1, dt * 0.5);
+    S.wet = S.rain > 0.1 ? Math.min(1, S.wet + dt * 0.1) : Math.max(0, S.wet - dt * 0.03);
+    if (S.lastWx === 0 && S.rain > 0.2) { S.lastWx = 1; log("しとしとと雨が降りはじめた", "wx"); }
+    else if (S.lastWx === 1 && S.rain < 0.08) { S.lastWx = 0; log("雨がやんで、天の川がまた見えてきた", "wx"); }
+    // rain
+    const want = Math.round(S.rain * 160);
+    while (S.drops.length < want) S.drops.push({ x: rnd(-10, W), y: rnd(-20, H), v: rnd(150, 210), ty: rnd(H0 + 4, H) });
+    if (S.drops.length > want) S.drops.length = want;
+    for (const d of S.drops) {
+      d.y += d.v * dt; d.x += d.v * 0.08 * dt;
+      if (d.y > d.ty) { if (d.ty > H0) S.rings.push({ x: d.x, y: d.ty, t: 0, s: 0.6 + (d.ty - H0) / 180 }); d.y = rnd(-30, -4); d.x = rnd(-10, W); d.ty = rnd(H0 + 4, H); }
+    }
+    for (let i = S.rings.length - 1; i >= 0; i--) { S.rings[i].t += dt; if (S.rings[i].t > 1) S.rings.splice(i, 1); }
+    if (Math.random() < dt * 0.6) S.rings.push({ x: rnd(0, W), y: rnd(H0 + 10, H), t: 0, s: 0.8 + Math.random() });
+    S.flash = Math.max(0, S.flash - dt * 2.5);
+    if (S.rain > 0.7 && Math.random() < dt * 0.035) { S.flash = 1; const b = []; let x = rnd(20, 160), y = 0; while (y < 80) { b.push([x, y]); x += rnd(-5, 5); y += rnd(3, 6); } S.bolt = { pts: b, t: 0 }; log("遠くの空で稲妻が光った", "wx"); setTimeout(() => sfx("thunder"), 800); }
+    if (S.bolt) { S.bolt.t += dt; if (S.bolt.t > 0.2) S.bolt = null; }
+    // fireflies
+    const wf = S.rain < 0.1 ? 16 : 0;
+    while (S.flies.length < wf) S.flies.push({ x: Math.random() < 0.5 ? rnd(4, 60) : rnd(120, 176), y: Math.random() < 0.5 ? rnd(112, 140) : rnd(265, 312), ph: rnd(0, 6) });
+    if (S.flies.length > wf) S.flies.length = wf;
+    for (const f of S.flies) { f.x += Math.sin(S.time * 0.6 + f.ph) * dt * 3; f.y += Math.cos(S.time * 0.5 + f.ph * 2) * dt * 2.5; }
+    // chimney smoke
+    if (Math.random() < dt * 3) S.puffs.push({ x: 64 + 75, y: 205 - 96 + 14, t: 0 });
+    for (let i = S.puffs.length - 1; i >= 0; i--) { const p = S.puffs[i]; p.t += dt; p.y -= dt * 6; p.x += dt * 2.5; if (p.t > 3) S.puffs.splice(i, 1); }
+    S.boatX = 12 + Math.sin(S.time * 0.05) * 10;
+    S.fishT = Math.max(0, S.fishT - dt); S.catScope = Math.max(0, S.catScope - dt); S.aurora = Math.max(0, S.aurora - dt);
+    if (S.owl) { S.owl.t += dt; if (S.owl.t > 7) S.owl = null; }
+    S.nextEvent -= dt; if (S.nextEvent <= 0) { S.nextEvent = rnd(5, 10); trySpecial(); }
+    for (let i = S.events.length - 1; i >= 0; i--) {
+      const e = S.events[i]; e.t += dt;
+      if (e.v) e.x += e.v * dt;
+      if (e.t > e.dur || (e.v && (e.x > W + 20 || e.x < -30))) S.events.splice(i, 1);
+    }
+    audioUpdate(dt);
+  }
+
+  // ---------- sky, shores, water ----------
+  function drawSky() {
+    ctx = bgX;
+    const cloud = clamp(S.rain * 1.4, 0, 1);
+    const g = ctx.createLinearGradient(0, 0, 0, H0);
+    g.addColorStop(0, rgb(mix([14, 10, 42], [22, 22, 36], cloud))); g.addColorStop(0.6, rgb(mix([46, 24, 86], [40, 38, 60], cloud))); g.addColorStop(1, rgb(mix([86, 46, 120], [58, 56, 76], cloud)));
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H0 + 2);
+    if (S.flash > 0) { ctx.fillStyle = rgba([200, 190, 240], S.flash * 0.4); ctx.fillRect(0, 0, W, H0); }
+    ctx.globalAlpha = 1 - cloud; ctx.drawImage(mwC, 0, 0); ctx.globalAlpha = 1;
+    for (let i = 0; i < 90; i++) {
+      const x = hash(i * 5) * W, y = hash(i * 5 + 1) * (H0 - 20), tw = hash(i * 5 + 2);
+      const a = (1 - cloud) * (0.35 + 0.65 * Math.abs(Math.sin(S.time * (0.4 + tw * 1.8) + i)));
+      if (tw > 0.93) { const c = rgba([255, 245, 220], a); px(x, y, c); px(x - 1, y, rgba([255, 245, 220], a * 0.5)); px(x + 1, y, rgba([255, 245, 220], a * 0.5)); px(x, y - 1, rgba([255, 245, 220], a * 0.5)); px(x, y + 1, rgba([255, 245, 220], a * 0.5)); }
+      else px(x, y, rgba([230, 225, 255], a * 0.7));
+    }
+    if (S.aurora > 0) {
+      const a = Math.min(1, S.aurora / 3, (25 - S.aurora) / 3) * (1 - cloud);
+      for (let x = 0; x < W; x += 2) { const h = 20 + Math.sin(x * 0.07 + S.time * 0.8) * 10 + Math.sin(x * 0.19 - S.time) * 5, y0 = 40 + Math.sin(x * 0.05 + S.time * 0.3) * 8; const gr = ctx.createLinearGradient(0, y0, 0, y0 + h); gr.addColorStop(0, rgba([120, 255, 180], 0)); gr.addColorStop(0.7, rgba([120, 255, 180], 0.25 * a)); gr.addColorStop(1, rgba([180, 120, 255], 0)); ctx.fillStyle = gr; ctx.fillRect(x, y0, 2, h); }
+    }
+    // crescent moon
+    const mx = 76, my = 94, ma = 1 - cloud * 0.7;
+    glow(mx, my, 34, [210, 190, 255], 0.25 * ma);
+    ctx.globalAlpha = ma; disc(mx, my, 10, [248, 240, 255]); ctx.globalAlpha = 1; disc(mx + 5, my - 3, 9, mix(mix([46, 24, 86], [86, 46, 120], 0.2), mix([40, 38, 60], [58, 56, 76], 0.2), cloud));
+    // clouds
+    for (let i = 0; i < 7; i++) {
+      const w = 40 + hash(i * 7) * 50, x = mod(hash(i * 11) * 320 + S.time * (1.5 + hash(i)), 320) - 70, y = 8 + hash(i * 13) * 70;
+      ctx.fillStyle = rgba(mix([60, 40, 100], [52, 50, 70], cloud), 0.25 + cloud * 0.6);
+      ctx.fillRect(Math.round(x + 5), Math.round(y), Math.round(w - 10), 3); ctx.fillRect(Math.round(x), Math.round(y + 3), Math.round(w), 6); ctx.fillRect(Math.round(x + 3), Math.round(y + 9), Math.round(w - 6), 2);
+    }
+    if (S.bolt) for (const [bx, by] of S.bolt.pts) rect(bx, by, 1, 4, [240, 235, 255]);
+    for (const e of S.events) if (e.type === "shooting") { const p = e.t / e.dur; for (let j = 0; j < 12; j++) px(e.x - p * 60 + j * 1.8, e.y + p * 26 - j * 0.8, rgba([255, 255, 230], (1 - j / 12) * (1 - p))); }
+    if (S.owl) { const t = S.owl.t / 7, a = t * Math.PI * 2, x = 150 + Math.cos(a) * 50 - 20, y = 60 + Math.sin(a) * 26, up = Math.floor(S.time * 6) & 1; rect(x - 1, y, 3, 2, [60, 50, 60]); px(x - 2, y - up, [60, 50, 60]); px(x - 3, y - up * 2, [60, 50, 60]); px(x + 2, y - up, [60, 50, 60]); px(x + 3, y - up * 2, [60, 50, 60]); }
+    // far shores
+    const pine = mix([22, 48, 56], [30, 40, 50], cloud), pine2 = mix([28, 60, 64], [36, 48, 58], cloud);
+    rect(0, 132, 72, 9, [30, 44, 50]); rect(0, 130, 64, 3, [40, 66, 60]);
+    for (let i = 0; i < 18; i++) { const x = 2 + i * 3.6 + hash(i) * 2, h = 10 + hash(i * 3) * 16; for (let r = 0; r < h; r++) { const w = Math.max(1, Math.round(r * 0.35 * (0.75 + 0.25 * ((r % 4) / 4)))); ctx.fillStyle = rgb(i % 2 ? pine : pine2); ctx.fillRect(Math.round(x - w / 2), Math.round(132 - h + r), w, 1); } }
+    rect(8, 133, 10, 2, [90, 60, 40]); rect(9, 132, 8, 1, [110, 76, 50]);
+    const deer = S.events.find(e => e.type === "deer");
+    if (deer) { const k = Math.min(1, deer.t / 2, (deer.dur - deer.t) / 2), x = 44, y = 131, head = Math.sin(deer.t) > 0 ? 3 : 0; ctx.globalAlpha = k; rect(x, y - 5, 6, 3, [150, 110, 70]); rect(x, y - 2, 1, 2, [150, 110, 70]); rect(x + 5, y - 2, 1, 2, [150, 110, 70]); rect(x + 5, y - 8 + head, 2, 4, [150, 110, 70]); px(x + 6, y - 9 + head, [150, 110, 70]); px(x + 7, y - 10 + head, [150, 110, 70]); ctx.globalAlpha = 1; }
+    rect(140, 134, 40, 7, [34, 46, 54]); rect(146, 131, 30, 3, [44, 70, 62]);
+    for (let i = 0; i < 5; i++) { const x = 150 + i * 6, h = 7 + hash(i + 40) * 8; for (let r = 0; r < h; r++) { const w = Math.max(1, Math.round(r * 0.4)); ctx.fillStyle = rgb(pine); ctx.fillRect(Math.round(x - w / 2), Math.round(131 - h + r), w, 1); } }
+    rect(168, 131, 4, 3, [110, 70, 44]); px(169, 132, [150, 100, 60]);
+    for (const f of S.flies) if (f.y < H0) { const a = Math.max(0, Math.sin(S.time * 2 + f.ph)); if (a > 0.1) { px(f.x, f.y, rgba([230, 255, 140], a)); glow(f.x, f.y, 3, [210, 255, 120], a * 0.5); } }
+    ctx = ctx0;
+    ctx.drawImage(bgC, 0, 0, W, H0, 0, 0, W, H0);
+  }
+  function drawWater() {
+    const cloud = clamp(S.rain * 1.4, 0, 1), amp0 = 0.6 + S.rain * 1.2;
+    for (let y = H0; y < H; y++) {
+      const d = y - H0, sr = clamp(Math.round(H0 - 1 - d * 0.72), 0, H0 - 1);
+      const dx = Math.round(Math.sin(S.time * 1.3 + y * 0.33) * (amp0 + d * 0.012) + Math.sin(S.time * 0.7 + y * 0.11) * 0.8);
+      ctx.drawImage(bgC, 0, sr, W, 1, dx, y, W, 1);
+      if (dx > 0) ctx.drawImage(bgC, 0, sr, 1, 1, 0, y, dx, 1); else if (dx < 0) ctx.drawImage(bgC, W - 1, sr, 1, 1, W + dx, y, -dx, 1);
+    }
+    const g = ctx.createLinearGradient(0, H0, 0, H);
+    g.addColorStop(0, rgba(mix([24, 36, 96], [30, 36, 60], cloud), 0.35)); g.addColorStop(1, rgba(mix([14, 26, 70], [22, 28, 48], cloud), 0.6));
+    ctx.fillStyle = g; ctx.fillRect(0, H0, W, H - H0);
+    // ripple highlights
+    for (let i = 0; i < 70; i++) {
+      const y = H0 + 2 + hash(i * 3) * (H - H0 - 4), w = 2 + (y - H0) * 0.05 + hash(i * 5) * 4;
+      const x = mod(hash(i * 7) * W + S.time * (2 + hash(i) * 4) * (hash(i * 9) > 0.5 ? 1 : -1), W + 20) - 10;
+      ctx.fillStyle = rgba(mix([150, 170, 255], [170, 180, 210], cloud), 0.18 + 0.2 * Math.sin(S.time * 2 + i));
+      ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), 1);
+    }
+    rect(0, H0, W, 1, rgba([150, 140, 220], 0.35));
+  }
+  function reflect(src, sx, wy, rows, alpha, tint) {
+    // mirror the sprite about its waterline row (wy is the screen waterline, rows = sprite waterline row)
+    for (let r = 0; r < rows; r++) {
+      const srcY = rows - 1 - r, y = wy + r + 1; if (y >= H) break;
+      const dx = Math.round(Math.sin(S.time * 1.6 + y * 0.45) * (0.8 + r * 0.03 + S.rain));
+      ctx.globalAlpha = alpha * (1 - r / (rows * 1.4));
+      ctx.drawImage(src, 0, srcY, src.width, 1, sx + dx, y, src.width, 1);
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = rgba(tint, 0.28);
+    ctx.fillRect(sx, wy + 1, src.width, Math.min(rows, H - wy));
+  }
+  function lightPath(x, wy, len, c, a) {
+    for (let y = wy + 2; y < Math.min(H, wy + len); y += 2) {
+      const k = 1 - (y - wy) / len, w = 1 + Math.round(Math.abs(Math.sin(S.time * 3 + y)) * 3 * (1 + (y - wy) / 30));
+      ctx.fillStyle = rgba(c, a * k * (0.5 + 0.5 * Math.sin(S.time * 4 + y * 1.3)));
+      ctx.fillRect(Math.round(x - w / 2 + Math.sin(S.time * 2 + y * 0.4) * 2), y, w, 1);
+    }
+  }
+
+  // ---------- sprites ----------
+  const WOOD = [150, 96, 60], WOODD = [104, 64, 42], WOODL = [186, 126, 80], ROOF = [150, 58, 50], WARM = [255, 206, 130];
+  function lampFlick(i) { return 0.8 + 0.2 * Math.sin(S.time * 9 + i * 3) * Math.sin(S.time * 3.3 + i); }
+  function drawHouseSprite() {
+    ctx = houseX; ctx.clearRect(0, 0, 112, 100);
+    const rain = S.rain > 0.15;
+    // floating logs under the raft
+    for (const [y, x0, x1] of [[88, 12, 106], [92, 20, 100]]) { rect(x0, y, x1 - x0, 7, [96, 60, 40]); rect(x0, y, x1 - x0, 1, [130, 84, 54]); disc(x1, y + 3, 3, [170, 120, 80]); px(x1, y + 3, [120, 80, 50]); }
+    // deck
+    rect(8, 81, 100, 7, WOOD); rect(8, 81, 100, 1, WOODL); rect(8, 87, 100, 1, WOODD);
+    for (let x = 12; x < 108; x += 6) rect(x, 82, 1, 5, WOODD);
+    // left dock
+    rect(0, 85, 30, 5, WOOD); rect(0, 85, 30, 1, WOODL); for (let x = 4; x < 30; x += 5) rect(x, 86, 1, 4, WOODD);
+    rect(2, 58, 2, 27, WOODD);
+    // ladder
+    rect(40, 87, 1, 12, [120, 80, 50]); rect(45, 87, 1, 12, [120, 80, 50]); for (let y = 89; y < 99; y += 3) rect(40, y, 6, 1, [140, 96, 60]);
+    // house body
+    rect(40, 36, 46, 46, WOOD);
+    for (let x = 42; x < 86; x += 4) rect(x, 36, 1, 46, WOODD);
+    rect(84, 36, 2, 46, mul(WOOD, 0.7)); rect(40, 36, 2, 46, WOODL);
+    rect(40, 57, 46, 2, WOODD);
+    // roof
+    for (let r = 0; r < 30; r++) { const w = Math.round(r * 1.02) + 2; const y = 8 + r; rect(63 - w, y, w * 2, 1, r % 3 === 0 ? mul(ROOF, 0.8) : ROOF); }
+    rect(33, 37, 60, 2, [120, 46, 40]); line(63, 7, 32, 38, [190, 90, 70]); line(63, 7, 94, 38, mul(ROOF, 0.7));
+    rect(73, 12, 6, 12, [110, 90, 90]); rect(72, 11, 8, 2, [80, 60, 60]);
+    // attic round window
+    disc(63, 26, 4, [90, 56, 40]); disc(63, 26, 3, S.windows[4] ? WARM : [40, 30, 50]); rect(63, 23, 1, 7, [90, 56, 40]); rect(60, 26, 7, 1, [90, 56, 40]);
+    // windows
+    const win = (x, y, w, h, on, i) => { rect(x - 1, y - 1, w + 2, h + 2, [90, 56, 40]); rect(x, y, w, h, on ? mul(WARM, lampFlick(i)) : [36, 30, 54]); rect(x + (w >> 1), y, 1, h, [90, 56, 40]); rect(x, y + (h >> 1), w, 1, [90, 56, 40]); rect(x - 2, y + h + 1, w + 4, 1, WOODL); };
+    win(46, 42, 9, 10, S.windows[0], 0); win(69, 42, 9, 10, S.windows[1], 1);
+    win(68, 64, 10, 10, S.windows[2], 2);
+    if (S.windows[3]) { rect(47, 47, 2, 4, [40, 30, 40]); }
+    // door with a little porch roof
+    rect(50, 63, 10, 18, [96, 58, 38]); rect(51, 64, 8, 16, [120, 74, 46]); disc(55, 68, 2, WARM); px(58, 73, [230, 200, 120]);
+    rect(46, 60, 18, 2, ROOF); rect(47, 59, 16, 1, [190, 90, 70]);
+    // balcony
+    rect(86, 56, 16, 2, WOOD); rect(86, 50, 16, 1, WOODL); for (let x = 87; x < 102; x += 3) rect(x, 51, 1, 5, WOODD); rect(101, 50, 1, 7, WOODD);
+    // barrels, crate, plant
+    for (const bx of [90, 97]) { rect(bx, 73, 6, 8, [140, 90, 56]); rect(bx, 75, 6, 1, [70, 60, 60]); rect(bx, 79, 6, 1, [70, 60, 60]); rect(bx, 73, 6, 1, [170, 120, 76]); }
+    rect(20, 78, 8, 7, [170, 130, 80]); line(20, 78, 27, 84, [120, 90, 56]); line(27, 78, 20, 84, [120, 90, 56]);
+    rect(80, 76, 4, 5, [180, 90, 60]); rect(79, 72, 6, 4, [80, 140, 90]); px(81, 71, [240, 120, 160]);
+    // bunting strings
+    const bunt = (x0, y0, x1, y1, sag, n) => { for (let i = 0; i <= n; i++) { const t = i / n, x = lerp(x0, x1, t), y = lerp(y0, y1, t) + sag * 4 * t * (1 - t); px(x, y, [200, 190, 170]); if (i % 3 === 1 && i < n) { const c = [[240, 130, 170], [250, 220, 110], [120, 180, 240], [190, 150, 240]][(i / 3 | 0) % 4]; const sw = Math.round(Math.sin(S.time * 2 + i) * 0.6); rect(x - 1, y + 1, 3, 1, c); px(x + sw, y + 2, c); px(x + sw, y + 3, mul(c, 0.8)); } } };
+    bunt(38, 38, 3, 58, 6, 40); bunt(88, 38, 106, 62, 4, 26); rect(106, 60, 1, 22, WOODD);
+    // lanterns: dock post, porch
+    const lamp = (x, y, i) => { rect(x - 1, y - 1, 4, 1, [60, 40, 30]); rect(x - 1, y, 4, 5, mul([255, 200, 110], lampFlick(i))); rect(x - 1, y + 5, 4, 1, [60, 40, 30]); };
+    lamp(3, 59, 3); lamp(64, 66, 4);
+    // hedgehog on the deck, holding a lantern (a big leaf over its head in the rain)
+    drawHedgehog(33, 81, rain);
+    // cat on the balcony
+    drawCat(93, 56, rain);
+    // owl on the roof peak
+    if (!S.owl) { const x = 62, y = 7, blink = Math.sin(S.time * 0.7) > 0.97; rect(x - 2, y - 6, 6, 6, [110, 86, 70]); rect(x - 1, y - 7, 1, 1, [110, 86, 70]); rect(x + 3, y - 7, 1, 1, [110, 86, 70]); if (!blink) { px(x - 1, y - 5, [255, 220, 90]); px(x + 2, y - 5, [255, 220, 90]); } px(x + 1, y - 3, [220, 170, 70]); rect(x - 1, y - 2, 4, 2, [150, 126, 100]); }
+    ctx = ctx0;
+  }
+  function drawHedgehog(x, y, rain) {
+    const wave = S.events.find(e => e.type === "wave"), bob = Math.round(Math.sin(S.time * 1.5) * 0.4);
+    const body = [120, 90, 70], spikes = [80, 58, 46], face = [230, 200, 170];
+    rect(x - 4, y - 7 + bob, 8, 7, spikes); for (let i = 0; i < 4; i++) px(x - 4 + i * 2, y - 8 + bob, spikes);
+    rect(x - 1, y - 6 + bob, 5, 5, face); px(x + 3, y - 4 + bob, [40, 30, 30]); px(x + 1, y - 5 + bob, [30, 20, 20]); rect(x - 2, y - 1, 2, 1, body); rect(x + 1, y - 1, 2, 1, body);
+    rect(x - 3, y - 10 + bob, 6, 2, [200, 80, 80]); px(x, y - 11 + bob, [240, 240, 240]);
+    const ang = wave ? Math.sin(wave.t * 5) * 0.7 : 0;
+    const lx = x + 6 + Math.round(Math.sin(ang) * 3), ly = y - 6 + Math.round(-Math.abs(Math.sin(ang)) * 2);
+    line(x + 3, y - 4 + bob, lx, ly - 1, [60, 40, 30]);
+    rect(lx - 1, ly - 1, 4, 1, [60, 40, 30]); rect(lx - 1, ly, 4, 5, mul([255, 210, 120], lampFlick(9))); rect(lx - 1, ly + 5, 4, 1, [60, 40, 30]);
+    S.hedgeLamp = [lx + 1, ly + 2];
+    if (rain) { for (let r = 0; r < 4; r++) rect(x - 7 + r, y - 13 - r + bob, 13 - r * 2, 1, [80, 150, 80]); line(x - 1, y - 12 + bob, x - 1, y - 8 + bob, [60, 100, 60]); }
+  }
+  function drawCat(x, y, rain) {
+    if (rain) return; // the cat goes inside when it rains
+    const c = [70, 70, 80], lookUp = S.catScope > 0;
+    rect(x - 3, y - 5, 6, 5, c); rect(x - 2, y - 9, 5, 4, c); px(x - 2, y - 10, c); px(x + 2, y - 10, c);
+    px(x - 1, y - 8, [220, 240, 120]); px(x + 1, y - 8, [220, 240, 120]);
+    const tail = Math.round(Math.sin(S.time * 2) * 1.5); px(x - 4, y - 2, c); px(x - 5, y - 3 + tail, c); px(x - 5, y - 4 + tail, c);
+    if (lookUp) { line(x + 2, y - 8, x + 8, y - 13, [180, 160, 110]); rect(x + 7, y - 14, 3, 2, [200, 180, 120]); line(x + 5, y - 11, x + 5, y - 1, [80, 70, 60]); }
+    else { rect(x + 4, y - 4, 3, 3, [230, 230, 220]); }
+  }
+  function drawBoatSprite() {
+    ctx = boatX; ctx.clearRect(0, 0, 60, 34);
+    const rain = S.rain > 0.15;
+    // hull
+    for (let r = 0; r < 9; r++) { const inset = Math.round(Math.pow(r / 8, 1.6) * 10); rect(4 + inset + (r > 5 ? 2 : 0), 18 + r, 52 - inset * 2 - (r > 5 ? 4 : 0), 1, r < 2 ? [170, 116, 72] : r < 3 ? [90, 54, 36] : [120, 74, 48]); }
+    px(3, 17, [170, 116, 72]); px(56, 17, [170, 116, 72]); rect(2, 16, 2, 2, [150, 100, 64]); rect(56, 15, 2, 3, [150, 100, 64]);
+    // frog in a knit cap
+    const bob = Math.round(Math.sin(S.time * 1.2) * 0.4), fx = 26;
+    rect(fx - 5, 9 + bob, 11, 9, [110, 170, 100]); rect(fx - 4, 13 + bob, 9, 5, [170, 210, 150]);
+    disc(fx - 3, 8 + bob, 2, [110, 170, 100]); disc(fx + 3, 8 + bob, 2, [110, 170, 100]);
+    px(fx - 3, 8 + bob, [255, 255, 255]); px(fx + 3, 8 + bob, [255, 255, 255]); px(fx - 3, 9 + bob, [20, 20, 20]); px(fx + 3, 9 + bob, [20, 20, 20]);
+    rect(fx - 2, 12 + bob, 5, 1, [60, 90, 60]);
+    rect(fx - 4, 5 + bob, 9, 2, rain ? [80, 110, 190] : [220, 120, 60]); px(fx, 4 + bob, [240, 240, 240]);
+    if (rain) { for (let r = 0; r < 3; r++) rect(fx - 9 + r * 2, 2 - r + bob, 18 - r * 4, 1, [240, 200, 90]); rect(fx + 5, 3 + bob, 1, 9, [80, 60, 40]); }
+    // fishing rod
+    const bend = S.fishT > 0 ? Math.round(3 * Math.sin(Math.min(1, (4 - S.fishT) / 1.5) * Math.PI / 2)) : 0;
+    line(fx + 5, 14 + bob, 50, 3 + bend, [140, 110, 70]);
+    line(50, 3 + bend, 54, 18, rgba([230, 230, 230], 0.6));
+    if (S.fishT > 0 && S.fishT < 2.5) { const k = (2.5 - S.fishT) / 2.5; rect(53, 18 - k * 12, 3, 2, [200, 220, 230]); }
+    // lantern on the bow pole
+    rect(8, 3, 1, 14, [90, 60, 40]); rect(6, 3, 5, 1, [90, 60, 40]); rect(9, 4, 1, 2, [60, 40, 30]);
+    rect(7, 6, 4, 5, mul([255, 210, 120], lampFlick(7))); rect(7, 5, 4, 1, [60, 40, 30]); rect(7, 11, 4, 1, [60, 40, 30]);
+    ctx = ctx0;
+  }
+  function drawLogSprite() {
+    ctx = logX; ctx.clearRect(0, 0, 150, 24);
+    rect(2, 6, 138, 14, [104, 66, 44]); rect(2, 6, 138, 2, [140, 92, 60]); rect(2, 18, 138, 2, [76, 48, 34]);
+    for (let i = 0; i < 16; i++) { const x = 6 + hash(i) * 128; rect(x, 9 + (i % 3) * 3, 6 + hash(i + 5) * 8, 1, [84, 52, 36]); }
+    disc(141, 13, 7, [180, 130, 84]); disc(141, 13, 5, [160, 110, 70]); disc(141, 13, 3, [180, 130, 84]); px(141, 13, [140, 96, 60]);
+    rect(28, 3, 1, 3, [230, 220, 200]); rect(26, 1, 5, 2, [220, 60, 60]); px(27, 1, [255, 255, 255]);
+    rect(88, 3, 4, 3, [200, 170, 120]); px(92, 5, [160, 150, 130]); px(92, 4, [160, 150, 130]);
+    rect(118, 2, 1, 5, [200, 190, 170]);
+    ctx = ctx0;
+  }
+
+  // ---------- foreground ----------
+  function drawForeground() {
+    // bottom-left bushes with berries
+    const leaf = [36, 70, 58], leaf2 = [46, 88, 66];
+    for (let i = 0; i < 9; i++) { const x = -6 + i * 7 + hash(i) * 4, y = 292 + hash(i * 3) * 14 - (i < 4 ? 0 : (i - 4) * 4); disc(x, y + 14, 9 + (i % 3), i % 2 ? leaf : leaf2); }
+    for (let i = 0; i < 16; i++) { const x = hash(i * 7) * 58, y = 290 + hash(i * 11) * 28; px(x, y, [210, 50, 60]); px(x + 1, y, [160, 30, 40]); }
+    // floating jug with irises
+    const jb = Math.round(Math.sin(S.time * 1.1) * 1);
+    rect(7, 236 + jb, 12, 11, [150, 190, 200]); rect(8, 235 + jb, 10, 1, [180, 210, 220]); rect(18, 239 + jb, 2, 5, [150, 190, 200]); rect(7, 244 + jb, 12, 3, [110, 150, 170]);
+    for (const [fx, fy] of [[9, 228], [13, 225], [16, 229]]) { line(fx + 1, fy + 3 + jb, 12, 236 + jb, [70, 130, 80]); rect(fx, fy + jb, 3, 3, [150, 100, 210]); px(fx + 1, fy - 1 + jb, [190, 150, 240]); }
+    // lilies and pads at the bottom right
+    for (const [x, y, r] of [[150, 290, 8], [170, 300, 9], [132, 310, 7], [160, 316, 10], [118, 298, 5]]) { ctx.fillStyle = rgb([50, 100, 70]); ctx.beginPath(); ctx.ellipse(x, y, r * 1.4, r * 0.55, 0, 0, Math.PI * 2); ctx.fill(); rect(x - r, y - 1, r, 1, [70, 130, 90]); }
+    for (const [x, y] of [[146, 284], [168, 293], [131, 304], [159, 309]]) {
+      const c = [240, 140, 170], c2 = [255, 200, 215];
+      rect(x - 1, y - 4, 3, 8, c); rect(x - 4, y - 1, 9, 3, c); px(x - 3, y - 3, c); px(x + 3, y - 3, c); px(x - 3, y + 3, c); px(x + 3, y + 3, c); rect(x, y, 1, 1, [255, 230, 120]); px(x, y - 3, c2); px(x - 3, y, c2);
+    }
+    // frog on a lily pad
+    const croak = Math.sin(S.time * 1.7) > 0.9;
+    rect(118, 292, 6, 4, [110, 170, 100]); px(118, 291, [110, 170, 100]); px(123, 291, [110, 170, 100]); px(118, 292, [20, 20, 20]); px(123, 292, [20, 20, 20]); if (croak) rect(119, 296, 4, 2, [210, 230, 180]);
+    for (const f of S.flies) if (f.y > H0 + 60) { const a = Math.max(0, Math.sin(S.time * 2 + f.ph)); if (a > 0.1) { px(f.x, f.y, rgba([230, 255, 140], a)); glow(f.x, f.y, 3, [210, 255, 120], a * 0.5); } }
+  }
+
+  // ---------- frame ----------
+  function render() {
+    drawSky();
+    drawWater();
+    drawHouseSprite(); drawBoatSprite(); drawLogSprite();
+    const cloud = clamp(S.rain * 1.4, 0, 1), tint = mix([20, 30, 80], [26, 30, 50], cloud);
+    // floating objects far→near: barrels, ducks, house, basket, boat, lanterns, log
+    const barrel = (x, y) => { const b = Math.round(Math.sin(S.time * 1.4 + x) * 0.6); rect(x, y - 6 + b, 6, 6, [130, 84, 52]); rect(x, y - 6 + b, 6, 1, [170, 116, 70]); rect(x, y - 3 + b, 6, 1, [70, 60, 60]); ctx.fillStyle = rgba([60, 40, 30], 0.35); ctx.fillRect(x, y + 1, 6, 4); };
+    barrel(163, 176); barrel(152, 210);
+    for (const e of S.events) if (e.type === "ducks") { for (let i = 0; i < 4; i++) { const x = e.x + i * 7, y = e.y + Math.sin(S.time * 3 + i) * 0.5, s = i ? 0.7 : 1; rect(x, y - 3 * s, 5 * s, 3 * s, i ? [150, 120, 80] : [120, 90, 60]); rect(x - 1, y - 5 * s, 2, 2, i ? [150, 120, 80] : [40, 110, 70]); px(x - 2, y - 4 * s, [240, 180, 60]); ctx.fillStyle = rgba([180, 200, 255], 0.3); ctx.fillRect(Math.round(x + 5), Math.round(y), 6, 1); } }
+    const HX = 64, HW = 205;
+    reflect(houseC, HX, HW, 96, 0.55, tint);
+    ctx.drawImage(houseC, 0, 0, 112, 96, HX, HW - 96, 112, 96);
+    for (const [lx, ly] of [[HX + 4, HW - 96 + 62], [HX + 65, HW - 96 + 68], [HX + (S.hedgeLamp ? S.hedgeLamp[0] : 34), HW - 96 + (S.hedgeLamp ? S.hedgeLamp[1] : 76)]]) glow(lx, ly, 18, [255, 180, 90], 0.5);
+    for (const [wx, wy] of [[HX + 50, HW - 96 + 47], [HX + 73, HW - 96 + 47], [HX + 73, HW - 96 + 69]]) glow(wx, wy, 12, [255, 190, 110], 0.25);
+    lightPath(HX + 34, HW, 70, [255, 190, 110], 0.7); lightPath(HX + 5, HW, 40, [255, 190, 110], 0.5); lightPath(HX + 70, HW, 50, [255, 190, 110], 0.4);
+    rect(HX + 8, HW, 104, 1, rgba([200, 210, 255], 0.35));
+    // basket
+    const kb = Math.round(Math.sin(S.time * 1.2 + 2));
+    rect(128, 224 + kb, 12, 5, [180, 140, 80]); for (let x = 128; x < 140; x += 2) px(x, 225 + kb, [140, 100, 60]); line(128, 224 + kb, 134, 218 + kb, [150, 110, 60]); line(134, 218 + kb, 139, 224 + kb, [150, 110, 60]);
+    ctx.fillStyle = rgba([60, 40, 30], 0.3); ctx.fillRect(128, 230 + kb, 12, 3);
+    // rowboat
+    const BX = Math.round(S.boatX), BW = 238 + Math.round(Math.sin(S.time * 1.2) * 0.8);
+    reflect(boatC, BX, BW, 26, 0.55, tint);
+    ctx.drawImage(boatC, 0, 0, 60, 26, BX, BW - 26, 60, 26);
+    glow(BX + 9, BW - 26 + 8, 20, [255, 180, 90], 0.55); lightPath(BX + 9, BW, 45, [255, 190, 110], 0.6);
+    rect(BX + 4, BW, 52, 1, rgba([200, 210, 255], 0.35));
+    if (S.fishT > 1.2 && S.fishT < 2.6) for (let j = 0; j < 4; j++) px(BX + 54 + rnd(-2, 2), BW - rnd(0, 4), [230, 240, 255]);
+    // floating lanterns / paper boat / bottle
+    for (const e of S.events) {
+      if (e.type === "lantern") { const y = e.y + Math.sin(S.time * 1.3 + e.x) * 0.6; rect(e.x - 2, y - 4, 5, 4, [255, 215, 140]); rect(e.x - 3, y, 7, 1, [130, 90, 60]); glow(e.x, y - 2, 12, [255, 180, 90], 0.5); lightPath(e.x, y + 1, 18, [255, 190, 110], 0.5); }
+      if (e.type === "paperboat") { const y = e.y + Math.sin(S.time * 1.5) * 0.6; rect(e.x - 4, y - 1, 9, 2, [240, 240, 235]); line(e.x - 1, y - 1, e.x + 1, y - 5, [230, 230, 225]); line(e.x + 1, y - 5, e.x + 3, y - 1, [210, 210, 205]); }
+      if (e.type === "bottle") { const y = e.y + Math.sin(S.time * 1.1) * 0.8; rect(e.x - 4, y - 2, 8, 3, rgba([120, 200, 150], 0.8)); rect(e.x + 4, y - 1, 2, 1, [150, 110, 70]); rect(e.x - 2, y - 1, 3, 1, [240, 230, 200]); }
+      if (e.type === "fish") { const k = e.t / e.dur, y = e.y - Math.sin(Math.min(1, k * 1.6) * Math.PI) * 10, x = e.x + k * 10; if (k < 0.62) { rect(x - 2, y, 5, 2, [190, 210, 220]); px(x - 3, y - 1, [190, 210, 220]); } S.rings.length < 400 && k > 0.6 && k < 0.64 && S.rings.push({ x: e.x + 7, y: e.y, t: 0, s: 1.4 }); if (k < 0.1) for (let j = 0; j < 3; j++) px(e.x + rnd(-2, 2), e.y - rnd(0, 3), [230, 240, 255]); }
+    }
+    // floating log with bunting
+    const LX = 6, LW = 268 + Math.round(Math.sin(S.time * 0.9) * 0.6);
+    reflect(logC, LX, LW, 16, 0.5, tint);
+    ctx.drawImage(logC, 0, 0, 150, 16, LX, LW - 16, 150, 16);
+    rect(LX + 2, LW, 146, 1, rgba([200, 210, 255], 0.35));
+    for (let i = 0; i <= 30; i++) { const t = i / 30, x = lerp(LX + 118, W + 4, t), y = lerp(LW - 14, LW + 4, t) + 6 * 4 * t * (1 - t); px(x, y, [210, 200, 180]); if (i % 5 === 2) { const c = [[240, 130, 170], [250, 220, 110], [120, 180, 240], [190, 150, 240]][(i / 5 | 0) % 4]; rect(x - 1, y + 1, 4, 1, c); rect(x, y + 2, 2, 1, c); px(x, y + 3, c); } }
+    // smoke
+    for (const p of S.puffs) { const k = p.t / 3, s = 2 + k * 5; ctx.fillStyle = rgba([200, 190, 220], 0.3 * (1 - k)); ctx.fillRect(Math.round(p.x - s / 2), Math.round(p.y - s / 2), Math.round(s), Math.round(s)); }
+    // rain rings on the water
+    for (const r of S.rings) { const k = r.t, rad = (1 + k * 5) * r.s; ctx.strokeStyle = rgba([180, 200, 255], 0.45 * (1 - k)); ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(Math.round(r.x), Math.round(r.y), rad, rad * 0.35, 0, 0, Math.PI * 2); ctx.stroke(); }
+    drawForeground();
+    // rain streaks
+    for (const d of S.drops) { ctx.fillStyle = rgba([190, 200, 240], 0.3); ctx.fillRect(Math.round(d.x), Math.round(d.y), 1, 3); }
+    if (S.rain > 0.2) for (let i = 0; i < 6; i++) { const x = 64 + 33 + i * 10, y = 205 - 96 + 38 + mod(S.time * 50 + i * 17, 40); px(x, y, rgba([190, 210, 255], 0.6)); }
+    // vignette
+    const g = ctx.createRadialGradient(W / 2, H / 2, 90, W / 2, H / 2, 210);
+    g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(8,4,20,0.45)");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
+
+  // ---------- post-process ----------
+  const LEVELS = [0, 28, 66, 118, 182, 255];
+  const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  const LO = new Uint8Array(256), FR = new Uint8Array(256);
+  for (let v = 0; v < 256; v++) { let i = 0; while (i < 4 && v >= LEVELS[i + 1]) i++; const a = LEVELS[i], b = LEVELS[i + 1]; LO[v] = i; FR[v] = Math.round(((v - a) / (b - a)) * 16); }
+  const indexBuf = new Uint8Array(W * H);
+  function postProcess() {
+    const img = ctx0.getImageData(0, 0, W, H), d = img.data;
+    for (let y = 0, p = 0; y < H; y++) for (let x = 0; x < W; x++, p++) {
+      const o = p * 4, th = BAYER[(x & 3) + ((y & 3) << 2)];
+      let r = LO[d[o]] + (FR[d[o]] > th ? 1 : 0), g = LO[d[o + 1]] + (FR[d[o + 1]] > th ? 1 : 0), b = LO[d[o + 2]] + (FR[d[o + 2]] > th ? 1 : 0);
+      if (r > 5) r = 5; if (g > 5) g = 5; if (b > 5) b = 5;
+      indexBuf[p] = r * 36 + g * 6 + b;
+      d[o] = LEVELS[r]; d[o + 1] = LEVELS[g]; d[o + 2] = LEVELS[b]; d[o + 3] = 255;
+    }
+    ctx0.putImageData(img, 0, 0);
+    return indexBuf;
+  }
+  const hudT = document.getElementById("hud-t"), hudW = document.getElementById("hud-w");
+  function frame(dt) {
+    step(dt); ctx = ctx0; render();
+    const idx = postProcess();
+    vctx.drawImage(low, 0, 0, view.width, view.height);
+    hudT.textContent = clock();
+    hudW.textContent = S.rain > 0.5 ? "雨" : S.rain > 0.12 ? "小雨" : "晴れ";
+    return idx;
+  }
+
+  // ---------- music: a waltz lullaby (music box, harp, pad) + lake ambience ----------
+  const Snd = { ac: null, on: false, vol: 0.7, amb: true, n: null, next: 0, step: 0, phrase: null };
+  let busy = false;
+  const live = () => Snd.on && Snd.ac && !busy;
+  const BPM = 84, EIGHTH = 60 / BPM / 2;
+  const CH = [
+    { name: "Gmaj9", bass: 43, notes: [59, 62, 66, 69] },
+    { name: "Em7", bass: 40, notes: [55, 59, 62, 67] },
+    { name: "Cmaj7", bass: 36, notes: [55, 59, 64, 67] },
+    { name: "D6/9", bass: 38, notes: [57, 62, 64, 66] },
+  ];
+  const SCALE = [67, 69, 71, 74, 76, 79, 81, 83, 86];
+  const RHY = [[1, 0, 1, 0, 1, 0], [1, 0, 0, 1, 1, 0], [1, 1, 1, 0, 0, 0], [1, 0, 0, 0, 1, 1], [1, 0, 1, 1, 1, 0], [1, 0, 0, 0, 0, 0]];
+  const mf = m => 440 * Math.pow(2, (m - 69) / 12);
+  function makePhrase() {
+    // A A' B A over 16 bars of 3/4, random-walk on a pentatonic scale, landing on chord tones
+    const bar = () => { const r = pick(RHY); let i = (Math.random() * SCALE.length) | 0; return r.map(on => { if (!on) return null; i = clamp(i + pick([-2, -1, -1, 1, 1, 2, 0]), 0, SCALE.length - 1); return SCALE[i]; }); };
+    const A = [bar(), bar(), bar(), bar()], B = [bar(), bar(), bar(), bar()];
+    const A2 = A.map((b, j) => j === 3 ? bar() : b);
+    return [...A, ...A2, ...B, ...A];
+  }
+  function audioInit() {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
+    const ac = new AC(); Snd.ac = ac;
+    const master = ac.createGain(); master.gain.value = Snd.vol;
+    const comp = ac.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 3;
+    master.connect(comp); comp.connect(ac.destination);
+    // generated reverb tail
+    const conv = ac.createConvolver(), len = ac.sampleRate * 3, ir = ac.createBuffer(2, len, ac.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
+    conv.buffer = ir;
+    const music = ac.createGain(); music.gain.value = 0.8;
+    const wet = ac.createGain(); wet.gain.value = 0.45;
+    music.connect(master); music.connect(conv); conv.connect(wet); wet.connect(master);
+    const white = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate), wd = white.getChannelData(0); for (let i = 0; i < wd.length; i++) wd[i] = Math.random() * 2 - 1;
+    const pink = ac.createBuffer(1, ac.sampleRate * 3, ac.sampleRate), pd = pink.getChannelData(0); let b0 = 0, b1 = 0, b2 = 0;
+    for (let i = 0; i < pd.length; i++) { const w = Math.random() * 2 - 1; b0 = 0.997 * b0 + w * 0.029; b1 = 0.985 * b1 + w * 0.032; b2 = 0.95 * b2 + w * 0.048; pd[i] = (b0 + b1 + b2) * 0.9; }
+    const loop = (buf, type, f, dest) => { const s = ac.createBufferSource(); s.buffer = buf; s.loop = true; const fl = ac.createBiquadFilter(); fl.type = type; fl.frequency.value = f; const g = ac.createGain(); g.gain.value = 0; s.connect(fl); fl.connect(g); g.connect(dest); s.start(); return g; };
+    const rainG = loop(pink, "lowpass", 2200, master), hissG = loop(white, "highpass", 5500, master), lapG = loop(pink, "lowpass", 380, master);
+    Snd.n = { master, music, white, pink, rainG, hissG, lapG, conv };
+    Snd.next = ac.currentTime + 0.1; Snd.phrase = makePhrase();
+    return true;
+  }
+  function envG(t0, a, peak, dur, dest) { const g = Snd.ac.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(peak, t0 + a); g.gain.exponentialRampToValueAtTime(0.0005, t0 + dur); g.connect(dest); return g; }
+  function osc(type, f, t0, dur, g) { const o = Snd.ac.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t0); o.connect(g); o.start(t0); o.stop(t0 + dur + 0.05); return o; }
+  function musicBox(m, t0, vel) {
+    const d = Snd.n.music;
+    osc("sine", mf(m), t0, 1.8, envG(t0, 0.003, 0.09 * vel, 1.8, d));
+    osc("sine", mf(m) * 3.01, t0, 0.5, envG(t0, 0.002, 0.03 * vel, 0.5, d));
+    osc("sine", mf(m) * 5.42, t0, 0.2, envG(t0, 0.001, 0.012 * vel, 0.2, d));
+  }
+  function harp(m, t0, vel) {
+    const d = Snd.n.music, lp = Snd.ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2200; lp.connect(d);
+    osc("triangle", mf(m), t0, 1.4, envG(t0, 0.004, 0.06 * vel, 1.4, lp));
+  }
+  function pad(ch, t0, dur) {
+    const lp = Snd.ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 700; lp.connect(Snd.n.music);
+    const g = Snd.ac.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.02, t0 + 0.8); g.gain.setValueAtTime(0.02, t0 + dur - 0.6); g.gain.linearRampToValueAtTime(0.0001, t0 + dur + 0.4); g.connect(lp);
+    for (const m of ch.notes) { const o = Snd.ac.createOscillator(); o.type = "sawtooth"; o.frequency.value = mf(m - 12); o.detune.value = rnd(-8, 8); o.connect(g); o.start(t0); o.stop(t0 + dur + 0.5); }
+  }
+  function scheduleEighth(st, t0) {
+    const bar = Math.floor(st / 6), s = st % 6, ch = CH[bar % CH.length];
+    if (bar % 16 === 0 && s === 0 && st > 0) Snd.phrase = makePhrase();
+    if (s === 0) { osc("sine", mf(ch.bass), t0, 2, envG(t0, 0.01, 0.14, 2, Snd.n.music)); pad(ch, t0, EIGHTH * 6); nowEl.textContent = `♪ ${ch.name}`; }
+    if (s === 2 || s === 4) { const arp = s === 2 ? ch.notes.slice(0, 2) : ch.notes.slice(2); arp.forEach((m, i) => harp(m, t0 + i * 0.05, 0.9)); }
+    const mel = Snd.phrase[bar % 16][s];
+    if (mel) musicBox(mel, t0, s === 0 ? 1 : 0.75);
+  }
+  function audioUpdate(dt) {
+    if (!live()) return;
+    const ac = Snd.ac, n = Snd.n, amb = Snd.amb ? 1 : 0;
+    while (Snd.next < ac.currentTime + 0.2) { scheduleEighth(Snd.step, Snd.next); Snd.next += EIGHTH; Snd.step++; }
+    n.rainG.gain.setTargetAtTime(S.rain * 0.32 * amb, ac.currentTime, 0.3);
+    n.hissG.gain.setTargetAtTime(S.rain * 0.04 * amb, ac.currentTime, 0.3);
+    n.lapG.gain.setTargetAtTime((0.05 + 0.04 * Math.sin(S.time * 0.9)) * amb, ac.currentTime, 0.2);
+    const t0 = ac.currentTime;
+    if (amb && S.rain > 0.2 && Math.random() < dt * 6) osc("sine", rnd(1400, 3200), t0, 0.06, envG(t0, 0.002, 0.012, 0.06, n.master));
+    if (amb && S.rain < 0.1 && Math.random() < dt * 2) for (let i = 0; i < 3; i++) osc("sine", 4300 + Math.random() * 200, t0 + i * 0.07, 0.05, envG(t0 + i * 0.07, 0.005, 0.006, 0.05, n.master));
+    if (amb && Math.random() < dt * 0.25) { const g = envG(t0, 0.01, 0.03, 0.25, n.master); const o = osc("square", 110, t0, 0.25, g); const am = ac.createOscillator(), ag = ac.createGain(); am.frequency.value = 30; ag.gain.value = 60; am.connect(ag); ag.connect(o.frequency); am.start(t0); am.stop(t0 + 0.3); }
+  }
+  function sfx(kind) {
+    if (!live() || !Snd.amb) return;
+    const ac = Snd.ac, t0 = ac.currentTime, m = Snd.n.master;
+    switch (kind) {
+      case "splash": { const s = ac.createBufferSource(); s.buffer = Snd.n.white; const f = ac.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1200; f.Q.value = 0.8; s.connect(f); f.connect(envG(t0, 0.005, 0.15, 0.4, m)); s.start(t0); s.stop(t0 + 0.45); osc("sine", 600, t0, 0.15, envG(t0, 0.002, 0.04, 0.15, m)).frequency.exponentialRampToValueAtTime(1400, t0 + 0.12); break; }
+      case "hoot": for (const dt2 of [0, 0.45]) { const o = osc("sine", 380, t0 + dt2, 0.35, envG(t0 + dt2, 0.05, 0.05, 0.35, Snd.n.conv)); o.frequency.linearRampToValueAtTime(340, t0 + dt2 + 0.3); } break;
+      case "loon": { const g = envG(t0, 0.3, 0.05, 2.6, Snd.n.conv); const o = osc("sine", 620, t0, 2.6, g); o.frequency.linearRampToValueAtTime(930, t0 + 0.8); o.frequency.linearRampToValueAtTime(880, t0 + 1.6); o.frequency.linearRampToValueAtTime(700, t0 + 2.5); const v = ac.createOscillator(), vg = ac.createGain(); v.frequency.value = 6; vg.gain.value = 12; v.connect(vg); vg.connect(o.frequency); v.start(t0); v.stop(t0 + 2.6); break; }
+      case "quack": for (let i = 0; i < 3; i++) { const g = envG(t0 + i * 0.25, 0.01, 0.03, 0.12, m); const o = osc("sawtooth", 520, t0 + i * 0.25, 0.12, g); o.frequency.linearRampToValueAtTime(380, t0 + i * 0.25 + 0.12); } break;
+      case "thunder": { const s = ac.createBufferSource(); s.buffer = Snd.n.pink; const f = ac.createBiquadFilter(); f.type = "lowpass"; f.frequency.setValueAtTime(800, t0); f.frequency.exponentialRampToValueAtTime(100, t0 + 3); s.connect(f); f.connect(envG(t0, 0.05, 0.45, 3.5, m)); s.start(t0); s.stop(t0 + 3.6); break; }
+    }
+  }
+
+  // ---------- GIF ----------
+  const PALETTE = new Uint8Array(768);
+  for (let i = 0; i < 216; i++) { PALETTE[i * 3] = LEVELS[(i / 36) | 0]; PALETTE[i * 3 + 1] = LEVELS[((i / 6) | 0) % 6]; PALETTE[i * 3 + 2] = LEVELS[i % 6]; }
+  function lzw(ix, out) {
+    let size = 9, next = 258, cur = 0, bits = 0; const dict = new Map(), bytes = [];
+    const emit = c => { cur |= c << bits; bits += size; while (bits >= 8) { bytes.push(cur & 255); cur >>>= 8; bits -= 8; } };
+    emit(256); let prefix = ix[0];
+    for (let i = 1; i < ix.length; i++) {
+      const k = ix[i], key = prefix * 256 + k, v = dict.get(key);
+      if (v !== undefined) { prefix = v; continue; }
+      emit(prefix);
+      if (next < 4095) { dict.set(key, next++); if (next > (1 << size) && size < 12) size++; } else { emit(256); dict.clear(); size = 9; next = 258; }
+      prefix = k;
+    }
+    emit(prefix); emit(257); if (bits > 0) bytes.push(cur & 255);
+    out.push(8);
+    for (let i = 0; i < bytes.length; i += 255) { const n = Math.min(255, bytes.length - i); out.push(n); for (let j = 0; j < n; j++) out.push(bytes[i + j]); }
+    out.push(0);
+  }
+  function upscale(ix, k) {
+    if (k === 1) return ix.slice();
+    const w = W * k, o = new Uint8Array(w * H * k);
+    for (let y = 0; y < H * k; y++) { const sy = ((y / k) | 0) * W, row = y * w; for (let x = 0; x < w; x++) o[row + x] = ix[sy + ((x / k) | 0)]; }
+    return o;
+  }
+  async function makeGif(seconds = 8, scale = 2, fps = 20, onProgress) {
+    const n = Math.round(seconds * fps), w = W * scale, h = H * scale, delay = Math.round(100 / fps);
+    const out = []; for (const ch of "GIF89a") out.push(ch.charCodeAt(0));
+    out.push(w & 255, w >> 8, h & 255, h >> 8, 0xf7, 0, 0); for (let i = 0; i < 768; i++) out.push(PALETTE[i]);
+    out.push(0x21, 0xff, 0x0b); for (const ch of "NETSCAPE2.0") out.push(ch.charCodeAt(0)); out.push(3, 1, 0, 0, 0);
+    for (let i = 0; i < n; i++) {
+      const ix = frame(1 / fps);
+      out.push(0x21, 0xf9, 4, 4, delay & 255, delay >> 8, 0, 0, 0x2c, 0, 0, 0, 0, w & 255, w >> 8, h & 255, h >> 8, 0);
+      lzw(upscale(ix, scale), out);
+      if (i % 4 === 3) { onProgress && onProgress(i + 1, n); await new Promise(r => setTimeout(r, 0)); }
+    }
+    out.push(0x3b); return new Uint8Array(out);
+  }
+
+  // ---------- UI ----------
+  let last = performance.now();
+  function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; if (!S.paused && !busy) frame(dt); requestAnimationFrame(loop); }
+  const status = document.getElementById("status"), out = document.getElementById("out");
+  const mBtn = document.getElementById("music");
+  mBtn.addEventListener("click", async () => {
+    if (!Snd.ac && !audioInit()) { status.textContent = "このブラウザでは音を鳴らせません。"; return; }
+    Snd.on = !Snd.on;
+    if (Snd.on) { await Snd.ac.resume(); Snd.next = Snd.ac.currentTime + 0.1; } else { await Snd.ac.suspend(); nowEl.textContent = ""; }
+    mBtn.setAttribute("aria-pressed", String(Snd.on)); mBtn.textContent = Snd.on ? "音楽を止める" : "音楽を流す";
+  });
+  document.getElementById("vol").addEventListener("input", e => { Snd.vol = e.target.value / 100; if (Snd.n) Snd.n.master.gain.setTargetAtTime(Snd.vol, Snd.ac.currentTime, 0.05); });
+  const aBtn = document.getElementById("amb");
+  aBtn.addEventListener("click", () => { Snd.amb = !Snd.amb; aBtn.setAttribute("aria-pressed", String(Snd.amb)); });
+  const wButtons = [...document.querySelectorAll("[data-w]")];
+  wButtons.forEach(b => b.addEventListener("click", () => { S.weather = b.dataset.w; wButtons.forEach(x => x.setAttribute("aria-pressed", String(x === b))); }));
+  const pBtn = document.getElementById("pause");
+  function togglePause() { S.paused = !S.paused; pBtn.setAttribute("aria-pressed", String(S.paused)); pBtn.textContent = S.paused ? "再生" : "一時停止"; }
+  pBtn.addEventListener("click", togglePause);
+  window.addEventListener("keydown", e => { if (e.code === "Space" && e.target === document.body) { e.preventDefault(); togglePause(); } });
+  const gifBtn = document.getElementById("gif");
+  gifBtn.addEventListener("click", async () => {
+    busy = true; gifBtn.disabled = true;
+    try {
+      const bytes = await makeGif(+document.getElementById("gifsec").value, +document.getElementById("gifscale").value, 20, (i, n) => { status.textContent = `GIF 生成中… ${i}/${n} フレーム`; });
+      const img = new Image(); img.src = URL.createObjectURL(new Blob([bytes], { type: "image/gif" })); img.alt = "書き出した湖のGIF"; out.prepend(img);
+      status.textContent = `GIF ができました（${(bytes.length / 1048576).toFixed(1)} MB）。右クリック／長押しで保存できます。`;
+    } catch (err) { status.textContent = `GIF の生成に失敗しました: ${err.message}`; }
+    finally { busy = false; gifBtn.disabled = false; last = performance.now(); }
+  });
+  const webmBtn = document.getElementById("webm"); let rec = null;
+  webmBtn.addEventListener("click", () => {
+    if (rec) { rec.stop(); return; }
+    if (!view.captureStream || typeof MediaRecorder === "undefined") { status.textContent = "このブラウザは動画録画に対応していません。GIF をお使いください。"; return; }
+    const chunks = [], type = ["video/webm;codecs=vp9", "video/webm", "video/mp4"].find(t => MediaRecorder.isTypeSupported(t)) || "";
+    rec = new MediaRecorder(view.captureStream(30), type ? { mimeType: type, videoBitsPerSecond: 6e6 } : undefined);
+    rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+    rec.onstop = () => {
+      const v = document.createElement("video"); v.src = URL.createObjectURL(new Blob(chunks, { type: rec.mimeType || "video/webm" }));
+      v.controls = v.loop = v.muted = v.autoplay = true; out.prepend(v);
+      status.textContent = "録画しました（映像のみ）。動画の右クリック／長押しで保存できます。"; rec = null; webmBtn.textContent = "動画を録画";
+    };
+    rec.start(); webmBtn.textContent = "録画を止める"; status.textContent = "録画中… もう一度押すと停止します。";
+  });
+
+  log("湖に浮かぶ家に灯りがともる夜", "wx");
+  for (let i = 0; i < 20; i++) step(1 / 30);
+  window.Lake = { S, frame, makeGif, spawnSpecial };
+  requestAnimationFrame(loop);
+})();
+</script>
