@@ -1,0 +1,921 @@
+<title>Night Drive Pixel</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #d9d4ee;
+    --dim: #8a84a8;
+    --ground: #07060d;
+    --panel: #12101e;
+    --line: #2a2640;
+    --amber: #ffb35c;
+    --cyan: #6fe3f0;
+    --font: "DotGothic16", "MS Gothic", "Osaka-Mono", ui-monospace, monospace;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 15px;
+    padding-inline: 16px;
+    padding-block: 16px 24px;
+    box-sizing: border-box;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 22px; font-weight: 400; letter-spacing: 0.08em; color: var(--amber); }
+  .sub { color: var(--dim); font-size: 13px; }
+  .screen { position: relative; width: 100%; aspect-ratio: 16 / 9; max-width: 100%; background: #000; border: 1px solid var(--line); }
+  #view { width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+  .group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .label { color: var(--dim); font-size: 12px; letter-spacing: 0.1em; }
+  button, select {
+    font-family: var(--font); font-size: 14px; color: var(--ink);
+    background: var(--panel); border: 1px solid var(--line); padding: 6px 10px; cursor: pointer;
+  }
+  button[aria-pressed="true"] { border-color: var(--amber); color: var(--amber); }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  button.rec { border-color: #7a2a3a; }
+  button:disabled { opacity: 0.5; cursor: wait; }
+  input[type="range"] { accent-color: var(--amber); width: 120px; }
+  #status { color: var(--cyan); font-size: 13px; min-height: 1.2em; }
+  .out { display: flex; flex-direction: column; gap: 8px; }
+  .out img, .out video { max-width: 100%; image-rendering: pixelated; border: 1px solid var(--line); }
+  .hint { color: var(--dim); font-size: 12px; line-height: 1.6; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>NIGHT DRIVE</h1>
+    <span class="sub">320×180 ピクセル / 手続き生成 / 夜・雨・ワイパー</span>
+  </header>
+
+  <div class="screen"><canvas id="view" width="1280" height="720"></canvas></div>
+
+  <div class="controls">
+    <div class="group" role="group" aria-label="天気">
+      <span class="label">天気</span>
+      <button id="w-auto" data-w="auto" aria-pressed="true">自動</button>
+      <button id="w-clear" data-w="clear" aria-pressed="false">晴れ</button>
+      <button id="w-rain" data-w="rain" aria-pressed="false">雨</button>
+      <button id="w-storm" data-w="storm" aria-pressed="false">嵐</button>
+    </div>
+    <div class="group">
+      <label class="label" for="speed">速度</label>
+      <input id="speed" type="range" min="8" max="40" value="22">
+    </div>
+    <div class="group">
+      <button id="dither" aria-pressed="true">ディザ</button>
+      <button id="pause" aria-pressed="false">一時停止</button>
+    </div>
+    <div class="group">
+      <label class="label" for="gifsec">GIF</label>
+      <select id="gifsec">
+        <option value="4">4秒</option>
+        <option value="8" selected>8秒</option>
+        <option value="12">12秒</option>
+      </select>
+      <select id="gifscale" aria-label="GIFサイズ">
+        <option value="1">320×180</option>
+        <option value="2" selected>640×360</option>
+      </select>
+      <button id="gif" class="rec">GIFを作る</button>
+      <button id="webm" class="rec">動画を録画</button>
+    </div>
+  </div>
+  <div id="status" role="status"></div>
+  <div class="out" id="out"></div>
+  <p class="hint">GIF は現在の天気のまま一定フレームレートで書き出します（ブラウザ内で生成）。できた画像や動画は右クリック／長押しで保存できます。スペースキーで一時停止。</p>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  // ---------- constants ----------
+  const W = 320, H = 180, CX = W / 2, HOR = 74;
+  const D = 160, CAMH = 1.2, ROADW = 2.2, DRAW = 200;
+  const LAMP_SP = 16;
+
+  const low = document.createElement("canvas");
+  low.width = W; low.height = H;
+  const ctx = low.getContext("2d", { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = false;
+  const view = document.getElementById("view");
+  const vctx = view.getContext("2d");
+  vctx.imageSmoothingEnabled = false;
+
+  // ---------- helpers ----------
+  function hash(i) {
+    let h = Math.imul((i | 0) ^ 0x9e3779b9, 0x85ebca6b);
+    h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  }
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const rgb = c => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
+  const rgba = (c, a) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${clamp(a, 0, 1).toFixed(3)})`;
+  function rect(x, y, w, h, c) {
+    const x0 = Math.round(x), y0 = Math.round(y);
+    const x1 = Math.round(x + w), y1 = Math.round(y + h);
+    ctx.fillStyle = typeof c === "string" ? c : rgb(c);
+    ctx.fillRect(x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0));
+  }
+  function pxLine(x0, y0, x1, y1, style, t = 1) {
+    ctx.fillStyle = style;
+    const dx = x1 - x0, dy = y1 - y0;
+    const n = Math.max(Math.abs(dx), Math.abs(dy)) | 0;
+    for (let i = 0; i <= n; i++) {
+      const f = n ? i / n : 0;
+      ctx.fillRect(Math.round(x0 + dx * f), Math.round(y0 + dy * f), t, t);
+    }
+  }
+  function glow(x, y, r, c, a) {
+    if (r < 0.5 || a <= 0.01) return;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, rgba(c, a));
+    g.addColorStop(0.35, rgba(c, a * 0.35));
+    g.addColorStop(1, rgba(c, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+
+  // 3x5 pixel digits
+  const FONT = {
+    "0": "111101101101111", "1": "010110010010111", "2": "111001111100111", "3": "111001111001111",
+    "4": "101101111001001", "5": "111100111001111", "6": "111100111101111", "7": "111001001010010",
+    "8": "111101111101111", "9": "111101111001111", ":": "000010000010000", " ": "000000000000000",
+  };
+  function text(str, x, y, c) {
+    ctx.fillStyle = typeof c === "string" ? c : rgb(c);
+    for (let i = 0; i < str.length; i++) {
+      const g = FONT[str[i]] || FONT[" "];
+      for (let p = 0; p < 15; p++) if (g[p] === "1") ctx.fillRect(x + i * 4 + (p % 3), y + ((p / 3) | 0), 1, 1);
+    }
+  }
+
+  // ---------- world ----------
+  const curv = s => 0.0016 * Math.sin(s * 0.0031) + 0.0007 * Math.sin(s * 0.0107 + 1.3);
+
+  // skyline layers (generated once)
+  function makeSkyline(seed, count, wMin, wMax, hMin, hMax) {
+    const out = []; let x = 0;
+    for (let i = 0; x < 1024; i++) {
+      const w = Math.round(lerp(wMin, wMax, hash(seed + i * 7)));
+      const h = Math.round(lerp(hMin, hMax, Math.pow(hash(seed + i * 13), 1.6)));
+      const wins = [];
+      for (let yy = 3; yy < h - 2; yy += 3) for (let xx = 2; xx < w - 1; xx += 2)
+        if (hash(seed * 31 + i * 977 + yy * 41 + xx) < 0.22) wins.push(xx, yy, hash(i * 3 + xx * yy) < 0.7 ? 0 : 1);
+      out.push({ x, w, h, wins, tower: h > hMax * 0.8 });
+      x += w + (hash(seed + i * 5) < 0.2 ? 3 : 0);
+    }
+    return out;
+  }
+  const farCity = makeSkyline(11, 0, 8, 20, 6, 26);
+  const nearCity = makeSkyline(97, 0, 12, 28, 10, 44);
+  const stars = Array.from({ length: 70 }, (_, i) => [hash(i * 3) * W, hash(i * 3 + 1) * (HOR - 20), hash(i * 3 + 2)]);
+
+  // ---------- state ----------
+  const S = {
+    time: 0, camS: 0, speed: 22, baseSpeed: 22, bgX: 0,
+    rain: 0, wet: 0, weather: "auto",
+    flash: 0, bolt: null, boltT: 0,
+    wpPhase: 0.99, wpAng: Math.PI, wpPrev: Math.PI,
+    drops: [], streaks: [],
+    ahead: [{ s: 45, v: 22, col: [70, 20, 26] }, { s: 110, v: 22, col: [26, 40, 70] }],
+    oncoming: [{ s: 150, col: [80, 80, 90] }, { s: 260, col: [30, 50, 40] }, { s: 380, col: [90, 70, 30] }],
+    dither: true, paused: false,
+  };
+  const off = new Float32Array(DRAW + 2);
+  let playerX = -ROADW / 2 + 0.35;
+  let hor = HOR;
+
+  function weatherTarget(t) {
+    if (S.weather === "clear") return 0;
+    if (S.weather === "rain") return 0.55;
+    if (S.weather === "storm") return 1;
+    const c = t % 70;
+    if (c < 18) return 0;
+    if (c < 26) return lerp(0, 0.4, (c - 18) / 8);
+    if (c < 34) return lerp(0.4, 1, (c - 26) / 8);
+    if (c < 48) return 1;
+    if (c < 58) return lerp(1, 0.3, (c - 48) / 10);
+    return lerp(0.3, 0, (c - 58) / 12);
+  }
+
+  // ---------- update ----------
+  function step(dt) {
+    S.time += dt;
+    const target = weatherTarget(S.time);
+    S.rain += (target - S.rain) * Math.min(1, dt * 0.6);
+    if (S.rain > 0.08) S.wet = Math.min(1, S.wet + dt * 0.12 * (0.5 + S.rain));
+    else S.wet = Math.max(0, S.wet - dt * 0.025);
+
+    S.speed = S.baseSpeed * (1 - 0.18 * S.rain) * (1 + 0.03 * Math.sin(S.time * 0.23));
+    S.camS += S.speed * dt;
+    S.bgX -= curv(S.camS) * S.speed * dt * 1200;
+    playerX = -ROADW / 2 + 0.35 + 0.07 * Math.sin(S.time * 0.37);
+
+    // traffic
+    for (const c of S.ahead) {
+      const rel = c.s - S.camS;
+      const want = rel < 18 ? S.speed + 3 : rel > 140 ? S.speed - 3 : c.v;
+      c.v += (want - c.v) * Math.min(1, dt * 0.4);
+      c.s += c.v * dt;
+    }
+    for (let i = 0; i < S.oncoming.length; i++) {
+      const c = S.oncoming[i];
+      c.s -= 19 * dt;
+      if (c.s - S.camS < -3) {
+        c.s = S.camS + 200 + Math.random() * 160;
+        c.col = [[80, 80, 90], [30, 50, 40], [90, 70, 30], [60, 20, 20], [120, 120, 125]][(Math.random() * 5) | 0];
+      }
+    }
+
+    // rain streaks (screen space, rushing from vanishing point)
+    const want = Math.round(S.rain * 320);
+    while (S.streaks.length < want) S.streaks.push(newStreak(true));
+    if (S.streaks.length > want) S.streaks.length = want;
+    for (let i = 0; i < S.streaks.length; i++) {
+      const p = S.streaks[i];
+      const k = 0.9 + S.speed * 0.05;
+      p.vx = (p.x - CX) * k * p.d; p.vy = 150 + p.d * 120 + (p.y - hor) * k * p.d;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.y > H || p.x < -10 || p.x > W + 10) S.streaks[i] = newStreak(false);
+    }
+
+    // windshield drops
+    const spawn = S.rain * 110 * dt;
+    let n = Math.floor(spawn) + (Math.random() < spawn % 1 ? 1 : 0);
+    while (n-- > 0 && S.drops.length < 340) {
+      S.drops.push({
+        x: 30 + Math.random() * 262, y: 10 + Math.random() * 130,
+        r: Math.random() < 0.72 ? 1 : 2, vy: -(1 + Math.random() * 5) * (S.speed / 22), age: 0,
+      });
+    }
+    for (let i = S.drops.length - 1; i >= 0; i--) {
+      const d = S.drops[i];
+      d.age += dt; d.y += d.vy * dt; d.x += (d.x - CX) * 0.015 * dt;
+      if (d.y < 6 || d.age > 30) S.drops.splice(i, 1);
+    }
+
+    // wipers: intermittent in drizzle, fast in storm
+    const active = S.rain > 0.06 || S.drops.length > 40;
+    const frac = S.wpPhase % 1;
+    if (active || frac < 0.62) {
+      const T = lerp(4.2, 1.25, clamp(S.rain, 0, 1));
+      S.wpPhase += dt / T;
+    }
+    const p = S.wpPhase % 1;
+    const a = p < 0.62 ? Math.sin(Math.PI * p / 0.62) : 0;
+    S.wpPrev = S.wpAng;
+    S.wpAng = Math.PI + a * (Math.PI / 2 + 0.45);
+    wipeDrops(S.wpPrev, S.wpAng);
+
+    // lightning
+    S.flash *= Math.exp(-dt * 5);
+    S.boltT -= dt;
+    if (S.rain > 0.75 && Math.random() < dt * 0.09) {
+      S.flash = 1;
+      S.boltT = 0.18;
+      const b = []; let x = 40 + Math.random() * 240, y = 0;
+      while (y < HOR - 14) { b.push([x, y]); x += (Math.random() - 0.5) * 8; y += 2 + Math.random() * 4; }
+      S.bolt = b;
+    }
+    if (S.flash > 0.3 && S.flash < 0.35 && Math.random() < 0.5) S.flash = 0.8;
+  }
+
+  function newStreak(anywhere) {
+    return {
+      x: Math.random() * W, y: anywhere ? Math.random() * H : hor - 60 + Math.random() * 70,
+      d: 0.15 + Math.random() * 0.85, vx: 0, vy: 0,
+    };
+  }
+
+  const PIVOTS = [[98, 150, 104], [208, 152, 112]];
+  function wipeDrops(a0, a1) {
+    if (Math.abs(a1 - a0) < 1e-4) return;
+    const lo = Math.min(a0, a1) - 0.02, hi = Math.max(a0, a1) + 0.02;
+    S.drops = S.drops.filter(d => {
+      for (const [px, py, L] of PIVOTS) {
+        const dx = d.x - px, dy = d.y - py, dist = Math.hypot(dx, dy);
+        if (dist < 12 || dist > L + 2) continue;
+        let a = Math.atan2(dy, dx); if (a < 0) a += Math.PI * 2;
+        if (a >= lo && a <= hi) return false;
+      }
+      return true;
+    });
+  }
+
+  // ---------- render ----------
+  function offAt(z) {
+    if (z >= DRAW) return off[DRAW];
+    const i = z | 0, f = z - i;
+    return off[i] + (off[i + 1] - off[i]) * f;
+  }
+  function project(z, wx) {
+    const sc = D / z;
+    return { sc, x: CX + sc * (offAt(z) + wx - playerX), y: hor + sc * CAMH };
+  }
+  function lampPool(s, side) {
+    // side: 0 = left lamps (even), 1 = right lamps (odd)
+    let e = 0;
+    const n0 = Math.floor(s / LAMP_SP) - 1;
+    for (let n = n0; n <= n0 + 3; n++) {
+      if ((((n % 2) + 2) % 2) !== side) continue;
+      const d = Math.abs(s - n * LAMP_SP) / 8;
+      if (d < 1) e += (1 - d) * (1 - d);
+    }
+    return e;
+  }
+
+  function render() {
+    const cloud = clamp(S.rain * 1.6, 0, 1);
+    const fl = S.flash;
+    const fogCol = mix(mix([20, 16, 42], [44, 46, 62], cloud), [150, 150, 180], fl * 0.5);
+    const fogDist = lerp(190, 85, S.rain);
+    const fogAt = z => Math.pow(clamp(z / fogDist, 0, 1), 1.4);
+    hor = HOR + ((Math.sin(S.camS * 1.7) * Math.sin(S.camS * 0.63) > 0.9) ? 1 : 0);
+
+    // curve offsets
+    let x = 0, dx = 0;
+    off[0] = 0;
+    for (let i = 0; i <= DRAW; i++) { dx += curv(S.camS + i); x += dx; off[i + 1] = x; }
+
+    // --- sky ---
+    const top = mix(mix([6, 6, 20], [22, 24, 34], cloud), [120, 120, 150], fl * 0.6);
+    const bot = mix(mix([62, 34, 78], [70, 66, 82], cloud), [190, 190, 210], fl * 0.6);
+    for (let y = 0; y <= hor; y++) {
+      const t = Math.pow(y / hor, 1.8);
+      rect(0, y, W, 1, mix(top, bot, t));
+    }
+    const starA = 1 - cloud;
+    if (starA > 0.02) {
+      for (const [sx, sy, tw] of stars) {
+        const a = starA * (0.5 + 0.5 * Math.sin(S.time * (1 + tw * 3) + tw * 20));
+        const px = ((sx + S.bgX * 0.05) % W + W) % W;
+        ctx.fillStyle = rgba([220, 220, 255], a * (tw > 0.85 ? 1 : 0.6));
+        ctx.fillRect(px | 0, sy | 0, 1, 1);
+      }
+      const mx = ((250 + S.bgX * 0.08) % (W + 40) + W + 40) % (W + 40) - 20;
+      glow(mx, 22, 26, [200, 190, 255], 0.25 * starA);
+      ctx.fillStyle = rgba([235, 230, 205], starA);
+      ctx.beginPath(); ctx.arc(Math.round(mx), 22, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = rgba([190, 185, 170], starA);
+      ctx.fillRect(Math.round(mx) - 2, 20, 2, 2); ctx.fillRect(Math.round(mx) + 2, 24, 1, 1);
+    }
+    if (cloud > 0.02) {
+      for (let i = 0; i < 16; i++) {
+        const w = 60 + hash(i * 17) * 90, hh = 6 + hash(i * 19) * 12;
+        const cx = ((hash(i * 23) * 700 + S.bgX * 0.3 + S.time * 2) % 700 + 700) % 700 - 100;
+        const cy = 2 + hash(i * 29) * 44;
+        const c = mix([34, 34, 46], [150, 150, 175], fl * 0.7);
+        ctx.fillStyle = rgba(c, cloud * 0.75);
+        ctx.fillRect(Math.round(cx + 6), Math.round(cy), Math.round(w - 12), 2);
+        ctx.fillRect(Math.round(cx), Math.round(cy + 2), Math.round(w), Math.round(hh - 4));
+        ctx.fillRect(Math.round(cx + 4), Math.round(cy + hh - 2), Math.round(w - 8), 2);
+      }
+    }
+    if (S.bolt && S.boltT > 0) for (const [bx, by] of S.bolt) { rect(bx, by, 1, 3, [240, 240, 255]); }
+
+    // horizon city glow
+    glow(CX, hor + 4, 180, [255, 120, 90], 0.10 * (1 - cloud * 0.4));
+
+    // --- skyline ---
+    drawSkyline(farCity, S.bgX * 0.25, mix([28, 22, 50], fogCol, 0.5), 0.45, 0.8);
+    drawSkyline(nearCity, S.bgX * 0.45, mix([14, 12, 26], fogCol, 0.25), 0.8, 1);
+
+    // --- road (scanline) ---
+    const amb = 0.55 + fl * 1.2;
+    const wet = S.wet;
+    for (let y = hor + 1; y < H; y++) {
+      const z = D * CAMH / (y - hor);
+      const sc = D / z, s = S.camS + z;
+      const cx = CX + sc * (offAt(z) - playerX), hw = sc * ROADW;
+      const stripe = Math.floor(s / 3) & 1;
+      const f = fogAt(z);
+      const pL = lampPool(s, 0), pR = lampPool(s, 1);
+      const warm = [120, 70, 25];
+      const lit = (base, p) => {
+        const c = [base[0] * amb + warm[0] * p * (0.6 + wet * 0.6), base[1] * amb + warm[1] * p * (0.6 + wet * 0.6), base[2] * amb + warm[2] * p * (0.6 + wet * 0.6)];
+        return mix(c, fogCol, f);
+      };
+      const ground = stripe ? [16, 18, 22] : [19, 21, 26];
+      const walk = [44, 42, 50];
+      const curb = stripe ? [78, 76, 84] : [54, 52, 60];
+      let road = stripe ? [30, 31, 38] : [34, 35, 42];
+      road = mix(road, [20, 22, 34], wet * 0.55);
+
+      rect(0, y, W, 1, lit(ground, (pL + pR) * 0.3));
+      rect(cx - hw * 1.55, y, hw * 3.1, 1, lit(walk, (pL + pR) * 0.5));
+      rect(cx - hw * 1.1, y, hw * 2.2, 1, lit(curb, (pL + pR) * 0.6));
+      rect(cx - hw, y, hw, 1, lit(road, pL + pR * 0.35));
+      rect(cx, y, hw, 1, lit(road, pR + pL * 0.35));
+      const lineC = lit([170, 170, 160], (pL + pR) * 0.6);
+      const lw = Math.max(1, sc * 0.07);
+      rect(cx - hw * 0.93, y, lw, 1, lineC);
+      rect(cx + hw * 0.93 - lw, y, lw, 1, lineC);
+      if ((Math.floor(s / 5) & 1) === 0) rect(cx - lw / 2, y, lw, 1, lineC);
+
+      // our headlights on the road
+      if (z < 34) {
+        const i = Math.pow(1 - z / 34, 1.3) * 0.5;
+        ctx.globalCompositeOperation = "lighter";
+        rect(CX - sc * 0.35 - sc * 1.25, y, sc * 2.5, 1, rgba([90, 88, 70], i * (1 - wet * 0.3)));
+        ctx.globalCompositeOperation = "source-over";
+      }
+    }
+
+    // --- sprites ---
+    const sprites = [];
+    const sMin = S.camS + 1.2, sMax = S.camS + DRAW - 2;
+    for (let n = Math.ceil(sMin / LAMP_SP); n * LAMP_SP < sMax; n++)
+      sprites.push({ z: n * LAMP_SP - S.camS, kind: "lamp", side: (n & 1) ? 1 : -1 });
+    for (let n = Math.ceil(sMin / 8); n * 8 < sMax; n++) {
+      sprites.push({ z: n * 8 - S.camS, kind: "post", side: -1 });
+      sprites.push({ z: n * 8 + 4 - S.camS, kind: "post", side: 1 });
+    }
+    for (let n = Math.ceil(sMin / 11); n * 11 < sMax; n++)
+      if (hash(n * 5 + 1) > 0.45) sprites.push({ z: n * 11 - S.camS, kind: "tree", side: -1, id: n });
+    for (let n = Math.ceil(sMin / 9); n * 9 < sMax; n++)
+      for (const side of [-1, 1]) if (hash(n * 7 + side * 3) > 0.35) sprites.push({ z: n * 9 - S.camS, kind: "bldg", side, id: n * 2 + (side > 0 ? 1 : 0) });
+    for (let n = Math.ceil(sMin / 290); n * 290 < sMax; n++) sprites.push({ z: n * 290 - S.camS, kind: "sign", side: -1 });
+    for (const c of S.ahead) { const z = c.s - S.camS; if (z > 2 && z < DRAW - 2) sprites.push({ z, kind: "car", on: false, col: c.col }); }
+    for (const c of S.oncoming) { const z = c.s - S.camS; if (z > 1.5 && z < DRAW - 2) sprites.push({ z, kind: "car", on: true, col: c.col }); }
+    sprites.sort((a, b) => b.z - a.z);
+
+    // wet reflections of every light source, drawn onto the road first
+    if (wet > 0.05) {
+      ctx.globalCompositeOperation = "lighter";
+      for (const sp of sprites) {
+        if (sp.kind === "lamp") {
+          const p = project(sp.z, sp.side * (ROADW - 0.25));
+          const ly = p.y - p.sc * 5.4;
+          reflect(p.x, p.y, (p.y - ly) * 0.9, Math.max(1, p.sc * 0.5), [255, 160, 70], wet * 0.45 * (1 - fogAt(sp.z)));
+        } else if (sp.kind === "car") {
+          const lx = sp.on ? ROADW / 2 : -ROADW / 2;
+          const p = project(sp.z, lx);
+          const c = sp.on ? [230, 230, 255] : [255, 40, 40];
+          for (const s2 of [-1, 1]) reflect(p.x + s2 * p.sc * 0.6, p.y, p.sc * 3 + 6, Math.max(1, p.sc * 0.25), c, wet * 0.5 * (1 - fogAt(sp.z)));
+        }
+      }
+      ctx.globalCompositeOperation = "source-over";
+    }
+
+    for (const sp of sprites) drawSprite(sp, fogAt(sp.z), fogCol, amb);
+
+    // --- rain streaks outside ---
+    if (S.streaks.length) {
+      for (const p of S.streaks) {
+        const len = 0.018 + p.d * 0.02;
+        const bright = p.y > hor && Math.abs(p.x - CX + 10) < 70 ? 1.4 : 1;
+        pxLine(p.x, p.y, p.x - p.vx * len, p.y - p.vy * len, rgba([170, 190, 235], (0.12 + p.d * 0.3) * bright));
+      }
+    }
+
+    // flash overlay
+    if (fl > 0.02) { ctx.fillStyle = rgba([200, 200, 230], fl * 0.25); ctx.fillRect(0, 0, W, H); }
+
+    // --- windshield ---
+    drawDrops(amb);
+    drawWipers();
+    drawInterior(sprites, fl);
+  }
+
+  function reflect(x, y0, len, w, c, a) {
+    if (a <= 0.01) return;
+    const g = ctx.createLinearGradient(0, y0, 0, y0 + len);
+    g.addColorStop(0, rgba(c, a)); g.addColorStop(1, rgba(c, 0));
+    ctx.fillStyle = g;
+    const wob = Math.sin(S.time * 7 + x) * 0.5;
+    ctx.fillRect(Math.round(x - w / 2 + wob), Math.round(y0), Math.max(1, Math.round(w)), Math.round(len));
+  }
+
+  function drawSkyline(list, ox, col, winA, towerA) {
+    const wrap = 1024;
+    for (const b of list) {
+      const x = ((b.x + ox) % wrap + wrap) % wrap - 60;
+      if (x > W || x + b.w < 0) continue;
+      const y = hor - b.h;
+      rect(x, y, b.w, b.h, col);
+      const a = winA * (1 - S.rain * 0.55);
+      for (let i = 0; i < b.wins.length; i += 3) {
+        ctx.fillStyle = b.wins[i + 2] ? rgba([170, 210, 255], a * 0.8) : rgba([255, 196, 110], a);
+        ctx.fillRect(Math.round(x + b.wins[i]), y + b.wins[i + 1], 1, 1);
+      }
+      if (b.tower && Math.sin(S.time * 3 + b.x) > 0.3) {
+        rect(x + (b.w >> 1), y - 1, 1, 1, [255, 50, 50]);
+        glow(x + (b.w >> 1) + 0.5, y - 0.5, 4, [255, 40, 40], 0.5 * towerA);
+      }
+    }
+  }
+
+  function drawSprite(sp, f, fogCol, amb) {
+    const fade = 1 - f;
+    const dark = c => mix([c[0] * amb, c[1] * amb, c[2] * amb], fogCol, f);
+    if (sp.kind === "lamp") {
+      const baseX = sp.side * (ROADW + 0.7);
+      const p = project(sp.z, baseX), q = project(sp.z, sp.side * (ROADW - 0.25));
+      const hgt = 5.4 * p.sc;
+      const pw = Math.max(1, p.sc * 0.14);
+      rect(p.x - pw / 2, p.y - hgt, pw, hgt, dark([40, 40, 48]));
+      rect(Math.min(p.x, q.x), p.y - hgt, Math.abs(q.x - p.x) + 1, pw, dark([40, 40, 48]));
+      const hx = q.x, hy = p.y - hgt + pw;
+      rect(hx - p.sc * 0.3, hy, p.sc * 0.6, Math.max(1, p.sc * 0.12), mix([255, 220, 150], fogCol, f * 0.6));
+      ctx.globalCompositeOperation = "lighter";
+      glow(hx, hy + 1, 6 + p.sc * 2.2, [255, 150, 60], 0.55 * fade + 0.1);
+      if (S.rain > 0.1) glow(hx, hy + p.sc * 1.5, p.sc * 3, [255, 170, 90], 0.12 * S.rain * fade);
+      ctx.globalCompositeOperation = "source-over";
+    } else if (sp.kind === "post") {
+      const p = project(sp.z, sp.side * (ROADW + 0.3));
+      const h = 0.8 * p.sc, w = Math.max(1, p.sc * 0.08);
+      rect(p.x - w / 2, p.y - h, w, h, dark([90, 90, 96]));
+      const hl = sp.z < 45 ? (1 - sp.z / 45) : 0;
+      const rc = sp.side < 0 ? [255, 190, 60] : [230, 230, 255];
+      rect(p.x - w / 2, p.y - h, w, Math.max(1, h * 0.2), mix(mix([60, 60, 60], rc, hl), fogCol, f));
+    } else if (sp.kind === "tree") {
+      const p = project(sp.z, -(ROADW + 2.1 + hash(sp.id) * 1.5));
+      const th = 1.4 * p.sc, tw = Math.max(1, p.sc * 0.2);
+      rect(p.x - tw / 2, p.y - th, tw, th, dark([26, 20, 18]));
+      const r = (1.1 + hash(sp.id * 3) * 0.6) * p.sc;
+      const cy = p.y - th - r * 0.7;
+      const pl = lampPool(sp.z + S.camS, 0);
+      const c = mix(dark([14, 32, 26]), [90, 60, 20], pl * 0.35 * (1 - f));
+      rect(p.x - r, cy - r * 0.6, r * 2, r * 1.2, c);
+      rect(p.x - r * 0.7, cy - r, r * 1.4, r * 1.9, c);
+    } else if (sp.kind === "bldg") {
+      const w = 4 + hash(sp.id * 11) * 6, h = 5 + Math.pow(hash(sp.id * 13), 1.5) * 16;
+      const wx = sp.side * (ROADW + 6 + hash(sp.id * 17) * 8 + w / 2);
+      const p = project(sp.z, wx);
+      const x0 = p.x - w * p.sc / 2, y0 = p.y - h * p.sc;
+      rect(x0, y0, w * p.sc, h * p.sc, dark([22, 20, 34]));
+      const pitch = 1.3 * p.sc;
+      if (pitch >= 2) {
+        const cols = Math.floor(w / 1.3), rows = Math.floor(h / 1.6);
+        const ws = Math.max(1, p.sc * 0.55), wh = Math.max(1, p.sc * 0.7);
+        for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+          const hv = hash(sp.id * 1013 + r * 37 + c);
+          if (hv < 0.62) continue;
+          const wc = hv > 0.93 ? [150, 200, 255] : [255, 190, 100];
+          rect(x0 + (c + 0.5) * pitch + (w * p.sc - cols * pitch) / 2, y0 + (r + 0.6) * 1.6 * p.sc, ws, wh, mix(wc, fogCol, f * 0.8));
+        }
+      }
+    } else if (sp.kind === "sign") {
+      const p = project(sp.z, -(ROADW + 1.4));
+      const pw = Math.max(1, p.sc * 0.1);
+      rect(p.x - p.sc * 1.0, p.y - 2.3 * p.sc, pw, 2.3 * p.sc, dark([60, 60, 66]));
+      rect(p.x + p.sc * 1.0, p.y - 2.3 * p.sc, pw, 2.3 * p.sc, dark([60, 60, 66]));
+      const hl = sp.z < 60 ? 1 - sp.z / 60 : 0;
+      const g = mix(mix([12, 60, 34], [30, 150, 80], hl), fogCol, f);
+      const bx = p.x - 1.3 * p.sc, by = p.y - 3.9 * p.sc, bw = 2.6 * p.sc, bh = 1.6 * p.sc;
+      rect(bx, by, bw, bh, g);
+      const wcol = mix(mix([110, 110, 110], [240, 240, 240], hl), fogCol, f);
+      if (bw > 6) {
+        rect(bx, by, bw, 1, wcol); rect(bx, by + bh - 1, bw, 1, wcol);
+        rect(bx, by, 1, bh, wcol); rect(bx + bw - 1, by, 1, bh, wcol);
+        rect(bx + bw * 0.15, by + bh * 0.3, bw * 0.5, Math.max(1, bh * 0.12), wcol);
+        rect(bx + bw * 0.15, by + bh * 0.6, bw * 0.35, Math.max(1, bh * 0.12), wcol);
+        rect(bx + bw * 0.72, by + bh * 0.3, bw * 0.12, bh * 0.45, wcol);
+      }
+    } else if (sp.kind === "car") {
+      const lx = sp.on ? ROADW / 2 : -ROADW / 2;
+      const p = project(sp.z, lx);
+      const w = 1.8 * p.sc, h = 1.35 * p.sc;
+      rect(p.x - w / 2, p.y - h * 0.55, w, h * 0.55, dark(sp.col.map(v => v * 0.6)));
+      rect(p.x - w * 0.38, p.y - h, w * 0.76, h * 0.46, dark([16, 18, 26]));
+      rect(p.x - w * 0.32, p.y - h * 0.94, w * 0.64, h * 0.3, dark([34, 38, 54]));
+      rect(p.x - w / 2, p.y - Math.max(1, h * 0.08), w, Math.max(1, h * 0.08), [6, 6, 8]);
+      const ls = Math.max(1, p.sc * 0.2), ly = p.y - h * 0.38;
+      const lc = sp.on ? [255, 250, 225] : [255, 40, 40];
+      const fade = 1 - f * 0.6;
+      for (const s2 of [-1, 1]) {
+        const lx2 = p.x + s2 * w * 0.34;
+        rect(lx2 - ls / 2, ly - ls / 2, ls, ls, lc);
+        ctx.globalCompositeOperation = "lighter";
+        glow(lx2, ly, (sp.on ? 8 : 4) + p.sc * (sp.on ? 1.6 : 0.8), sp.on ? [255, 240, 200] : [255, 30, 30], (sp.on ? 0.6 : 0.5) * fade);
+        ctx.globalCompositeOperation = "source-over";
+      }
+      if (sp.on && sp.z < 45) {
+        // glare streak on the glass
+        const a = (1 - sp.z / 45) * 0.35;
+        ctx.globalCompositeOperation = "lighter";
+        rect(p.x - 30 - p.sc * 3, ly, 60 + p.sc * 6, 1, rgba([200, 210, 255], a));
+        ctx.globalCompositeOperation = "source-over";
+      }
+    }
+  }
+
+  function drawDrops(amb) {
+    for (const d of S.drops) {
+      const x = Math.round(d.x), y = Math.round(d.y);
+      const a = Math.min(1, d.age * 6);
+      if (d.r === 1) {
+        ctx.fillStyle = rgba([190, 200, 235], 0.55 * a); ctx.fillRect(x, y, 1, 1);
+        ctx.fillStyle = rgba([5, 5, 12], 0.4 * a); ctx.fillRect(x + 1, y + 1, 1, 1);
+      } else {
+        ctx.fillStyle = rgba([120, 130, 170], 0.35 * a); ctx.fillRect(x - 1, y - 1, 3, 3);
+        ctx.fillStyle = rgba([230, 235, 255], 0.75 * a); ctx.fillRect(x - 1, y - 1, 1, 1);
+        ctx.fillStyle = rgba([5, 5, 12], 0.45 * a); ctx.fillRect(x, y + 2, 2, 1); ctx.fillRect(x + 2, y, 1, 2);
+      }
+    }
+  }
+
+  function drawWipers() {
+    for (const [px, py, L] of PIVOTS) {
+      const a = S.wpAng;
+      const ex = px + Math.cos(a) * L, ey = py + Math.sin(a) * L;
+      pxLine(px, py, px + Math.cos(a) * L * 0.9, py + Math.sin(a) * L * 0.9, "rgb(12,12,16)", 2);
+      pxLine(px + Math.cos(a) * L * 0.25, py + Math.sin(a) * L * 0.25, ex, ey, "rgb(22,22,28)", 1);
+    }
+  }
+
+  function drawInterior(sprites, fl) {
+    // interior light from nearby lamps / oncoming headlights / lightning
+    let lamp = 0, glare = 0;
+    for (const sp of sprites) {
+      if (sp.kind === "lamp" && sp.z < 14) lamp += Math.exp(-((sp.z - 3) ** 2) / 18) * (sp.side < 0 ? 1 : 0.6);
+      if (sp.kind === "car" && sp.on && sp.z < 30) glare += (1 - sp.z / 30) * 0.8;
+    }
+    lamp = Math.min(1, lamp);
+    const L = (base, k = 1) => [
+      base[0] + (lamp * 36 + glare * 30 + fl * 90) * k,
+      base[1] + (lamp * 22 + glare * 30 + fl * 90) * k,
+      base[2] + (lamp * 8 + glare * 40 + fl * 110) * k,
+    ];
+
+    // roof
+    for (let x = 0; x < W; x++) {
+      const t = (x - 160) / 175;
+      const rh = Math.round(6 + 5 * (1 - t * t));
+      rect(x, 0, 1, rh, L([10, 10, 14], 0.3));
+      rect(x, rh, 1, 1, L([24, 22, 30], 0.6));
+    }
+    // rear-view mirror
+    rect(163, 9, 2, 4, L([14, 14, 18], 0.3));
+    rect(142, 12, 46, 12, L([14, 14, 18], 0.3));
+    rect(144, 14, 42, 8, [18, 16, 34]);
+    const mb = (Math.sin(S.time * 0.3) + 1) * 4;
+    rect(158 + mb, 18, 1, 1, [255, 250, 220]); rect(166 + mb, 18, 1, 1, [255, 250, 220]);
+    glow(162.5 + mb, 18.5, 6, [255, 240, 200], 0.35);
+    rect(144, 14, 42, 1, L([40, 40, 52], 0.5));
+
+    // A-pillars (right-hand drive: right pillar is close and thick)
+    for (let y = 0; y < 150; y++) {
+      const le = Math.round(26 - y * 0.12);
+      rect(0, y, le, 1, L([9, 9, 13], 0.35));
+      rect(le, y, 1, 1, L([28, 26, 36], 0.8));
+      const re = Math.round(278 + y * 0.13);
+      rect(re, y, W - re, 1, L([8, 8, 12], 0.45));
+      rect(re - 1, y, 1, 1, L([30, 28, 38], 0.9));
+    }
+
+    // dashboard
+    const dashY = x => {
+      const b = Math.max(0, 1 - ((x - 162) / 44) ** 2);
+      return Math.round(143 - 14 * Math.sqrt(b) + Math.abs(x - 162) * 0.015);
+    };
+    for (let x = 0; x < W; x++) {
+      const y = dashY(x);
+      rect(x, y, 1, H - y, L([11, 11, 16], 0.35));
+      rect(x, y, 1, 1, L([34, 32, 44], 0.9));
+    }
+    // faint dash reflection on the glass
+    ctx.fillStyle = rgba([60, 60, 80], 0.06 + lamp * 0.05);
+    ctx.fillRect(30, 118, 250, 10);
+
+    // meter hood face + gauges
+    rect(126, 131, 72, 20, [6, 6, 10]);
+    const kmh = Math.round(S.speed * 3.6);
+    gauge(144, 143, 9, -2.4 + (kmh / 180) * 3.6, [80, 220, 235]);
+    gauge(180, 143, 9, -2.4 + (0.25 + (kmh / 180) * 0.4 + 0.03 * Math.sin(S.time * 4)) * 3.6, [255, 170, 70]);
+    text(String(kmh).padStart(3, " "), 156, 136, [120, 230, 240]);
+    glow(162, 143, 34, [70, 200, 230], 0.08);
+
+    // center console display (music)
+    rect(58, 147, 50, 20, L([16, 16, 22], 0.4));
+    rect(61, 149, 44, 15, [8, 10, 22]);
+    const mins = 23 * 60 + 47 + Math.floor(S.time / 60);
+    const clock = `${String(Math.floor(mins / 60) % 24).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+    text(clock, 62, 151, [255, 170, 90]);
+    for (let i = 0; i < 9; i++) {
+      const v = Math.abs(Math.sin(S.time * (2.1 + i * 0.7) + i * 1.9)) * 0.7 + 0.3 * Math.abs(Math.sin(S.time * 5 + i));
+      const bh = Math.max(1, Math.round(v * 6));
+      rect(84 + i * 2, 162 - bh, 1, bh, i % 2 ? [200, 90, 220] : [90, 210, 230]);
+    }
+    glow(83, 156, 24, [120, 120, 255], 0.12);
+    // vents
+    rect(40, 150, 14, 6, [6, 6, 9]); rect(40, 152, 14, 1, L([24, 22, 30], 0.5));
+
+    // steering wheel (ring + slight rotation from curve)
+    const wcx = 166, wcy = 214, ro = 64, ri = 57;
+    for (let y = wcy - ro; y < H; y++) {
+      const dy = y - wcy;
+      const xo = Math.sqrt(Math.max(0, ro * ro - dy * dy));
+      const xi = Math.abs(dy) < ri ? Math.sqrt(ri * ri - dy * dy) : 0;
+      const c = L([15, 15, 20], 0.5);
+      if (xi > 0) { rect(wcx - xo, y, xo - xi, 1, c); rect(wcx + xi, y, xo - xi, 1, c); }
+      else rect(wcx - xo, y, xo * 2, 1, c);
+    }
+    for (let a = -Math.PI; a <= 0; a += 0.02) {
+      ctx.fillStyle = rgb(L([34, 32, 42], 0.8));
+      ctx.fillRect(Math.round(wcx + Math.cos(a) * ro), Math.round(wcy + Math.sin(a) * ro), 1, 1);
+    }
+    const steer = -Math.PI / 2 + curv(S.camS + 10) * 260;
+    rect(wcx + Math.cos(steer) * 60.5 - 1, wcy + Math.sin(steer) * 60.5 - 1, 3, 3, [90, 70, 60]);
+    // spokes
+    for (const a of [-0.35, Math.PI + 0.35]) {
+      pxLine(wcx + Math.cos(a + steer + Math.PI / 2) * 12, wcy + Math.sin(a + steer + Math.PI / 2) * 12,
+        wcx + Math.cos(a + steer + Math.PI / 2) * ri, wcy + Math.sin(a + steer + Math.PI / 2) * ri, rgb(L([13, 13, 18], 0.4)), 4);
+    }
+  }
+
+  function gauge(cx, cy, r, ang, col) {
+    ctx.fillStyle = rgba(col, 0.55);
+    for (let a = -2.4; a <= 1.2; a += 0.05) ctx.fillRect(Math.round(cx + Math.cos(a - Math.PI / 2 + 0.6) * r), Math.round(cy + Math.sin(a - Math.PI / 2 + 0.6) * r), 1, 1);
+    for (let t = 0; t <= 6; t++) {
+      const a = -2.4 + t * 0.6 - Math.PI / 2 + 0.6;
+      ctx.fillStyle = rgba(col, 0.9);
+      ctx.fillRect(Math.round(cx + Math.cos(a) * (r - 2)), Math.round(cy + Math.sin(a) * (r - 2)), 1, 1);
+    }
+    const a = ang - Math.PI / 2 + 0.6;
+    pxLine(cx, cy, cx + Math.cos(a) * (r - 1), cy + Math.sin(a) * (r - 1), "rgb(255,70,60)");
+    ctx.fillStyle = "rgb(40,40,50)"; ctx.fillRect(cx, cy, 1, 1);
+  }
+
+  // ---------- pixel post-process (216-colour palette + Bayer dither) ----------
+  const LEVELS = [0, 16, 38, 72, 140, 255];
+  const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  const LO = new Uint8Array(256), FR = new Uint8Array(256), NEAR = new Uint8Array(256);
+  for (let v = 0; v < 256; v++) {
+    let i = 0; while (i < 4 && v >= LEVELS[i + 1]) i++;
+    const a = LEVELS[i], b = LEVELS[Math.min(5, i + 1)];
+    LO[v] = i; FR[v] = b > a ? Math.round(((v - a) / (b - a)) * 16) : 0;
+    NEAR[v] = v - a < b - v ? i : Math.min(5, i + 1);
+  }
+  const indexBuf = new Uint8Array(W * H);
+  function postProcess() {
+    const img = ctx.getImageData(0, 0, W, H), d = img.data;
+    const dither = S.dither;
+    for (let y = 0, p = 0; y < H; y++) {
+      for (let x = 0; x < W; x++, p++) {
+        const o = p * 4, th = BAYER[(x & 3) + ((y & 3) << 2)];
+        let r, g, b;
+        if (dither) {
+          r = LO[d[o]] + (FR[d[o]] > th ? 1 : 0);
+          g = LO[d[o + 1]] + (FR[d[o + 1]] > th ? 1 : 0);
+          b = LO[d[o + 2]] + (FR[d[o + 2]] > th ? 1 : 0);
+        } else { r = NEAR[d[o]]; g = NEAR[d[o + 1]]; b = NEAR[d[o + 2]]; }
+        if (r > 5) r = 5; if (g > 5) g = 5; if (b > 5) b = 5;
+        indexBuf[p] = r * 36 + g * 6 + b;
+        d[o] = LEVELS[r]; d[o + 1] = LEVELS[g]; d[o + 2] = LEVELS[b]; d[o + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return indexBuf;
+  }
+
+  function frame(dt) {
+    step(dt);
+    render();
+    const idx = postProcess();
+    vctx.drawImage(low, 0, 0, view.width, view.height);
+    return idx;
+  }
+
+  // ---------- GIF encoder ----------
+  const PALETTE = new Uint8Array(256 * 3);
+  for (let i = 0; i < 216; i++) {
+    PALETTE[i * 3] = LEVELS[(i / 36) | 0]; PALETTE[i * 3 + 1] = LEVELS[((i / 6) | 0) % 6]; PALETTE[i * 3 + 2] = LEVELS[i % 6];
+  }
+  function lzw(ix, out) {
+    const min = 8, clear = 256, eoi = 257;
+    let size = 9, next = 258, cur = 0, bits = 0;
+    const dict = new Map();
+    const bytes = [];
+    const emit = c => { cur |= c << bits; bits += size; while (bits >= 8) { bytes.push(cur & 255); cur >>>= 8; bits -= 8; } };
+    emit(clear);
+    let prefix = ix[0];
+    for (let i = 1; i < ix.length; i++) {
+      const k = ix[i], key = prefix * 256 + k, v = dict.get(key);
+      if (v !== undefined) { prefix = v; continue; }
+      emit(prefix);
+      if (next < 4095) { dict.set(key, next++); if (next > (1 << size) && size < 12) size++; }
+      else { emit(clear); dict.clear(); size = 9; next = 258; }
+      prefix = k;
+    }
+    emit(prefix); emit(eoi);
+    if (bits > 0) bytes.push(cur & 255);
+    out.push(min);
+    for (let i = 0; i < bytes.length; i += 255) {
+      const n = Math.min(255, bytes.length - i);
+      out.push(n); for (let j = 0; j < n; j++) out.push(bytes[i + j]);
+    }
+    out.push(0);
+  }
+  function gifHeader(w, h) {
+    const o = [];
+    for (const ch of "GIF89a") o.push(ch.charCodeAt(0));
+    o.push(w & 255, w >> 8, h & 255, h >> 8, 0xf7, 0, 0);
+    for (let i = 0; i < 768; i++) o.push(PALETTE[i]);
+    o.push(0x21, 0xff, 0x0b); for (const ch of "NETSCAPE2.0") o.push(ch.charCodeAt(0));
+    o.push(0x03, 0x01, 0, 0, 0);
+    return o;
+  }
+  function gifFrame(o, ix, w, h, delayCs) {
+    o.push(0x21, 0xf9, 0x04, 0x04, delayCs & 255, delayCs >> 8, 0, 0);
+    o.push(0x2c, 0, 0, 0, 0, w & 255, w >> 8, h & 255, h >> 8, 0);
+    lzw(ix, o);
+  }
+  function upscale(ix, k) {
+    if (k === 1) return ix.slice();
+    const w = W * k, out = new Uint8Array(w * H * k);
+    for (let y = 0; y < H * k; y++) {
+      const sy = ((y / k) | 0) * W, row = y * w;
+      for (let x = 0; x < w; x++) out[row + x] = ix[sy + ((x / k) | 0)];
+    }
+    return out;
+  }
+  async function makeGif(seconds = 8, scale = 2, fps = 20, onProgress) {
+    const n = Math.round(seconds * fps), w = W * scale, h = H * scale;
+    const out = gifHeader(w, h);
+    const delay = Math.round(100 / fps);
+    for (let i = 0; i < n; i++) {
+      const ix = frame(1 / fps);
+      gifFrame(out, upscale(ix, scale), w, h, delay);
+      if (i % 4 === 3) { onProgress && onProgress(i + 1, n); await new Promise(r => setTimeout(r, 0)); }
+    }
+    out.push(0x3b);
+    return new Uint8Array(out);
+  }
+
+  // ---------- main loop & UI ----------
+  let last = performance.now(), busy = false;
+  function loop(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (!S.paused && !busy) frame(dt);
+    requestAnimationFrame(loop);
+  }
+
+  const status = document.getElementById("status");
+  const out = document.getElementById("out");
+  const wButtons = [...document.querySelectorAll("[data-w]")];
+  function setWeather(w) {
+    S.weather = w;
+    wButtons.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.w === w)));
+  }
+  wButtons.forEach(b => b.addEventListener("click", () => setWeather(b.dataset.w)));
+  document.getElementById("speed").addEventListener("input", e => { S.baseSpeed = +e.target.value; });
+  const dBtn = document.getElementById("dither");
+  dBtn.addEventListener("click", () => { S.dither = !S.dither; dBtn.setAttribute("aria-pressed", String(S.dither)); });
+  const pBtn = document.getElementById("pause");
+  function togglePause() { S.paused = !S.paused; pBtn.setAttribute("aria-pressed", String(S.paused)); pBtn.textContent = S.paused ? "再生" : "一時停止"; }
+  pBtn.addEventListener("click", togglePause);
+  window.addEventListener("keydown", e => { if (e.code === "Space" && e.target === document.body) { e.preventDefault(); togglePause(); } });
+
+  const gifBtn = document.getElementById("gif");
+  gifBtn.addEventListener("click", async () => {
+    busy = true; gifBtn.disabled = true;
+    const sec = +document.getElementById("gifsec").value, sc = +document.getElementById("gifscale").value;
+    try {
+      const bytes = await makeGif(sec, sc, 20, (i, n) => { status.textContent = `GIF 生成中… ${i}/${n} フレーム`; });
+      const url = URL.createObjectURL(new Blob([bytes], { type: "image/gif" }));
+      const img = new Image(); img.src = url; img.alt = "書き出したドライブGIF";
+      out.prepend(img);
+      status.textContent = `GIF ができました（${(bytes.length / 1024 / 1024).toFixed(1)} MB）。右クリック／長押しで保存できます。`;
+    } catch (err) {
+      status.textContent = `GIF の生成に失敗しました: ${err.message}`;
+    } finally { busy = false; gifBtn.disabled = false; last = performance.now(); }
+  });
+
+  const webmBtn = document.getElementById("webm");
+  let rec = null;
+  webmBtn.addEventListener("click", () => {
+    if (rec) { rec.stop(); return; }
+    if (!view.captureStream || typeof MediaRecorder === "undefined") { status.textContent = "このブラウザは動画録画に対応していません。GIF をお使いください。"; return; }
+    const chunks = [];
+    const type = ["video/webm;codecs=vp9", "video/webm", "video/mp4"].find(t => MediaRecorder.isTypeSupported(t)) || "";
+    rec = new MediaRecorder(view.captureStream(30), type ? { mimeType: type, videoBitsPerSecond: 8e6 } : undefined);
+    rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+    rec.onstop = () => {
+      const v = document.createElement("video");
+      v.src = URL.createObjectURL(new Blob(chunks, { type: rec.mimeType || "video/webm" }));
+      v.controls = true; v.loop = true; v.muted = true; v.autoplay = true;
+      out.prepend(v);
+      status.textContent = "録画しました。動画の右クリック／長押しで保存できます。";
+      rec = null; webmBtn.textContent = "動画を録画";
+    };
+    rec.start();
+    webmBtn.textContent = "録画を止める";
+    status.textContent = "録画中… もう一度押すと停止します。";
+  });
+
+  // warm up so the first frame already shows traffic, lamps and (in auto) a dry road
+  for (let i = 0; i < 30; i++) step(1 / 30);
+  window.NightDrive = { S, makeGif, frame, setWeather };
+  requestAnimationFrame(loop);
+})();
+</script>
