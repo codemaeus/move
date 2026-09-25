@@ -1,0 +1,1214 @@
+<title>Kaiju Clash</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #f3e7df;
+    --dim: #a38f86;
+    --ground: #120a0a;
+    --panel: #1f1212;
+    --line: #4a2a26;
+    --fire: #ff8a3d;
+    --volt: #7fe3ff;
+    --font: "DotGothic16", "MS Gothic", "Osaka-Mono", ui-monospace, monospace;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--font); font-size: 15px;
+    padding-inline: 16px; padding-block: 16px 24px; box-sizing: border-box; }
+  .wrap { max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 22px; font-weight: 400; letter-spacing: 0.08em; }
+  h1 .a { color: var(--fire); } h1 .b { color: var(--volt); }
+  .sub { color: var(--dim); font-size: 13px; }
+  .screen { position: relative; width: 100%; aspect-ratio: 16 / 9; max-width: 100%; background: #000; border: 1px solid var(--line); }
+  #view { width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  .row { display: grid; grid-template-columns: 1fr minmax(0, 320px); gap: 14px; align-items: start; }
+  @media (max-width: 760px) { .row { grid-template-columns: 1fr; } }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+  .group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .label { color: var(--dim); font-size: 12px; letter-spacing: 0.1em; }
+  button, select { font-family: var(--font); font-size: 14px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); padding: 6px 10px; cursor: pointer; }
+  button[aria-pressed="true"] { border-color: var(--fire); color: var(--fire); }
+  button.a { border-color: #7a3a1a; } button.b { border-color: #1f5a6e; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--volt); outline-offset: 2px; }
+  button:disabled { opacity: 0.5; cursor: wait; }
+  input[type="range"] { accent-color: var(--fire); width: 110px; }
+  .log { margin: 0; padding: 10px 12px; list-style: none; background: var(--panel); border: 1px solid var(--line); min-height: 150px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+  .log li { display: flex; gap: 8px; }
+  .log time { color: var(--dim); font-variant-numeric: tabular-nums; flex: none; }
+  .log li.a { color: var(--fire); } .log li.b { color: var(--volt); } .log li.sys { color: #ffe08a; }
+  #status { color: var(--volt); font-size: 13px; min-height: 1.2em; }
+  .out { display: flex; flex-direction: column; gap: 8px; }
+  .out img, .out video { max-width: 100%; image-rendering: pixelated; border: 1px solid var(--line); }
+  .hint { color: var(--dim); font-size: 12px; line-height: 1.6; margin: 0; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1><span class="a">ボルガ</span> 対 <span class="b">ジンライ</span></h1>
+    <span class="sub">怪獣大決戦 / 320×180 ピクセル / 自動バトル</span>
+  </header>
+  <div class="screen"><canvas id="view" width="1280" height="720"></canvas></div>
+  <div class="row">
+    <div class="controls">
+      <div class="group">
+        <button id="sound" aria-pressed="false">音を出す</button>
+        <button id="bgm" aria-pressed="true">BGM</button>
+        <label class="label" for="vol">音量</label>
+        <input id="vol" type="range" min="0" max="100" value="70">
+      </div>
+      <div class="group" role="group" aria-label="技を出させる">
+        <span class="label">技</span>
+        <button class="a" data-m="A:breath">火炎放射</button>
+        <button class="a" data-m="A:tail">尻尾</button>
+        <button class="b" data-m="B:beam">雷撃ビーム</button>
+        <button class="b" data-m="B:grab">投げ</button>
+        <button class="b" data-m="B:rock">ビル投げ</button>
+        <button data-m="X:special">必殺技</button>
+      </div>
+      <div class="group">
+        <button id="slow" aria-pressed="false">スロー</button>
+        <button id="pause" aria-pressed="false">一時停止</button>
+        <button id="again">もう一戦</button>
+      </div>
+      <div class="group">
+        <label class="label" for="gifsec">GIF</label>
+        <select id="gifsec"><option value="4">4秒</option><option value="8" selected>8秒</option><option value="12">12秒</option></select>
+        <select id="gifscale" aria-label="GIFサイズ"><option value="1">320×180</option><option value="2" selected>640×360</option></select>
+        <button id="gif">GIFを作る</button>
+        <button id="webm">動画を録画</button>
+      </div>
+      <p class="hint">溶岩怪獣ボルガ（火炎放射・尻尾・マグマノヴァ）と雷獣ジンライ（剛腕パンチ・投げ・ビル投げ・雷撃ビーム・天雷招来）が街で自動で戦います。ヒットストップ、画面の揺れ、フラッシュ、擬音、崩れるビル、戦闘機や戦車の攻撃付き。技ボタンで次の技を指定できます。音はすべてブラウザ内で合成しています。</p>
+    </div>
+    <ul class="log" id="log" aria-live="polite"></ul>
+  </div>
+  <div id="status" role="status"></div>
+  <div class="out" id="out"></div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const W = 320, H = 180, GY = 148, WORLD = 760;
+  const low = document.createElement("canvas"); low.width = W; low.height = H;
+  const ctx = low.getContext("2d", { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = false;
+  const view = document.getElementById("view"), vctx = view.getContext("2d");
+  vctx.imageSmoothingEnabled = false;
+  const FONT = '"DotGothic16", "MS Gothic", monospace';
+  if (document.fonts && document.fonts.load) document.fonts.load(`12px ${FONT}`).catch(() => {});
+
+  // ---------- helpers ----------
+  function hash(i) { let h = Math.imul((i | 0) ^ 0x9e3779b9, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16; return (h >>> 0) / 4294967296; }
+  const mod = (a, n) => ((a % n) + n) % n;
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const rgb = c => `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})`;
+  const rgba = (c, a) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${clamp(a, 0, 1).toFixed(3)})`;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const pick = a => a[(Math.random() * a.length) | 0];
+  function rect(x, y, w, h, c) {
+    const x0 = Math.round(x), y0 = Math.round(y), x1 = Math.round(x + w), y1 = Math.round(y + h);
+    ctx.fillStyle = typeof c === "string" ? c : rgb(c);
+    ctx.fillRect(x0, y0, Math.max(1, x1 - x0), Math.max(1, y1 - y0));
+  }
+  const px = (x, y, c) => { ctx.fillStyle = typeof c === "string" ? c : rgb(c); ctx.fillRect(Math.round(x), Math.round(y), 1, 1); };
+  function pxLine(x0, y0, x1, y1, style, t = 1) {
+    ctx.fillStyle = typeof style === "string" ? style : rgb(style);
+    const dx = x1 - x0, dy = y1 - y0, n = Math.max(Math.abs(dx), Math.abs(dy)) | 0;
+    for (let i = 0; i <= n; i++) { const f = n ? i / n : 0; ctx.fillRect(Math.round(x0 + dx * f), Math.round(y0 + dy * f), t, t); }
+  }
+  function glow(x, y, r, c, a) {
+    if (r < 0.5 || a <= 0.01) return;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, rgba(c, a)); g.addColorStop(0.35, rgba(c, a * 0.35)); g.addColorStop(1, rgba(c, 0));
+    const prev = ctx.globalCompositeOperation; ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); ctx.globalCompositeOperation = prev;
+  }
+
+  // ---------- state ----------
+  const S = {
+    time: 0, camX: 200, trauma: 0, hitstop: 0, slow: 1, userSlow: false, flash: 0, flashCol: [255, 255, 255], impact: 0,
+    round: 1, phase: "intro", phaseT: 0, damage: 0, collapsed: 0, wins: [0, 0],
+    parts: [], texts: [], projs: [], jets: [], cars: [], tanks: [], people: [], bolts: [], cutin: null,
+    nextJet: 12, paused: false, dither: true, heli: { x: 300, t: 0 },
+  };
+  const logEl = document.getElementById("log");
+  function log(msg, cls = "") {
+    const li = document.createElement("li"); li.className = cls;
+    const t = document.createElement("time"); const s = Math.floor(S.time); t.textContent = `R${S.round} ${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+    const sp = document.createElement("span"); sp.textContent = msg;
+    li.append(t, sp); logEl.prepend(li);
+    while (logEl.children.length > 8) logEl.lastChild.remove();
+  }
+
+  // ---------- city ----------
+  let buildings = [], skyline = [];
+  function buildCity() {
+    buildings = [];
+    let x = 6, i = 0;
+    while (x < WORLD - 20) {
+      const w = Math.round(rnd(18, 40)), tall = Math.random() < 0.18;
+      const h = Math.round(tall ? rnd(80, 112) : rnd(26, 70));
+      const hue = pick([[44, 44, 60], [56, 50, 58], [40, 52, 64], [62, 58, 52], [48, 40, 46]]);
+      buildings.push({ x, w, h, hp: w * h * 0.06, max: w * h * 0.06, col: hue, seed: (Math.random() * 1e6) | 0, state: "ok", burn: 0, fallT: 0, glass: 0,
+        roof: pick(["none", "antenna", "tank", "sign", "none"]), signCol: pick([[255, 80, 150], [80, 220, 255], [255, 210, 80], [140, 255, 120]]) });
+      x += w + Math.round(rnd(2, 12)); i++;
+    }
+    skyline = [];
+    for (let sx = 0; sx < 1200; ) { const w = rnd(10, 26), h = rnd(20, 70); skyline.push({ x: sx, w, h, seed: (Math.random() * 1e6) | 0 }); sx += w + rnd(0, 4); }
+    S.cars = []; for (let j = 0; j < 7; j++) S.cars.push(newCar(rnd(0, WORLD)));
+    S.tanks = [0.2, 0.5, 0.8].map(f => ({ x: WORLD * f + rnd(-40, 40), cd: rnd(1, 4), dead: 0 }));
+    S.people = [];
+  }
+  function newCar(x) {
+    const lane = Math.random() < 0.5 ? 0 : 1;
+    return { x, lane, v: (lane ? -1 : 1) * rnd(25, 45), col: pick([[200, 60, 50], [230, 230, 220], [60, 110, 180], [230, 200, 70], [40, 40, 44]]), dead: 0 };
+  }
+
+  // ---------- kaiju ----------
+  const KAIJU = {
+    A: { name: "ボルガ", cls: "a", col: [255, 140, 60] },
+    B: { name: "ジンライ", cls: "b", col: [120, 220, 255] },
+  };
+  function makeKaiju(id, x, face) {
+    return { id, x, y: 0, vx: 0, vy: 0, face, hp: 100, hpTrail: 100, state: "idle", st: 0, think: 0.8, flash: 0, elec: 0,
+      walkPh: 0, stepAcc: 0, pose: { arm: 0, mouth: 0, head: 0, tail: 0, crouch: 0, rot: 0, lift: 0 }, sub: 0, hit: false,
+      special: false, forced: null, combo: 0, spin: 0, glowT: 0 };
+  }
+  let K = [makeKaiju("A", 260, 1), makeKaiju("B", 460, -1)];
+  const other = k => (k === K[0] ? K[1] : K[0]);
+
+  // ---------- particles & texts ----------
+  function part(p) { if (S.parts.length < 1800) S.parts.push(Object.assign({ t: 0, grav: 0, drag: 0, size: 1 }, p)); }
+  function sparks(x, y, n, col, sp = 120) { for (let i = 0; i < n; i++) { const a = rnd(0, Math.PI * 2), v = rnd(sp * 0.4, sp); part({ type: "spark", x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rnd(0.15, 0.35), col, drag: 3 }); } }
+  function dust(x, y, n, spread = 30, big = 1) { for (let i = 0; i < n; i++) part({ type: "dust", x: x + rnd(-spread, spread), y: y - rnd(0, 4), vx: rnd(-30, 30) * big, vy: rnd(-20, -2) * big, life: rnd(0.8, 1.6), size: rnd(3, 7) * big, drag: 1.5 }); }
+  function debris(x, y, n, col, sp = 90) { for (let i = 0; i < n; i++) part({ type: "debris", x, y, vx: rnd(-sp, sp), vy: rnd(-sp * 1.4, -sp * 0.2), life: rnd(1, 2.2), grav: 320, col: mix(col, [0, 0, 0], rnd(0, 0.4)), size: rnd(1, 3) | 0 }); }
+  function smoke(x, y, n, dark = 1) { for (let i = 0; i < n; i++) part({ type: "smoke", x: x + rnd(-4, 4), y, vx: rnd(-6, 6) + 6, vy: rnd(-22, -10), life: rnd(1.5, 3), size: rnd(3, 6), dark }); }
+  function flame(x, y, vx, vy, life = 0.6, owner = null) { part({ type: "fire", x, y, vx, vy, life, drag: 0.8, owner, size: rnd(2, 4) }); }
+  function text(str, x, y, col, size = 16, life = 0.9) { const t = { str, x, y, col, size, life, t: 0, rot: rnd(-0.18, 0.18) }; S.texts.push(t); return t; }
+  function shake(a) { S.trauma = Math.min(1, S.trauma + a); }
+  function flashScreen(a, col = [255, 255, 255]) { S.flash = Math.max(S.flash, a); S.flashCol = col; }
+
+  // ---------- combat ----------
+  const alive = k => k.state !== "ko";
+  const grounded = k => k.y >= 0 && k.state !== "flying";
+  function bodyBox(k) { return { x0: k.x - 17, x1: k.x + 17, y0: GY + k.y - 58, y1: GY + k.y }; }
+  function inBody(k, x, y, pad = 0) { const b = bodyBox(k); return x > b.x0 - pad && x < b.x1 + pad && y > b.y0 - pad && y < b.y1 + pad; }
+  function hit(att, def, dmg, kb, o = {}) {
+    if (!alive(def) || S.phase !== "fight") return false;
+    if ((def.state === "down" || def.state === "flying" || def.state === "getup") && !o.otg) return false;
+    def.hp = Math.max(0, def.hp - dmg);
+    def.flash = 0.12;
+    def.vx = att.face * kb;
+    S.hitstop = Math.max(S.hitstop, o.stop ?? 0.09);
+    shake(o.shake ?? 0.35);
+    const hx = def.x - att.face * 10, hy = GY + def.y - (o.h ?? 34);
+    if (o.tick) { sparks(hx, hy, 3, o.col || [255, 240, 180], 90); if (Math.random() < 0.15) sfx("hit", 0.4); }
+    else {
+      sparks(hx, hy, o.big ? 26 : 14, o.col || [255, 240, 180], o.big ? 180 : 120);
+      part({ type: "ring", x: hx, y: hy, life: 0.25, r0: 3, r1: o.big ? 30 : 16, col: o.col || [255, 255, 255] });
+      sfx(o.big ? "heavy" : "hit", 1);
+    }
+    if (o.word) text(o.word, hx + rnd(-8, 8), hy - 12, o.col || [255, 240, 120], o.big ? 22 : 16);
+    if (o.big) { flashScreen(0.35); S.impact = 0.05; }
+    if (def.hp <= 0) { ko(def, att); return true; }
+    if (o.launch) { def.state = "flying"; def.st = 0; def.vy = -o.launch; def.spin = att.face * 7; }
+    else if (o.down) { def.state = "down"; def.st = 0; }
+    else { def.state = "hurt"; def.st = 0; def.sub = o.stun ?? 0.3; }
+    return true;
+  }
+  function ko(def, att) {
+    def.state = "ko"; def.st = 0; def.vx = att.face * 120; def.vy = -120; def.y = Math.min(def.y, -2);
+    S.phase = "ko"; S.phaseT = 0; S.slow = 0.22;
+    flashScreen(0.9); S.impact = 0.12; shake(1);
+    text("K.O.!!", 0, 0, [255, 230, 90], 40, 3.5).center = true;
+    S.wins[att.id === "A" ? 0 : 1]++;
+    log(`${KAIJU[def.id].name}、ダウン！ ${KAIJU[att.id].name}の勝利！`, "sys");
+    sfx("ko", 1);
+  }
+
+  // ---------- buildings damage ----------
+  function buildingsAt(x0, x1) { return buildings.filter(b => b.state !== "rubble" && b.state !== "collapsing" && b.x < x1 && b.x + b.w > x0); }
+  function damageBuilding(b, amt, cause) {
+    if (b.state === "rubble" || b.state === "collapsing") return;
+    b.hp -= amt;
+    if (cause === "fire" && b.state === "ok" && Math.random() < 0.35) { b.state = "burning"; }
+    if (cause === "hit" || cause === "beam") { if (b.glass < 0.5) sfx("glass", 1); b.glass = 1; for (let i = 0; i < 6; i++) part({ type: "glass", x: b.x + rnd(0, b.w), y: GY - rnd(8, b.h), vx: rnd(-40, 40), vy: rnd(-60, 0), grav: 260, life: rnd(0.6, 1.2) }); }
+    if (b.hp <= 0) collapse(b);
+  }
+  function collapse(b) {
+    b.state = "collapsing"; b.fallT = 0; S.collapsed++;
+    const cost = Math.round(b.w * b.h * 0.9);
+    S.damage += cost;
+    shake(0.45); sfx("collapse", 1);
+    text("ガラガラ…", b.x + b.w / 2, GY - b.h * 0.6, [220, 220, 220], 14, 1.4);
+    dust(b.x + b.w / 2, GY, 22, b.w / 2, 1.3);
+    if (Math.random() < 0.5) log(`ビルが倒壊！（被害 ${cost}億円）`);
+  }
+
+  // ---------- AI & moves ----------
+  const MOVES = {
+    A: ["punch", "combo", "tail", "stomp", "charge", "breath", "roar"],
+    B: ["punch", "combo", "grab", "stomp", "charge", "beam", "rock", "roar"],
+  };
+  function decide(k, o) {
+    const d = Math.abs(o.x - k.x) - 30;
+    if (k.forced) { const m = k.forced; k.forced = null; return start(k, m); }
+    if (!k.special && k.hp < 40 && Math.random() < 0.6) return start(k, "special");
+    const w = {};
+    if (d < 22) { w.punch = 3; w.combo = 2.5; w.stomp = 1; if (k.id === "A") w.tail = 2.2; else w.grab = 2.2; w.back = 0.8; }
+    else if (d < 95) { w.charge = 1.6; w.walk = 2.4; w.roar = 0.3; if (k.id === "A") w.breath = 2.4; else { w.beam = 2.2; w.rock = nearBuilding(k) ? 1.3 : 0; } }
+    else { w.walk = 3.2; w.roar = 0.4; if (k.id === "A") w.breath = 1.2; else { w.beam = 1.4; w.rock = nearBuilding(k) ? 1.6 : 0; } w.charge = 0.8; }
+    let r = Math.random() * Object.values(w).reduce((a, b) => a + b, 0), m = "walk";
+    for (const [n, v] of Object.entries(w)) if ((r -= v) <= 0) { m = n; break; }
+    start(k, m);
+  }
+  function nearBuilding(k) { return buildingsAt(k.x - 50, k.x + 50).find(b => b.h > 24); }
+  function start(k, m) {
+    if (m === "special") { k.special = true; startSpecial(k); return; }
+    k.state = m; k.st = 0; k.sub = 0; k.hit = false; k.combo = 0;
+    if (m === "walk") k.sub = rnd(0.8, 1.8);
+    if (m === "back") k.sub = rnd(0.5, 0.9);
+    if (m === "roar") { sfx(k.id === "A" ? "roarA" : "roarB", 1); text(k.id === "A" ? "グオオオ!!" : "ギャオオン!!", k.x + k.face * 12, GY - 80, KAIJU[k.id].col, 16, 1.2); }
+    if (m === "breath") log("ボルガの火炎放射！", "a");
+    if (m === "beam") log("ジンライの雷撃ビーム！", "b");
+    if (m === "rock") log("ジンライがビルを引き抜いた！", "b");
+  }
+  function startSpecial(k) {
+    k.state = "special"; k.st = 0; k.hit = false;
+    const nm = k.id === "A" ? "マグマ・ノヴァ" : "天雷招来";
+    S.cutin = { k, name: nm, t: 0 };
+    log(`${KAIJU[k.id].name}の必殺技「${nm}」！`, k.id === "A" ? "a" : "b");
+    sfx("cutin", 1);
+  }
+
+  function updateKaiju(k, dt) {
+    const o = other(k), P = k.pose;
+    k.st += dt; k.flash = Math.max(0, k.flash - dt); k.elec = Math.max(0, k.elec - dt);
+    // relax pose
+    P.arm = lerp(P.arm, 0, dt * 8); P.mouth = lerp(P.mouth, 0, dt * 6); P.head = lerp(P.head, 0, dt * 6); P.tail = lerp(P.tail, 0, dt * 5); P.crouch = lerp(P.crouch, 0, dt * 8);
+    if (k.state !== "flying" && k.state !== "ko" && k.state !== "down" && k.state !== "getup") P.rot = lerp(P.rot, 0, dt * 10);
+    const face = () => { if (alive(o)) k.face = o.x > k.x ? 1 : -1; };
+
+    switch (k.state) {
+      case "idle":
+        face();
+        if (k.st > k.think && S.phase === "fight" && !S.cutin) { k.think = rnd(0.2, 0.7); decide(k, o); }
+        break;
+      case "walk": case "back": {
+        face();
+        const dir = k.state === "walk" ? k.face : -k.face;
+        k.vx = dir * (k.id === "A" ? 30 : 34);
+        k.walkPh += dt * 6;
+        k.stepAcc += dt;
+        if (k.stepAcc > 0.52) { k.stepAcc = 0; footstep(k); }
+        if (k.st > k.sub || (k.state === "walk" && Math.abs(o.x - k.x) < 48)) { k.state = "idle"; k.st = 0; k.vx = 0; }
+        break;
+      }
+      case "punch": case "combo": {
+        const n = k.state === "combo" ? 3 : 1, per = 0.42, i = Math.min(n - 1, Math.floor(k.st / per)), ph = k.st - i * per;
+        if (i !== k.combo) { k.combo = i; k.hit = false; }
+        if (ph < 0.16) { P.arm = -0.4; P.crouch = 2; }
+        else if (ph < 0.26) {
+          P.arm = 1; k.vx = k.face * 70;
+          if (ph - dt < 0.16) sfx("swing", 0.8);
+          if (!k.hit && Math.abs(o.x - (k.x + k.face * 30)) < 26 && Math.abs(o.y - k.y) < 30) {
+            k.hit = true;
+            const last = i === n - 1 && n > 1;
+            hit(k, o, last ? 9 : 6, last ? 110 : 60, last ? { launch: 160, big: true, word: pick(["ドゴォッ!!", "ズガァン!!"]), shake: 0.6, stop: 0.14 } : { word: pick(["バキッ", "ドカッ", "ボコッ"]) });
+          }
+        } else P.arm = lerp(P.arm, 0, dt * 6);
+        if (k.st > n * per + 0.15) toIdle(k);
+        break;
+      }
+      case "tail": {
+        if (k.st < 0.25) { P.tail = -1; P.crouch = 2; }
+        else if (k.st < 0.45) {
+          P.tail = 1.6; P.rot = -k.face * 0.1;
+          if (k.st - dt < 0.25) sfx("swing", 1);
+          if (!k.hit && Math.abs(o.x - k.x) < 62) { k.hit = true; hit(k, o, 10, 150, { down: true, big: true, word: "バシィィン!!", shake: 0.55, h: 16 }); }
+        }
+        if (k.st > 0.9) toIdle(k);
+        break;
+      }
+      case "stomp": {
+        if (k.st < 0.4) { P.crouch = -3; P.lift = 1; }
+        else if (!k.hit) {
+          k.hit = true; P.lift = 0; P.crouch = 3;
+          shake(0.6); sfx("slam", 1); text("ズドォン!!", k.x, GY - 30, [255, 220, 120], 18);
+          part({ type: "shock", x: k.x, y: GY, life: 0.6, r1: 90 });
+          dust(k.x, GY, 26, 40, 1.4);
+          if (Math.abs(o.x - k.x) < 95 && grounded(o)) hit(k, o, 7, 60 * Math.sign(o.x - k.x) * k.face, { down: Math.random() < 0.5, word: "グラッ", h: 8 });
+          for (const b of buildingsAt(k.x - 70, k.x + 70)) damageBuilding(b, 18, "hit");
+          crushNear(k.x, 90);
+        }
+        if (k.st > 1) toIdle(k);
+        break;
+      }
+      case "charge": {
+        if (k.st < 0.35) { P.crouch = 4; P.head = -0.5; face(); }
+        else if (k.st < 1.2) {
+          k.vx = k.face * 175; k.walkPh += dt * 14; P.head = -0.6;
+          if (Math.random() < 0.5) part({ type: "line", x: k.x - k.face * 30, y: GY - rnd(8, 56), vx: -k.face * 300, vy: 0, life: 0.18 });
+          if (Math.random() < 0.4) dust(k.x - k.face * 16, GY, 1, 4);
+          k.stepAcc += dt; if (k.stepAcc > 0.22) { k.stepAcc = 0; footstep(k, 0.5); }
+          if (!k.hit && Math.abs(o.x - k.x) < 40 && Math.abs(o.y - k.y) < 30) { k.hit = true; hit(k, o, 12, 210, { down: true, big: true, word: "ドガァァン!!", shake: 0.8, stop: 0.16 }); k.st = 1.2; k.vx = -k.face * 40; }
+          smashBuildings(k, 30);
+        } else { k.vx *= 0.9; }
+        if (k.st > 1.55) toIdle(k);
+        break;
+      }
+      case "breath": {
+        face();
+        if (k.st < 0.45) { P.head = 0.8; P.mouth = 0.4; k.glowT = k.st / 0.45; if (k.st - dt <= 0) sfx("inhale", 1); }
+        else if (k.st < 2.1) {
+          P.head = -0.1; P.mouth = 1; k.glowT = 1;
+          if (k.st - dt < 0.45) { sfx("fire", 1); text("ゴォォォォ!!", k.x + k.face * 40, GY - 86, [255, 150, 60], 18, 1.2); }
+          const mx = k.x + k.face * 26, my = GY + k.y - 50;
+          for (let i = 0; i < 6; i++) flame(mx, my + rnd(-2, 2), k.face * rnd(150, 230), rnd(-30, 22), rnd(0.45, 0.75), k);
+          shake(0.05);
+        } else { k.glowT = 0; }
+        if (k.st > 2.5) toIdle(k);
+        break;
+      }
+      case "beam": {
+        face();
+        if (k.st < 0.8) {
+          P.head = -0.3; P.crouch = 2; k.glowT = k.st / 0.8;
+          if (k.st - dt <= 0) sfx("charge", 1);
+          if (Math.random() < 0.7) { const a = rnd(0, Math.PI * 2), r = rnd(14, 30); const hx = k.x + k.face * 20, hy = GY + k.y - 66; part({ type: "spark", x: hx + Math.cos(a) * r, y: hy + Math.sin(a) * r, vx: -Math.cos(a) * r * 4, vy: -Math.sin(a) * r * 4, life: 0.2, col: [150, 230, 255] }); }
+        } else if (k.st < 1.8) {
+          k.glowT = 1;
+          if (k.st - dt < 0.8) { sfx("beam", 1); flashScreen(0.4, [150, 230, 255]); text("バリバリバリ!!", k.x + k.face * 50, GY - 96, [150, 230, 255], 18, 1.1); }
+          shake(0.08);
+          k.beam = beamTarget(k);
+          if (Math.random() < 0.5) sparks(k.beam.x, k.beam.y, 3, [180, 240, 255], 140);
+          if (k.beam.hitK && Math.random() < 0.35) { o.elec = 0.3; hit(k, o, 1.4, 70, { tick: true, stop: 0.02, shake: 0.1, stun: 0.25, col: [150, 230, 255], word: Math.random() < 0.15 ? "ビビビッ" : "", otg: true }); }
+          if (k.beam.b) damageBuilding(k.beam.b, 40 * dt, "beam");
+        } else { k.beam = null; k.glowT = 0; }
+        if (k.st > 2.2) toIdle(k);
+        break;
+      }
+      case "grab": {
+        if (k.st < 0.25) { P.arm = 0.6; k.vx = k.face * 60; }
+        else if (k.sub === 0) {
+          if (Math.abs(o.x - k.x) < 44 && grounded(o) && o.state !== "down") { k.sub = 1; k.st = 0.25; o.state = "held"; o.st = 0; sfx("grunt", 1); text("ガシッ", k.x + k.face * 20, GY - 70, [255, 255, 255], 14); }
+          else if (k.st > 0.5) toIdle(k);
+        } else {
+          P.arm = 2; // arms raised with the opponent overhead
+          const t = k.st - 0.25;
+          o.x = k.x + k.face * lerp(26, -4, Math.min(1, t / 0.5)); o.y = -lerp(0, 46, Math.min(1, t / 0.5)); o.pose.rot = k.face * lerp(0, 1.4, Math.min(1, t / 0.5));
+          if (t > 0.85) {
+            o.state = "flying"; o.vx = k.face * 190; o.vy = -150; o.spin = k.face * 8; o.flash = 0.1;
+            S.hitstop = 0.1; shake(0.5); sfx("swing", 1.2); text("ぶん投げ!!", k.x, GY - 110, [150, 230, 255], 16);
+            log("ジンライがボルガを投げ飛ばした！", "b");
+            o.hp = Math.max(1, o.hp - 6);
+            k.sub = 2; toIdle(k); k.think = 0.8;
+          }
+        }
+        break;
+      }
+      case "rock": {
+        const b = nearBuilding(k);
+        if (k.st < 0.6) { P.arm = 2; P.crouch = 3; if (k.st - dt <= 0 && b) { damageBuilding(b, b.max * 0.45, "hit"); debris(k.x + k.face * 10, GY - 50, 10, b.col); sfx("crunch", 1); } }
+        else if (!k.hit) {
+          k.hit = true; P.arm = 1; sfx("swing", 1.2);
+          const col = b ? b.col : [80, 80, 90];
+          S.projs.push({ type: "rock", x: k.x + k.face * 16, y: GY + k.y - 76, vx: k.face * 230, vy: -90, owner: k, col, spin: 0 });
+        }
+        if (k.st > 1.1) toIdle(k);
+        break;
+      }
+      case "roar": P.head = 1; P.mouth = 1; if (k.st < 1.3) { shake(0.03); if (Math.random() < 0.3) { const b = pick(buildingsAt(k.x - 90, k.x + 90)); if (b && b.glass < 0.2) damageBuilding(b, 1, "hit"); } } if (k.st > 1.5) toIdle(k); break;
+      case "hurt": P.head = -0.4; P.rot = -k.face * 0.12; if (k.st > k.sub) toIdle(k); break;
+      case "held": break;
+      case "flying": {
+        k.pose.rot += k.spin * dt;
+        smashBuildings(k, 60);
+        break;
+      }
+      case "down": P.rot = lerp(P.rot, -k.face * 1.45, dt * 10); if (k.st > 1.5) { k.state = "getup"; k.st = 0; } break;
+      case "getup": P.rot = lerp(P.rot, 0, dt * 5); if (k.st > 0.6) { toIdle(k); if (Math.random() < 0.5) start(k, "roar"); } break;
+      case "ko": P.rot = lerp(P.rot, -k.face * 1.5, dt * 4); break;
+      case "victory": P.head = 1; P.mouth = 1; P.arm = k.id === "B" ? 2 : 0; if (k.st > 2) k.st = 0; break;
+      case "special": updateSpecial(k, o, dt); break;
+    }
+
+    // physics
+    if (k.state !== "held") {
+      if (k.y < 0 || k.vy !== 0) {
+        k.vy += 420 * dt; k.y += k.vy * dt;
+        if (k.y >= 0) {
+          k.y = 0;
+          const hard = k.vy > 120;
+          k.vy = 0;
+          if (hard) {
+            shake(0.7); sfx("slam", 1); dust(k.x, GY, 30, 30, 1.5);
+            text("ズシィィン!!", k.x, GY - 40, [255, 220, 150], 18);
+            part({ type: "shock", x: k.x, y: GY, life: 0.5, r1: 70 });
+            for (const b of buildingsAt(k.x - 34, k.x + 34)) damageBuilding(b, 70, "hit");
+            crushNear(k.x, 40);
+            if (k.state === "flying") { k.hp = Math.max(0, k.hp - 8); if (k.hp <= 0) ko(k, other(k)); else { k.state = "down"; k.st = 0; } }
+          } else if (k.state === "flying") { k.state = "down"; k.st = 0; }
+        }
+      }
+      k.x += k.vx * dt;
+      if (grounded(k) && k.state !== "charge") k.vx *= Math.exp(-dt * (k.state === "down" || k.state === "ko" ? 2.5 : 7));
+      if (k.x < 24) { k.x = 24; k.vx = Math.abs(k.vx) * 0.3; }
+      if (k.x > WORLD - 24) { k.x = WORLD - 24; k.vx = -Math.abs(k.vx) * 0.3; }
+      if ((k.state === "down" || k.state === "ko") && Math.abs(k.vx) > 50) { smashBuildings(k, 40); if (Math.random() < 0.4) dust(k.x, GY, 1, 10); }
+    }
+    // keep them from overlapping
+    if (alive(k) && alive(o) && k.state !== "held" && o.state !== "held" && Math.abs(k.x - o.x) < 30 && Math.abs(k.y - o.y) < 30) {
+      const push = (30 - Math.abs(k.x - o.x)) / 2 * Math.sign(k.x - o.x || 1);
+      k.x += push * 0.5;
+    }
+  }
+  function toIdle(k) { k.state = "idle"; k.st = 0; k.vx *= 0.3; k.beam = null; k.glowT = 0; }
+  function footstep(k, a = 1) {
+    shake(0.12 * a); sfx("step", a);
+    dust(k.x + k.face * 6, GY, 4, 8, 0.7);
+    crushNear(k.x, 16);
+  }
+  let DT = 1 / 60;
+  function smashBuildings(k, amt) {
+    for (const b of buildingsAt(k.x - 18, k.x + 18)) {
+      if (Math.abs(k.vx) > 60 || k.state === "flying") {
+        damageBuilding(b, amt * DT * 14, "hit");
+        if (Math.random() < 0.3) debris(k.x, GY - rnd(10, 50), 5, b.col, 120);
+      }
+    }
+  }
+  function crushNear(x, r) {
+    for (const c of S.cars) if (!c.dead && Math.abs(c.x - x) < r) { c.dead = 1; explode(c.x, GY + 12 + c.lane * 10, 0.4); }
+    for (const t of S.tanks) if (!t.dead && Math.abs(t.x - x) < r * 0.8) { t.dead = 6; explode(t.x, GY + 26, 0.5); }
+  }
+  function explode(x, y, s = 1) {
+    for (let i = 0; i < 18 * s; i++) { const a = rnd(0, Math.PI * 2), v = rnd(20, 90) * s; part({ type: "fire", x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 20, life: rnd(0.3, 0.6), drag: 2, size: rnd(2, 4) }); }
+    smoke(x, y - 4, 4 * s); debris(x, y, 6 * s, [60, 60, 60], 70);
+    part({ type: "ring", x, y, life: 0.25, r0: 2, r1: 18 * s, col: [255, 200, 120] });
+    sfx("boom", s); shake(0.15 * s);
+    if (s > 0.8) text("ドカーン!", x, y - 12, [255, 180, 80], 12, 0.8);
+  }
+  function beamTarget(k) {
+    const o = other(k), hx = k.x + k.face * 22, hy = GY + k.y - 64;
+    let end = k.face > 0 ? S.camX + W + 20 : S.camX - 20, hitK = false, hb = null;
+    if (alive(o) && (o.x - hx) * k.face > 0 && Math.abs((GY + o.y - 36) - hy) < 40) { end = o.x - k.face * 12; hitK = true; }
+    for (const b of buildings) {
+      if (b.state === "rubble" || b.state === "collapsing" || GY - b.h > hy) continue;
+      const bx = k.face > 0 ? b.x : b.x + b.w;
+      if ((bx - hx) * k.face > 0 && Math.abs(bx - hx) < Math.abs(end - hx)) { end = bx; hitK = false; hb = b; }
+    }
+    return { x0: hx, y0: hy, x: end, y: hitK ? GY + o.y - 36 : hy + 6, hitK, b: hb };
+  }
+
+  // ---------- specials ----------
+  function updateSpecial(k, o, dt) {
+    const P = k.pose;
+    if (S.cutin) { P.head = 1; P.mouth = 1; return; }
+    const t = k.st;
+    if (k.id === "A") {
+      if (t < 0.9) { k.glowT = t / 0.9; P.crouch = 4; shake(0.05); if (Math.random() < 0.8) part({ type: "fire", x: k.x + rnd(-20, 20), y: GY - rnd(0, 60), vx: rnd(-10, 10), vy: rnd(-60, -20), life: 0.5, size: 3 }); }
+      else if (!k.hit) {
+        k.hit = true; k.glowT = 1;
+        flashScreen(1, [255, 200, 120]); S.impact = 0.1; shake(1); S.hitstop = 0.15; sfx("nova", 1);
+        text("ドッゴオオオン!!!", k.x, GY - 110, [255, 170, 60], 24, 1.6);
+        for (let i = 0; i < 140; i++) { const a = rnd(Math.PI, Math.PI * 2), v = rnd(60, 260); part({ type: "fire", x: k.x, y: GY - 30, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.7, life: rnd(0.5, 1.1), drag: 1.5, size: rnd(2, 5) }); }
+        part({ type: "shock", x: k.x, y: GY, life: 0.8, r1: 170 }); part({ type: "ring", x: k.x, y: GY - 30, life: 0.5, r0: 10, r1: 120, col: [255, 200, 120] });
+        for (const b of buildingsAt(k.x - 150, k.x + 150)) damageBuilding(b, 400, "fire");
+        crushNear(k.x, 150);
+        if (Math.abs(o.x - k.x) < 140) hit(k, o, 22, 260 * Math.sign(o.x - k.x) * k.face, { launch: 190, big: true, word: "", shake: 1, stop: 0.2, otg: true });
+      }
+      if (t > 2) { k.glowT = 0; toIdle(k); }
+    } else {
+      if (t < 0.5) { P.arm = 2; k.glowT = t / 0.5; }
+      else if (t < 3.2) {
+        P.arm = 2; k.glowT = 1;
+        if (!k.nextBolt || t > k.nextBolt) {
+          k.nextBolt = t + 0.34;
+          const tx = o.x + rnd(-40, 40) + (Math.random() < 0.4 ? 0 : 0);
+          strike(tx, k);
+        }
+      } else if (t > 3.6) { k.nextBolt = 0; k.glowT = 0; toIdle(k); }
+    }
+  }
+  function strike(x, owner) {
+    const pts = []; let px2 = x + rnd(-20, 20);
+    for (let y = -20; y < GY; y += rnd(6, 12)) { pts.push([px2, y]); px2 += rnd(-9, 9); }
+    pts.push([x, GY]);
+    S.bolts.push({ pts, t: 0 });
+    flashScreen(0.6, [180, 230, 255]); shake(0.5); sfx("thunder", 1);
+    sparks(x, GY - 4, 20, [200, 240, 255], 160); dust(x, GY, 8, 10);
+    part({ type: "ring", x, y: GY - 4, life: 0.3, r0: 3, r1: 28, col: [180, 240, 255] });
+    for (const b of buildingsAt(x - 14, x + 14)) { damageBuilding(b, 90, "beam"); if (b.state === "ok") b.state = "burning"; }
+    const o = other(owner);
+    if (Math.abs(o.x - x) < 26) { o.elec = 0.5; hit(owner, o, 6, 80 * Math.sign(o.x - x || 1) * owner.face, { big: true, word: "ピシャーン!!", col: [180, 240, 255], down: Math.random() < 0.4, stop: 0.12, otg: true }); }
+    crushNear(x, 20);
+  }
+
+  // ---------- world update ----------
+  function updateWorld(dt) {
+    // fire, smoke & debris
+    for (let i = S.parts.length - 1; i >= 0; i--) {
+      const p = S.parts[i]; p.t += dt;
+      if (p.t > p.life) { S.parts.splice(i, 1); continue; }
+      p.vy += p.grav * dt; if (p.drag) { p.vx *= Math.exp(-p.drag * dt); p.vy *= Math.exp(-p.drag * dt); }
+      if (p.type === "fire") p.vy -= 60 * dt;
+      p.x += (p.vx || 0) * dt; p.y += (p.vy || 0) * dt;
+      if ((p.type === "debris" || p.type === "glass") && p.y > GY + 4) { p.y = GY + 4; p.vy *= -0.35; p.vx *= 0.6; }
+      if (p.type === "fire" && p.owner) {
+        const o = other(p.owner);
+        if (inBody(o, p.x, p.y, 2) && Math.random() < 0.18) { o.flash = 0.06; hit(p.owner, o, 0.55, 45, { tick: true, stop: 0, shake: 0.06, stun: 0.3, col: [255, 160, 60], otg: true, word: Math.random() < 0.04 ? "アチチッ" : "" }); p.t = p.life; }
+        if (p.y > GY - 2) { p.vy = -20; p.vx *= 0.5; if (Math.random() < 0.05) crushNear(p.x, 6); }
+        for (const b of buildings) if (b.state !== "rubble" && b.state !== "collapsing" && p.x > b.x && p.x < b.x + b.w && p.y > GY - b.h && Math.random() < 0.06) damageBuilding(b, 1.5, "fire");
+      }
+      if (p.type === "fire" && Math.random() < 0.03) smoke(p.x, p.y, 1);
+    }
+    for (const b of buildings) {
+      if (b.state === "burning") { b.burn += dt; b.hp -= dt * 1.2; if (Math.random() < dt * 6) smoke(b.x + rnd(0, b.w), GY - b.h * rnd(0.5, 1), 1); if (b.hp <= 0) collapse(b); }
+      if (b.state === "collapsing") { b.fallT += dt; if (Math.random() < dt * 20) dust(b.x + rnd(0, b.w), GY, 1, 4, 1.2); if (b.fallT * b.fallT * 90 > b.h) { b.state = "rubble"; debris(b.x + b.w / 2, GY - 6, 12, b.col, 80); } }
+      b.glass = Math.max(0, b.glass - dt * 0.2);
+    }
+    for (let i = S.projs.length - 1; i >= 0; i--) {
+      const p = S.projs[i];
+      p.vy += (p.type === "rock" ? 300 : 0) * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.spin = (p.spin || 0) + dt * 8;
+      if (p.type === "missile" && Math.random() < 0.8) part({ type: "smoke", x: p.x, y: p.y, vx: 0, vy: -4, life: 0.8, size: 2, dark: 0.4 });
+      const tgt = p.type === "rock" ? other(p.owner) : p.target;
+      if (tgt && inBody(tgt, p.x, p.y, 4)) {
+        if (p.type === "rock") { hit(p.owner, tgt, 11, 120 * Math.sign(p.vx), { down: true, big: true, word: "ドガシャーン!!", shake: 0.7 }); debris(p.x, p.y, 24, p.col, 140); dust(p.x, p.y, 8, 10); }
+        else { explode(p.x, p.y, 0.5); tgt.flash = 0.05; tgt.hp = Math.max(1, tgt.hp - 0.3); }
+        S.projs.splice(i, 1); continue;
+      }
+      if (p.y > GY) { if (p.type === "rock") { debris(p.x, GY, 20, p.col, 120); dust(p.x, GY, 10, 14); shake(0.3); sfx("crunch", 1); } else explode(p.x, GY, 0.4); for (const b of buildingsAt(p.x - 12, p.x + 12)) damageBuilding(b, 30, "hit"); S.projs.splice(i, 1); continue; }
+      if (p.x < -50 || p.x > WORLD + 50) S.projs.splice(i, 1);
+    }
+    for (let i = S.bolts.length - 1; i >= 0; i--) { S.bolts[i].t += dt; if (S.bolts[i].t > 0.25) S.bolts.splice(i, 1); }
+    // military & city life
+    S.nextJet -= dt;
+    if (S.nextJet <= 0 && S.phase === "fight") {
+      S.nextJet = rnd(14, 24);
+      const dir = Math.random() < 0.5 ? 1 : -1, y = rnd(24, 44);
+      for (let j = 0; j < 2; j++) S.jets.push({ x: dir > 0 ? S.camX - 30 - j * 22 : S.camX + W + 30 + j * 22, y: y + j * 6, dir, fired: false });
+      sfx("jet", 1); log("自衛隊の戦闘機が攻撃を開始！", "sys");
+    }
+    for (let i = S.jets.length - 1; i >= 0; i--) {
+      const j = S.jets[i]; j.x += j.dir * 170 * dt;
+      if (!j.fired && Math.abs(j.x - (S.camX + W / 2)) < 60) {
+        j.fired = true; const tgt = pick(K.filter(alive));
+        if (tgt) { const dx = tgt.x - j.x, dy = GY - 40 - j.y, d = Math.hypot(dx, dy); S.projs.push({ type: "missile", x: j.x, y: j.y, vx: dx / d * 220, vy: dy / d * 220, target: tgt }); }
+      }
+      if (j.x < S.camX - 100 || j.x > S.camX + W + 100) S.jets.splice(i, 1);
+    }
+    for (const c of S.cars) {
+      if (c.dead) { c.dead += dt; if (c.dead > 8) Object.assign(c, newCar(Math.random() < 0.5 ? S.camX - 30 : S.camX + W + 30)); if (Math.random() < dt * 3) smoke(c.x, GY + 10 + c.lane * 10, 1); continue; }
+      const near = K.some(k => Math.abs(k.x - c.x) < 80);
+      c.x += c.v * (near ? 1.8 : 1) * dt;
+      if (c.x < -30 || c.x > WORLD + 30) Object.assign(c, newCar(c.v > 0 ? -20 : WORLD + 20));
+    }
+    for (const t of S.tanks) {
+      if (t.dead) { t.dead -= dt; if (t.dead <= 0) { t.dead = 0; t.x = S.camX + rnd(20, W - 20); } continue; }
+      t.cd -= dt;
+      if (t.cd <= 0 && S.phase === "fight") {
+        t.cd = rnd(2.5, 5);
+        const tgt = K.reduce((a, b) => Math.abs(a.x - t.x) < Math.abs(b.x - t.x) ? a : b);
+        if (Math.abs(tgt.x - t.x) < 220 && alive(tgt)) {
+          const dx = tgt.x - t.x, dy = -60, d = Math.hypot(dx, dy);
+          S.projs.push({ type: "shell", x: t.x + Math.sign(dx) * 6, y: GY + 22, vx: dx / d * 300, vy: dy / d * 300, target: tgt });
+          part({ type: "fire", x: t.x + Math.sign(dx) * 7, y: GY + 22, vx: Math.sign(dx) * 30, vy: -5, life: 0.12, size: 3 }); sfx("gun", 0.5);
+        }
+      }
+    }
+    if (Math.random() < dt * 1.5 && S.people.length < 30) S.people.push({ x: S.camX + rnd(0, W), v: rnd(20, 34) * (Math.random() < 0.5 ? 1 : -1), col: pick([[230, 230, 230], [220, 80, 80], [80, 120, 220], [240, 200, 80]]) });
+    for (let i = S.people.length - 1; i >= 0; i--) {
+      const p = S.people[i];
+      const k = K.reduce((a, b) => Math.abs(a.x - p.x) < Math.abs(b.x - p.x) ? a : b);
+      p.v = Math.abs(p.v) * Math.sign(p.x - k.x || 1);
+      p.x += p.v * dt;
+      if (p.x < S.camX - 20 || p.x > S.camX + W + 20) S.people.splice(i, 1);
+    }
+    S.heli.t += dt;
+    S.heli.x = lerp(S.heli.x, (K[0].x + K[1].x) / 2 + Math.sin(S.heli.t * 0.3) * 80, dt * 0.4);
+    for (let i = S.texts.length - 1; i >= 0; i--) { S.texts[i].t += dt; if (S.texts[i].t > S.texts[i].life) S.texts.splice(i, 1); }
+  }
+
+  // ---------- round flow ----------
+  function resetRound() {
+    buildCity();
+    K = [makeKaiju("A", 250, 1), makeKaiju("B", 470, -1)];
+    S.parts = []; S.projs = []; S.jets = []; S.bolts = []; S.texts = []; S.cutin = null;
+    S.phase = "intro"; S.phaseT = 0; S.slow = 1; S.damage = 0; S.collapsed = 0; S.introShown = false;
+    S.camX = 200;
+  }
+  function stepGame(dtReal) {
+    S.time += dtReal;
+    S.trauma = Math.max(0, S.trauma - dtReal * 1.6);
+    S.flash = Math.max(0, S.flash - dtReal * 3);
+    S.impact = Math.max(0, S.impact - dtReal);
+    S.phaseT += dtReal;
+    if (S.cutin) { S.cutin.t += dtReal; if (S.cutin.t > 1.5) { S.cutin = null; } }
+    let dt = dtReal * S.slow * (S.userSlow ? 0.35 : 1);
+    if (S.cutin) dt *= 0.05;
+    if (S.hitstop > 0) { S.hitstop -= dtReal; dt = 0; }
+
+    if (S.phase === "intro") {
+      if (!S.introShown) { S.introShown = true; text(`ROUND ${S.round}`, 0, 0, [255, 230, 120], 28, 1.4).center = true; sfx("gong", 0.6); }
+      if (S.phaseT > 1.5 && S.phaseT - dtReal <= 1.5) { text("FIGHT!!", 0, 0, [255, 120, 80], 34, 1).center = true; sfx("fight", 1); K.forEach(k => start(k, "roar")); S.phase = "fight"; }
+    }
+    if (S.phase === "ko") {
+      S.slow = lerp(S.slow, 1, dtReal * 0.8);
+      const w = K.find(alive);
+      if (w && S.phaseT > 2 && w.state !== "victory") { w.state = "victory"; w.st = 0; sfx(w.id === "A" ? "roarA" : "roarB", 1); }
+      if (S.phaseT > 6.5) { S.round++; resetRound(); }
+    }
+    if (dt > 0) {
+      DT = dt;
+      for (const k of K) updateKaiju(k, dt);
+      updateWorld(dt);
+    }
+    for (const k of K) k.hpTrail = k.hpTrail > k.hp ? Math.max(k.hp, k.hpTrail - dtReal * 25) : k.hp;
+    // camera follows the fight
+    const mid = (K[0].x + K[1].x) / 2;
+    S.camX = lerp(S.camX, clamp(mid - W / 2, 0, WORLD - W), Math.min(1, dtReal * 3));
+    audioUpdate(dtReal);
+  }
+
+  // ---------- drawing ----------
+  function drawBackground() {
+    const g = ctx.createLinearGradient(0, 0, 0, GY);
+    g.addColorStop(0, "rgb(14,8,22)"); g.addColorStop(0.6, "rgb(58,20,34)"); g.addColorStop(1, "rgb(150,54,34)");
+    ctx.fillStyle = g; ctx.fillRect(-10, -10, W + 20, GY + 10);
+    for (let i = 0; i < 40; i++) px(mod(hash(i) * 400 - S.camX * 0.05, W), hash(i + 99) * 60, rgba([220, 220, 255], 0.4 + 0.3 * Math.sin(S.time + i)));
+    ctx.fillStyle = "rgb(240,220,190)"; ctx.beginPath(); ctx.arc(Math.round(250 - S.camX * 0.03), 26, 9, 0, Math.PI * 2); ctx.fill();
+    glow(250 - S.camX * 0.03, 26, 30, [255, 200, 160], 0.2);
+    // smoke clouds lit from below
+    for (let i = 0; i < 9; i++) {
+      const x = mod(hash(i * 7) * 700 - S.camX * 0.15 - S.time * 3, 700) - 100, y = 20 + hash(i * 9) * 50, w = 50 + hash(i * 3) * 70;
+      ctx.fillStyle = "rgba(40,24,30,0.7)"; ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), 8);
+      ctx.fillStyle = "rgba(120,50,40,0.35)"; ctx.fillRect(Math.round(x + 4), Math.round(y + 8), Math.round(w - 8), 2);
+    }
+    // searchlights
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 3; i++) {
+      const bx = mod(80 + i * 260 - S.camX * 0.4, 600) - 60, a = Math.sin(S.time * 0.5 + i * 2) * 0.5;
+      const g2 = ctx.createLinearGradient(bx, GY - 20, bx + Math.sin(a) * 200, 0);
+      g2.addColorStop(0, "rgba(200,220,255,0.18)"); g2.addColorStop(1, "rgba(200,220,255,0)");
+      ctx.fillStyle = g2; ctx.beginPath(); ctx.moveTo(bx - 2, GY - 20); ctx.lineTo(bx + 2, GY - 20); ctx.lineTo(bx + Math.sin(a) * 200 + 14, -10); ctx.lineTo(bx + Math.sin(a) * 200 - 14, -10); ctx.closePath(); ctx.fill();
+    }
+    ctx.globalCompositeOperation = "source-over";
+    // far skyline
+    for (const b of skyline) {
+      const x = mod(b.x - S.camX * 0.35, 1200) - 100; if (x > W || x + b.w < 0) continue;
+      rect(x, GY - 16 - b.h, b.w, b.h + 16, [30, 18, 30]);
+      for (let yy = 3; yy < b.h; yy += 4) for (let xx = 2; xx < b.w - 2; xx += 3) if (hash(b.seed + yy * 31 + xx) < 0.18) px(x + xx, GY - 16 - b.h + yy, [150, 90, 60]);
+    }
+    glow(W / 2, GY, 220, [255, 90, 40], 0.18);
+  }
+  function drawBuildings() {
+    for (const b of buildings) {
+      const x = Math.round(b.x - S.camX); if (x > W + 5 || x + b.w < -5) continue;
+      if (b.state === "rubble") { drawRubble(b, x); continue; }
+      let top = GY - b.h, jx = 0;
+      if (b.state === "collapsing") { const sink = b.fallT * b.fallT * 90; top += sink; jx = Math.round(Math.sin(S.time * 60) * 1.5); }
+      const hgt = GY - top;
+      rect(x + jx, top, b.w, hgt, b.col);
+      rect(x + jx, top, 1, hgt, mix(b.col, [255, 255, 255], 0.12)); rect(x + jx + b.w - 1, top, 1, hgt, mix(b.col, [0, 0, 0], 0.3));
+      const burning = b.state === "burning";
+      for (let yy = 4; yy < hgt - 3; yy += 5) for (let xx = 3; xx < b.w - 3; xx += 4) {
+        const hv = hash(b.seed + yy * 131 + xx);
+        let c = null;
+        if (burning && hv < 0.5) c = mix([255, 120, 30], [255, 220, 90], Math.abs(Math.sin(S.time * 9 + xx + yy)));
+        else if (hv < 0.35 * (1 - b.glass * 0.8)) c = hv < 0.08 ? [170, 210, 255] : [255, 200, 120];
+        else c = mix(b.col, [0, 0, 0], 0.4);
+        rect(x + jx + xx, top + yy, 2, 3, c);
+      }
+      const dmg = 1 - b.hp / b.max;
+      if (dmg > 0.2) for (let i = 0; i < dmg * 14; i++) { const hx = hash(b.seed + i * 7) * b.w, hy = hash(b.seed + i * 13) * hgt * 0.8; rect(x + jx + hx, top + hy, 3, 2, [16, 12, 16]); }
+      if (dmg > 0.3) pxLine(x + jx + b.w * 0.3, top + 2, x + jx + b.w * 0.55, top + hgt * 0.5, [20, 16, 18]);
+      if (b.state !== "collapsing") {
+        if (b.roof === "antenna") { rect(x + b.w / 2, top - 12, 1, 12, [90, 90, 100]); if (Math.sin(S.time * 3 + b.seed) > 0) { px(x + b.w / 2, top - 13, [255, 50, 50]); glow(x + b.w / 2, top - 13, 4, [255, 40, 40], 0.6); } }
+        if (b.roof === "tank") { rect(x + 3, top - 5, 7, 5, [70, 70, 80]); }
+        if (b.roof === "sign" && b.w > 22) { rect(x + 2, top - 8, b.w - 4, 7, [20, 16, 24]); rect(x + 4, top - 6, b.w - 8, 3, b.state === "ok" ? b.signCol : [60, 40, 40]); if (b.state === "ok") glow(x + b.w / 2, top - 5, 16, b.signCol, 0.25); }
+      }
+      if (burning) {
+        for (let i = 0; i < 3; i++) { const fx = x + (i + 0.5) * b.w / 3 + Math.sin(S.time * 7 + i) * 2, fh = 5 + Math.abs(Math.sin(S.time * 11 + i * 2)) * 6; rect(fx - 2, top - fh, 4, fh, [255, 140, 40]); rect(fx - 1, top - fh + 2, 2, fh - 2, [255, 230, 120]); }
+        glow(x + b.w / 2, top, 26, [255, 120, 40], 0.4);
+      }
+    }
+  }
+  function drawRubble(b, x) {
+    const hh = Math.max(6, b.h * 0.16);
+    for (let i = 0; i < b.w + 8; i++) {
+      const t = i / (b.w + 8), h = Math.round(hh * Math.sin(t * Math.PI) * (0.7 + 0.3 * hash(b.seed + i)));
+      rect(x - 4 + i, GY - h, 1, h, mix(b.col, [0, 0, 0], 0.2 + 0.3 * hash(b.seed + i * 3)));
+    }
+    for (let i = 0; i < 3; i++) if (hash(b.seed + i * 17) < 0.6) {
+      const fx = x + hash(b.seed + i * 5) * b.w, fh = 3 + Math.abs(Math.sin(S.time * 9 + i)) * 4;
+      rect(fx, GY - hh * 0.5 - fh, 2, fh, [255, 150, 50]); glow(fx, GY - hh * 0.5, 10, [255, 110, 40], 0.3);
+    }
+  }
+  function drawStreet() {
+    rect(0, GY, W, 4, [70, 64, 70]);
+    rect(0, GY + 4, W, H - GY, [34, 30, 36]);
+    for (let x = -mod(S.camX, 16); x < W; x += 16) rect(x, GY + 16, 8, 1, [200, 170, 60]);
+    rect(0, GY + 28, W, H - GY - 28, [52, 48, 54]);
+    for (const c of S.cars) {
+      const x = c.x - S.camX, y = GY + 9 + c.lane * 10; if (x < -20 || x > W + 20) continue;
+      if (c.dead) { rect(x - 5, y + 1, 10, 3, [30, 26, 26]); if (Math.random() < 0.5) px(x + rnd(-3, 3), y - rnd(0, 4), [255, 150, 50]); continue; }
+      rect(x - 5, y, 10, 3, c.col); rect(x - 3, y - 2, 6, 2, mix(c.col, [0, 0, 0], 0.2)); rect(x - 2, y - 2, 4, 1, [120, 160, 200]);
+      const f = Math.sign(c.v); px(x + f * 5, y + 1, [255, 250, 200]); glow(x + f * 7, y + 1, 7, [255, 240, 180], 0.4); px(x - f * 5, y + 1, [255, 40, 40]);
+    }
+    for (const p of S.people) { const x = p.x - S.camX, st = Math.floor(S.time * 10 + p.x) & 1; rect(x, GY - 1, 1, 1, [220, 180, 150]); rect(x, GY, 1, 2, p.col); px(x - st, GY + 2, [40, 40, 50]); px(x + st, GY + 2, [40, 40, 50]); }
+  }
+  function drawForeground() {
+    for (const t of S.tanks) {
+      const x = t.x - S.camX, y = GY + 26; if (x < -20 || x > W + 20) continue;
+      if (t.dead) { rect(x - 7, y - 2, 14, 4, [30, 30, 26]); if (Math.random() < 0.5) px(x + rnd(-4, 4), y - rnd(2, 6), [255, 150, 50]); continue; }
+      const tgt = K.reduce((a, b) => Math.abs(a.x - t.x) < Math.abs(b.x - t.x) ? a : b), f = Math.sign(tgt.x - t.x) || 1;
+      rect(x - 7, y - 3, 14, 4, [70, 80, 50]); rect(x - 4, y - 6, 8, 3, [80, 92, 58]); pxLine(x, y - 5, x + f * 9, y - 9, [60, 70, 44]);
+      rect(x - 7, y + 1, 14, 2, [30, 30, 26]);
+    }
+  }
+  function drawHeli() {
+    const x = S.heli.x - S.camX, y = 30 + Math.sin(S.heli.t * 1.3) * 3;
+    const tgt = K[Math.floor(S.heli.t / 6) % 2];
+    ctx.globalCompositeOperation = "lighter";
+    const tx = tgt.x - S.camX, g = ctx.createLinearGradient(x, y, tx, GY);
+    g.addColorStop(0, "rgba(255,250,220,0.22)"); g.addColorStop(1, "rgba(255,250,220,0.04)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x, y + 2); ctx.lineTo(tx - 22, GY); ctx.lineTo(tx + 22, GY); ctx.closePath(); ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
+    rect(x - 5, y, 9, 4, [40, 40, 48]); rect(x + 4, y + 1, 7, 1, [40, 40, 48]); rect(x - 9 + (Math.floor(S.time * 30) & 1) * 2, y - 2, 16, 1, [90, 90, 100]);
+    px(x - 3, y + 4, [255, 60, 60]);
+  }
+
+  // --- kaiju sprites (drawn facing right, feet at 0,0) ---
+  function drawKaiju(k) {
+    const x = Math.round(k.x - S.camX), y = Math.round(GY + k.y);
+    if (x < -80 || x > W + 80) return;
+    // ground shadow
+    ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(x, GY + 1, 22 - Math.min(14, -k.y * 0.1), 3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.save();
+    ctx.translate(x, y);
+    if (k.pose.rot) ctx.rotate(k.pose.rot);
+    ctx.scale(k.face, 1);
+    const fl = k.flash > 0 ? 1 : 0, el = k.elec > 0 && (Math.floor(S.time * 30) & 1);
+    const C = c => fl ? [255, 255, 255] : el ? [200, 240, 255] : c;
+    if (k.id === "A") drawVolga(k, C); else drawJinrai(k, C);
+    ctx.restore();
+    if (k.glowT > 0) {
+      const gx = x + k.face * (k.id === "A" ? 24 : 20), gy = y - (k.id === "A" ? 52 : 64);
+      glow(gx, gy, 10 + k.glowT * 14, k.id === "A" ? [255, 150, 50] : [140, 230, 255], 0.5 * k.glowT);
+    }
+  }
+  function drawVolga(k, C) {
+    const P = k.pose, ph = k.walkPh, bob = Math.round(Math.sin(ph * 2) * 0.8) + Math.round(P.crouch), la = Math.round(Math.sin(ph) * 5), lb = -la;
+    const body = C([54, 74, 58]), dark = C([34, 48, 40]), belly = C([122, 110, 78]);
+    const pulse = 0.5 + 0.5 * Math.sin(S.time * 6), lava = C(mix([200, 70, 20], [255, 200, 80], Math.max(pulse * 0.5, k.glowT)));
+    const lift = P.lift ? -6 : 0;
+    // tail
+    for (let i = 0; i < 9; i++) {
+      const sw = Math.sin(S.time * 2 + i * 0.6) * i * 0.35 + P.tail * i * 2.2;
+      const tx = -12 - i * 4.2 + (P.tail > 1 ? i * 3 : 0), ty = -14 + i * 1.3 + sw * 0.4 + bob * 0.5, s = 8 - i * 0.75;
+      rect(tx - s / 2, ty - s / 2 - (P.tail > 1 ? i * 0.8 : 0), s, s, i % 2 ? dark : body);
+      if (i % 2 === 0 && i < 7) px(tx, ty - s / 2 - 1, lava);
+    }
+    rect(-9 + lb, -20, 8, 14, dark); rect(-11 + lb, -6, 12, 6, dark);
+    rect(-12, -46 + bob, 24, 28, body);
+    rect(-1, -42 + bob, 10, 22, belly);
+    for (let yy = -40; yy < -22; yy += 3) rect(-1, yy + bob, 10, 1, C([96, 86, 60]));
+    for (let j = 0; j < 6; j++) { const px2 = -14 + j * 2, py = -48 + j * 5 + bob; rect(px2 - 2, py - 3, 4, 5, lava); px(px2 - 1, py - 4, lava); }
+    rect(-4 + la, -22 + lift, 10, 16, body); rect(-6 + la, -6 + lift, 14, 6, body);
+    px(8 + la, -1 + lift, C([230, 230, 220])); px(6 + la, -1 + lift, C([230, 230, 220]));
+    // arm
+    if (P.arm > 0.5) { rect(8, -38 + bob, 20, 5, body); rect(28, -39 + bob, 3, 2, C([230, 230, 220])); rect(28, -35 + bob, 3, 2, C([230, 230, 220])); }
+    else if (P.arm < -0.2) { rect(4, -40 + bob, 6, 8, body); }
+    else { rect(8, -38 + bob, 6, 4, body); rect(12, -35 + bob, 4, 7, body); px(15, -28 + bob, C([230, 230, 220])); }
+    // head & jaw
+    const hy = -58 + bob - Math.round(P.head * 4), mo = Math.round(P.mouth * 5);
+    rect(4, hy + 2, 12, 12, body);
+    rect(6, hy, 16, 8, body); rect(18, hy + 1, 7, 6, body);
+    rect(8, hy + 8 + mo, 16, 4, dark);
+    if (mo > 0) { rect(10, hy + 8, 14, mo, C([90, 20, 20])); if (k.glowT > 0) rect(12, hy + 8, 10, mo, lava); for (let t = 10; t < 24; t += 3) { px(t, hy + 8, C([240, 240, 230])); px(t + 1, hy + 11 + mo, C([240, 240, 230])); } }
+    rect(15, hy + 2, 2, 2, C([255, 230, 80])); px(16, hy + 2, C([255, 255, 200]));
+    rect(6, hy - 2, 3, 2, lava); rect(10, hy - 3, 3, 3, lava);
+  }
+  function drawJinrai(k, C) {
+    const P = k.pose, ph = k.walkPh, bob = Math.round(Math.sin(ph * 2) * 0.8) + Math.round(P.crouch), la = Math.round(Math.sin(ph) * 4), lb = -la;
+    const body = C([62, 82, 124]), armor = C([140, 160, 200]), dark = C([40, 52, 84]);
+    const pulse = 0.5 + 0.5 * Math.sin(S.time * 8), volt = C(mix([60, 140, 200], [220, 250, 255], Math.max(pulse * 0.5, k.glowT)));
+    const lift = P.lift ? -6 : 0;
+    rect(-26, -24 + bob, 12, 6, dark); rect(-30, -22 + bob, 6, 4, dark);
+    rect(-10 + lb, -18, 10, 12, dark); rect(-12 + lb, -6, 14, 6, dark);
+    // far arm
+    if (P.arm < 1.5) { rect(-8, -44 + bob, 7, 16, dark); rect(-10, -28 + bob, 10, 9, dark); }
+    rect(-16, -50 + bob, 30, 32, body);
+    for (let yy = -46; yy < -20; yy += 6) rect(-14, yy + bob, 26, 2, armor);
+    rect(-2, -44 + bob, 5, 5, volt); if (k.glowT > 0 || pulse > 0.8) px(0, -42 + bob, C([255, 255, 255]));
+    for (const [sx2, sy] of [[-14, -54], [-8, -57], [-2, -56]]) { rect(sx2, sy + bob, 3, 5, armor); px(sx2 + 1, sy - 1 + bob, armor); }
+    rect(-4 + la, -20 + lift, 12, 14, body); rect(-6 + la, -6 + lift, 16, 6, body);
+    // head & horn
+    const hy = -56 + bob - Math.round(P.head * 4), mo = Math.round(P.mouth * 3);
+    rect(8, hy, 13, 11, body); rect(9, hy + 1, 11, 2, armor);
+    rect(18, hy - 4, 3, 5, C([240, 220, 90])); rect(20, hy - 9, 3, 6, C([240, 220, 90])); rect(22, hy - 13, 2, 5, k.glowT > 0 ? volt : C([255, 240, 120]));
+    rect(15, hy + 4, 3, 2, C([255, 70, 60]));
+    if (mo > 0) { rect(12, hy + 9, 9, mo + 1, C([30, 20, 30])); px(13, hy + 9, C([240, 240, 230])); px(19, hy + 9, C([240, 240, 230])); }
+    // near arm: idle, punch, raised
+    if (P.arm > 1.5) { rect(4, -70 + bob, 8, 26, body); rect(2, -80 + bob, 13, 11, armor); rect(-10, -72 + bob, 7, 22, dark); rect(-13, -80 + bob, 12, 10, dark); }
+    else if (P.arm > 0.5) { rect(6, -46 + bob, 28, 9, body); rect(32, -48 + bob, 13, 12, armor); rect(33, -47 + bob, 1, 10, C([200, 220, 255])); }
+    else if (P.arm < -0.2) { rect(2, -46 + bob, 8, 12, body); rect(-2, -38 + bob, 12, 11, armor); }
+    else { rect(6, -46 + bob, 9, 16, body); rect(9, -32 + bob, 9, 10, body); rect(8, -24 + bob, 13, 11, armor); }
+  }
+
+  function drawParticles() {
+    for (const p of S.parts) {
+      const x = p.x - S.camX, y = p.y, k = p.t / p.life;
+      switch (p.type) {
+        case "spark": pxLine(x, y, x - p.vx * 0.03, y - p.vy * 0.03, rgba(p.col, 1 - k)); break;
+        case "line": rect(x, y, 20, 1, rgba([255, 255, 255], 0.5 * (1 - k))); break;
+        case "fire": {
+          const c = k < 0.2 ? [255, 250, 200] : k < 0.5 ? [255, 190, 60] : k < 0.8 ? [240, 90, 30] : [90, 60, 60];
+          const s = p.size * (1 + k);
+          ctx.fillStyle = rgba(c, 1 - k * 0.6); ctx.fillRect(Math.round(x - s / 2), Math.round(y - s / 2), Math.round(s), Math.round(s));
+          break;
+        }
+        case "smoke": { const s = p.size * (1 + k * 2); ctx.fillStyle = rgba(mix([80, 70, 70], [30, 24, 28], p.dark || 1), 0.5 * (1 - k)); ctx.fillRect(Math.round(x - s / 2), Math.round(y - s / 2), Math.round(s), Math.round(s)); break; }
+        case "dust": { const s = p.size * (1 + k * 1.5); ctx.fillStyle = rgba([150, 120, 100], 0.55 * (1 - k)); ctx.fillRect(Math.round(x - s / 2), Math.round(y - s / 2), Math.round(s), Math.round(s * 0.7)); break; }
+        case "debris": rect(x, y, p.size, p.size, p.col); break;
+        case "glass": px(x, y, rgba([200, 230, 255], 1 - k)); break;
+        case "ring": { ctx.strokeStyle = rgba(p.col, 1 - k); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(Math.round(x), Math.round(y), lerp(p.r0, p.r1, k), 0, Math.PI * 2); ctx.stroke(); break; }
+        case "shock": { const r = p.r1 * k; ctx.fillStyle = rgba([255, 230, 180], 0.6 * (1 - k)); ctx.fillRect(Math.round(x - r), GY - 1, 3, 2); ctx.fillRect(Math.round(x + r - 3), GY - 1, 3, 2); ctx.strokeStyle = rgba([255, 220, 160], 0.4 * (1 - k)); ctx.beginPath(); ctx.ellipse(Math.round(x), GY, r, r * 0.12, 0, 0, Math.PI * 2); ctx.stroke(); break; }
+      }
+    }
+    for (const p of S.projs) {
+      const x = p.x - S.camX;
+      if (p.type === "rock") { ctx.save(); ctx.translate(Math.round(x), Math.round(p.y)); ctx.rotate(p.spin); rect(-7, -5, 14, 10, p.col); rect(-5, -3, 2, 2, [255, 200, 120]); rect(1, -3, 2, 2, [255, 200, 120]); rect(-7, -5, 14, 1, mix(p.col, [255, 255, 255], 0.2)); ctx.restore(); }
+      else if (p.type === "missile") { rect(x - 2, p.y, 4, 1, [220, 220, 220]); px(x - Math.sign(p.vx) * 3, p.y, [255, 180, 60]); }
+      else { px(x, p.y, [255, 240, 150]); px(x - Math.sign(p.vx), p.y + 0.3, [255, 180, 60]); }
+    }
+    for (const j of S.jets) { const x = j.x - S.camX; rect(x - 4, j.y, 9, 2, [150, 160, 170]); px(x + j.dir * 5, j.y, [150, 160, 170]); rect(x - 2 * j.dir, j.y - 2, 3, 2, [130, 140, 150]); px(x - j.dir * 5, j.y + 1, [255, 170, 60]); glow(x - j.dir * 6, j.y + 1, 4, [255, 160, 60], 0.5); }
+  }
+  function drawBeams() {
+    for (const k of K) if (k.beam) {
+      const b = k.beam, x0 = b.x0 - S.camX, x1 = b.x - S.camX;
+      const n = Math.max(2, Math.floor(Math.abs(x1 - x0) / 8));
+      for (const [w, c, a] of [[5, [80, 180, 255], 0.35], [3, [180, 240, 255], 0.9], [1, [255, 255, 255], 1]]) {
+        ctx.fillStyle = rgba(c, a);
+        let px0 = x0, py0 = b.y0;
+        for (let i = 1; i <= n; i++) {
+          const t = i / n, px1 = lerp(x0, x1, t), py1 = lerp(b.y0, b.y, t) + (i < n ? rnd(-4, 4) : 0);
+          const steps = Math.max(Math.abs(px1 - px0), 1) | 0;
+          for (let s = 0; s <= steps; s++) { const u = s / steps; ctx.fillRect(Math.round(lerp(px0, px1, u)), Math.round(lerp(py0, py1, u) - w / 2), 1, w); }
+          px0 = px1; py0 = py1;
+        }
+      }
+      glow(x1, b.y, 22, [150, 230, 255], 0.6); glow(x0, b.y0, 14, [150, 230, 255], 0.6);
+    }
+    for (const bo of S.bolts) {
+      const a = 1 - bo.t / 0.25;
+      for (const [w, c] of [[4, [120, 200, 255]], [2, [230, 250, 255]]]) for (let i = 0; i < bo.pts.length - 1; i++) pxLine(bo.pts[i][0] - S.camX, bo.pts[i][1], bo.pts[i + 1][0] - S.camX, bo.pts[i + 1][1], rgba(c, a), w);
+      const last = bo.pts[bo.pts.length - 1]; glow(last[0] - S.camX, GY, 30, [180, 230, 255], 0.6 * a);
+    }
+  }
+  function drawTexts(shx, shy) {
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (const t of S.texts) {
+      const k = t.t / t.life, pop = t.t < 0.1 ? 1.6 - t.t * 6 : 1, a = k > 0.75 ? (1 - k) * 4 : 1;
+      if (!t.str) continue;
+      const size = Math.round(t.size * pop);
+      ctx.font = `${size}px ${FONT}`;
+      const x = t.center ? W / 2 : t.x - S.camX + shx, y = t.center ? H / 2 - 6 : t.y - t.t * 10 + shy;
+      ctx.save(); ctx.translate(Math.round(x + (t.t < 0.2 ? rnd(-1, 1) : 0)), Math.round(y)); ctx.rotate(t.center ? 0 : t.rot);
+      ctx.lineWidth = Math.max(2, size / 6); ctx.strokeStyle = rgba([10, 6, 10], a); ctx.strokeText(t.str, 0, 0);
+      ctx.fillStyle = rgba(t.col, a); ctx.fillText(t.str, 0, 0);
+      ctx.restore();
+    }
+    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+  }
+  function drawHUD() {
+    const bars = [[K[0], 8, 1], [K[1], W - 8, -1]];
+    for (const [k, ax, dir] of bars) {
+      const w = 120, x0 = dir > 0 ? ax : ax - w, y = 8;
+      rect(x0 - 1, y - 1, w + 2, 8, [10, 6, 10]);
+      rect(x0, y, w, 6, [60, 20, 20]);
+      const tw = w * k.hpTrail / 100, hw = w * k.hp / 100;
+      if (dir > 0) { rect(x0, y, tw, 6, [255, 255, 255]); rect(x0, y, hw, 6, k.id === "A" ? [255, 140, 50] : [90, 200, 255]); }
+      else { rect(x0 + w - tw, y, tw, 6, [255, 255, 255]); rect(x0 + w - hw, y, hw, 6, k.id === "A" ? [255, 140, 50] : [90, 200, 255]); }
+      rect(x0, y, w, 1, rgba([255, 255, 255], 0.3));
+      ctx.font = `10px ${FONT}`; ctx.fillStyle = "rgb(250,240,230)"; ctx.textAlign = dir > 0 ? "left" : "right";
+      ctx.fillText(KAIJU[k.id].name, dir > 0 ? x0 : x0 + w, y + 17);
+      const wins = S.wins[k.id === "A" ? 0 : 1];
+      for (let i = 0; i < Math.min(wins, 5); i++) rect(dir > 0 ? x0 + 44 + i * 5 : x0 + w - 48 - i * 5, y + 11, 3, 3, [255, 220, 80]);
+    }
+    ctx.textAlign = "center"; ctx.font = `9px ${FONT}`; ctx.fillStyle = "rgb(255,230,150)";
+    ctx.fillText(`R${S.round}`, W / 2, 14);
+    ctx.textAlign = "left"; ctx.font = `8px ${FONT}`; ctx.fillStyle = "rgb(230,210,200)";
+    ctx.fillText(`被害総額 ${S.damage.toLocaleString()}億円  倒壊 ${S.collapsed}棟`, 6, H - 4);
+    ctx.textAlign = "left";
+  }
+  function drawCutin() {
+    const c = S.cutin; if (!c) return;
+    const t = c.t, k = c.k, col = k.id === "A" ? [255, 120, 40] : [80, 200, 255];
+    const inA = Math.min(1, t / 0.15), outA = t > 1.3 ? (1.5 - t) / 0.2 : 1;
+    rect(0, 0, W, 26 * inA, [0, 0, 0]); rect(0, H - 26 * inA, W, 26 * inA, [0, 0, 0]);
+    ctx.save(); ctx.globalAlpha = clamp(outA, 0, 1);
+    const bandY = 58, bh = 56, slide = (1 - inA) * W;
+    ctx.fillStyle = rgb(mix(col, [0, 0, 0], 0.55)); ctx.beginPath(); ctx.moveTo(slide - 10, bandY + 6); ctx.lineTo(W + slide, bandY); ctx.lineTo(W + slide, bandY + bh - 6); ctx.lineTo(slide - 10, bandY + bh); ctx.closePath(); ctx.fill();
+    for (let i = 0; i < 14; i++) rect(mod(i * 37 - t * 600, W + 40) - 20, bandY + 4 + (i * 7) % (bh - 8), 18, 1, rgba(col, 0.6));
+    // close-up of the eye
+    const ex = 70 - slide * 0.5, ey = bandY + bh / 2;
+    rect(ex - 30, ey - 14, 60, 28, k.id === "A" ? [54, 74, 58] : [62, 82, 124]);
+    rect(ex - 22, ey - 7, 44, 14, k.id === "A" ? [255, 220, 60] : [255, 80, 70]);
+    rect(ex - 4, ey - 7, 8, 14, [20, 10, 10]); rect(ex - 18, ey - 5, 6, 3, [255, 255, 230]);
+    rect(ex - 30, ey - 16, 60, 4, k.id === "A" ? [34, 48, 40] : [40, 52, 84]);
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.font = `20px ${FONT}`; ctx.lineWidth = 4; ctx.strokeStyle = "rgb(10,6,10)";
+    const tx = 130 + (1 - inA) * 200; ctx.strokeText(c.name, tx, ey); ctx.fillStyle = rgb(mix(col, [255, 255, 255], 0.5)); ctx.fillText(c.name, tx, ey);
+    ctx.font = `9px ${FONT}`; ctx.fillStyle = "rgb(255,255,255)"; ctx.fillText(KAIJU[k.id].name + " 必殺技", tx, ey - 18);
+    ctx.restore(); ctx.textBaseline = "alphabetic";
+  }
+
+  function render() {
+    const tr = S.trauma * S.trauma, shx = Math.round(tr * 7 * (Math.random() * 2 - 1)), shy = Math.round(tr * 5 * (Math.random() * 2 - 1));
+    ctx.save(); ctx.translate(shx, shy);
+    drawBackground();
+    drawHeli();
+    drawBuildings();
+    drawStreet();
+    const order = K.slice().sort((a, b) => (a.state === "held") - (b.state === "held"));
+    for (const k of order) drawKaiju(k);
+    drawBeams();
+    drawParticles();
+    drawForeground();
+    ctx.restore();
+    drawTexts(shx, shy);
+    if (S.flash > 0) { ctx.fillStyle = rgba(S.flashCol, S.flash * 0.6); ctx.fillRect(0, 0, W, H); }
+    drawHUD();
+    drawCutin();
+  }
+
+  // ---------- post-process ----------
+  const LEVELS = [0, 30, 72, 128, 190, 255];
+  const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  const LO = new Uint8Array(256), FR = new Uint8Array(256);
+  for (let v = 0; v < 256; v++) { let i = 0; while (i < 4 && v >= LEVELS[i + 1]) i++; const a = LEVELS[i], b = LEVELS[i + 1]; LO[v] = i; FR[v] = Math.round(((v - a) / (b - a)) * 16); }
+  const indexBuf = new Uint8Array(W * H);
+  function postProcess() {
+    const img = ctx.getImageData(0, 0, W, H), d = img.data, inv = S.impact > 0;
+    for (let y = 0, p = 0; y < H; y++) for (let x = 0; x < W; x++, p++) {
+      const o = p * 4, th = BAYER[(x & 3) + ((y & 3) << 2)];
+      let R = d[o], G = d[o + 1], B = d[o + 2];
+      if (inv) { const l = (R + G + B) / 3; R = G = B = l > 70 ? 0 : 255; }
+      let r = LO[R] + (FR[R] > th ? 1 : 0), g = LO[G] + (FR[G] > th ? 1 : 0), b = LO[B] + (FR[B] > th ? 1 : 0);
+      if (r > 5) r = 5; if (g > 5) g = 5; if (b > 5) b = 5;
+      indexBuf[p] = r * 36 + g * 6 + b;
+      d[o] = LEVELS[r]; d[o + 1] = LEVELS[g]; d[o + 2] = LEVELS[b]; d[o + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    return indexBuf;
+  }
+  function frame(dt) {
+    stepGame(dt); render();
+    const idx = postProcess();
+    vctx.drawImage(low, 0, 0, view.width, view.height);
+    return idx;
+  }
+
+  // ---------- sound ----------
+  const Snd = { ac: null, on: false, vol: 0.7, bgm: true, n: null, nextBeat: 0, step: 0, fireT: 0 };
+  let busy = false;
+  const live = () => Snd.on && Snd.ac && !busy;
+  function audioInit() {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
+    const ac = new AC(); Snd.ac = ac;
+    const master = ac.createGain(); master.gain.value = Snd.vol;
+    const comp = ac.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 6;
+    master.connect(comp); comp.connect(ac.destination);
+    const buf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const brown = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate), bd = brown.getChannelData(0); let l = 0;
+    for (let i = 0; i < bd.length; i++) { l = (l + 0.02 * (Math.random() * 2 - 1)) / 1.02; bd[i] = l * 3.5; }
+    const shaper = ac.createWaveShaper(); const curve = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 512 - 1; curve[i] = Math.tanh(x * 4); } shaper.curve = curve; shaper.connect(master);
+    // looping fire roar
+    const fsrc = ac.createBufferSource(); fsrc.buffer = buf; fsrc.loop = true; const ff = ac.createBiquadFilter(); ff.type = "bandpass"; ff.frequency.value = 700; ff.Q.value = 0.6;
+    const fg = ac.createGain(); fg.gain.value = 0; fsrc.connect(ff); ff.connect(fg); fg.connect(master); fsrc.start();
+    const bgmG = ac.createGain(); bgmG.gain.value = 0.55; bgmG.connect(master);
+    Snd.n = { master, buf, brown, shaper, fg, ff, bgmG };
+    Snd.nextBeat = ac.currentTime + 0.1;
+    return true;
+  }
+  function env(g, t0, a, peak, dur) { g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(peak, t0 + a); g.gain.exponentialRampToValueAtTime(0.0005, t0 + dur); }
+  function tone(type, f0, f1, dur, vol, dest, t0) {
+    const ac = Snd.ac, o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t0); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t0 + dur);
+    env(g, t0, 0.005, vol, dur); o.connect(g); g.connect(dest || Snd.n.master); o.start(t0); o.stop(t0 + dur + 0.05); return o;
+  }
+  function noise(filter, f, q, dur, vol, t0, brown, f1) {
+    const ac = Snd.ac, s = ac.createBufferSource(); s.buffer = brown ? Snd.n.brown : Snd.n.buf; s.loop = true;
+    const fl = ac.createBiquadFilter(); fl.type = filter; fl.frequency.setValueAtTime(f, t0); if (f1) fl.frequency.exponentialRampToValueAtTime(f1, t0 + dur); fl.Q.value = q;
+    const g = ac.createGain(); env(g, t0, 0.005, vol, dur); s.connect(fl); fl.connect(g); g.connect(Snd.n.master); s.start(t0); s.stop(t0 + dur + 0.05);
+  }
+  function roar(t0, base, len, rough) {
+    const ac = Snd.ac, o1 = ac.createOscillator(), o2 = ac.createOscillator(), lfo = ac.createOscillator(), lg = ac.createGain(), g = ac.createGain(), lp = ac.createBiquadFilter();
+    o1.type = "sawtooth"; o2.type = rough ? "square" : "sawtooth";
+    o1.frequency.setValueAtTime(base * 1.4, t0); o1.frequency.linearRampToValueAtTime(base * 1.8, t0 + len * 0.3); o1.frequency.exponentialRampToValueAtTime(base * 0.7, t0 + len);
+    o2.frequency.setValueAtTime(base * 1.42, t0); o2.frequency.linearRampToValueAtTime(base * 1.83, t0 + len * 0.3); o2.frequency.exponentialRampToValueAtTime(base * 0.72, t0 + len);
+    lfo.frequency.value = rough ? 23 : 9; lg.gain.value = base * 0.25; lfo.connect(lg); lg.connect(o1.frequency); lg.connect(o2.frequency);
+    lp.type = "lowpass"; lp.frequency.value = 1400; lp.Q.value = 3;
+    g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(0.28, t0 + 0.12); g.gain.setValueAtTime(0.28, t0 + len * 0.6); g.gain.exponentialRampToValueAtTime(0.001, t0 + len);
+    o1.connect(lp); o2.connect(lp); lp.connect(g); g.connect(Snd.n.shaper);
+    for (const o of [o1, o2, lfo]) { o.start(t0); o.stop(t0 + len + 0.1); }
+    noise("bandpass", 900, 1, len, 0.12, t0);
+  }
+  function sfx(kind, vol = 1) {
+    if (!live()) return;
+    const t0 = Snd.ac.currentTime, m = Snd.n.master;
+    switch (kind) {
+      case "hit": tone("sine", 140, 45, 0.18, 0.5 * vol, m, t0); noise("lowpass", 1800, 0.7, 0.08, 0.35 * vol, t0); break;
+      case "heavy": tone("sine", 110, 32, 0.35, 0.7 * vol, Snd.n.shaper, t0); noise("lowpass", 2500, 0.7, 0.15, 0.45 * vol, t0); noise("highpass", 3000, 0.7, 0.05, 0.2 * vol, t0); break;
+      case "swing": noise("bandpass", 400, 1.5, 0.22, 0.25 * vol, t0, false, 1600); break;
+      case "step": tone("sine", 70, 30, 0.22, 0.45 * vol, m, t0); noise("lowpass", 300, 0.7, 0.15, 0.2 * vol, t0, true); break;
+      case "slam": tone("sine", 80, 25, 0.6, 0.8 * vol, Snd.n.shaper, t0); noise("lowpass", 600, 0.7, 0.7, 0.5 * vol, t0, true); break;
+      case "boom": tone("sine", 90, 30, 0.5, 0.4 * vol, m, t0); noise("lowpass", 1200, 0.7, 0.6 * vol + 0.2, 0.4 * vol, t0, false, 200); break;
+      case "collapse": noise("lowpass", 500, 0.7, 2.4, 0.5 * vol, t0, true, 120); for (let i = 0; i < 7; i++) noise("bandpass", rnd(800, 2500), 3, 0.06, 0.2, t0 + rnd(0, 1.6)); break;
+      case "crunch": noise("bandpass", 1400, 1, 0.25, 0.4 * vol, t0); tone("square", 90, 50, 0.15, 0.1, m, t0); break;
+      case "glass": for (let i = 0; i < 5; i++) tone("sine", rnd(3000, 6000), rnd(3000, 6000), 0.08, 0.05, m, t0 + rnd(0, 0.3)); break;
+      case "roarA": roar(t0, 70, 1.5, false); break;
+      case "roarB": roar(t0, 110, 1.3, true); break;
+      case "grunt": roar(t0, 90, 0.4, true); break;
+      case "inhale": noise("bandpass", 300, 1.2, 0.45, 0.25, t0, false, 1500); break;
+      case "fire": Snd.fireT = 1.7; break;
+      case "charge": tone("sawtooth", 150, 1400, 0.8, 0.12, m, t0); tone("sine", 300, 2400, 0.8, 0.08, m, t0); break;
+      case "beam": {
+        const ac = Snd.ac, o = ac.createOscillator(), mod2 = ac.createOscillator(), mg = ac.createGain(), g = ac.createGain(), bp = ac.createBiquadFilter();
+        o.type = "sawtooth"; o.frequency.value = 180; mod2.type = "square"; mod2.frequency.value = 37; mg.gain.value = 120; mod2.connect(mg); mg.connect(o.frequency);
+        bp.type = "bandpass"; bp.frequency.value = 1200; bp.Q.value = 0.8; env(g, t0, 0.02, 0.22, 1.05);
+        o.connect(bp); bp.connect(g); g.connect(Snd.n.shaper); o.start(t0); mod2.start(t0); o.stop(t0 + 1.1); mod2.stop(t0 + 1.1);
+        noise("highpass", 4000, 0.7, 1, 0.12, t0);
+        break;
+      }
+      case "thunder": noise("highpass", 2500, 0.7, 0.15, 0.5, t0); noise("lowpass", 700, 0.7, 1.6, 0.6, t0, true, 90); tone("sine", 60, 30, 0.8, 0.5, Snd.n.shaper, t0); break;
+      case "nova": tone("sine", 60, 20, 2, 0.9, Snd.n.shaper, t0); noise("lowpass", 3000, 0.7, 2.2, 0.7, t0, false, 100); break;
+      case "cutin": tone("sawtooth", 220, 220, 0.5, 0.12, m, t0); tone("sawtooth", 277, 277, 0.5, 0.1, m, t0); tone("sawtooth", 330, 330, 0.5, 0.1, m, t0); noise("bandpass", 600, 1, 0.5, 0.2, t0, false, 4000); break;
+      case "jet": noise("bandpass", 500, 1, 2.8, 0.25, t0, false, 2500); break;
+      case "gun": tone("sine", 200, 60, 0.12, 0.15 * vol, m, t0); noise("lowpass", 2000, 0.7, 0.08, 0.15 * vol, t0); break;
+      case "gong": tone("sine", 110, 108, 2.5, 0.3 * vol, m, t0); tone("sine", 220, 219, 2, 0.15 * vol, m, t0); tone("sine", 331, 330, 1.5, 0.08 * vol, m, t0); break;
+      case "fight": for (const f of [196, 247, 294, 392]) tone("sawtooth", f, f, 0.5, 0.07, m, t0); noise("lowpass", 800, 0.7, 0.4, 0.3, t0, true); break;
+      case "ko": tone("sine", 55, 30, 2.5, 0.8, Snd.n.shaper, t0); noise("lowpass", 1500, 0.7, 1.5, 0.5, t0, false, 150); tone("sine", 110, 104, 3, 0.25, m, t0 + 0.2); break;
+    }
+  }
+  function audioUpdate(dt) {
+    if (!live()) return;
+    const n = Snd.n, ac = Snd.ac;
+    Snd.fireT = Math.max(0, Snd.fireT - dt);
+    n.fg.gain.setTargetAtTime(Snd.fireT > 0 ? 0.3 + Math.random() * 0.1 : 0, ac.currentTime, 0.05);
+    n.ff.frequency.setTargetAtTime(600 + Math.random() * 500, ac.currentTime, 0.03);
+    // taiko & bass loop
+    n.bgmG.gain.setTargetAtTime(Snd.bgm && S.phase !== "ko" ? 0.55 : 0, ac.currentTime, 0.3);
+    const spb = 60 / 132 / 2;
+    while (Snd.nextBeat < ac.currentTime + 0.15) {
+      const st = Snd.step % 16, t0 = Snd.nextBeat;
+      if ([0, 3, 6, 8, 10, 11, 12, 14].includes(st)) { tone("sine", st % 8 === 0 ? 95 : 130, 45, 0.3, st % 8 === 0 ? 0.35 : 0.2, n.bgmG, t0); }
+      if (st % 4 === 2) { const s2 = ac.createBufferSource(); s2.buffer = n.buf; const hp = ac.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 6000; const g = ac.createGain(); env(g, t0, 0.002, 0.05, 0.05); s2.connect(hp); hp.connect(g); g.connect(n.bgmG); s2.start(t0); s2.stop(t0 + 0.06); }
+      const bass = [45, 45, 48, 43][Math.floor(Snd.step / 16) % 4];
+      if (st % 2 === 0) tone("triangle", 440 * Math.pow(2, (bass - 69 + (st % 8 === 6 ? 12 : 0)) / 12), 440 * Math.pow(2, (bass - 69) / 12), spb * 1.8, 0.12, n.bgmG, t0);
+      Snd.nextBeat += spb; Snd.step++;
+    }
+  }
+
+  // ---------- GIF ----------
+  const PALETTE = new Uint8Array(768);
+  for (let i = 0; i < 216; i++) { PALETTE[i * 3] = LEVELS[(i / 36) | 0]; PALETTE[i * 3 + 1] = LEVELS[((i / 6) | 0) % 6]; PALETTE[i * 3 + 2] = LEVELS[i % 6]; }
+  function lzw(ix, out) {
+    let size = 9, next = 258, cur = 0, bits = 0; const dict = new Map(), bytes = [];
+    const emit = c => { cur |= c << bits; bits += size; while (bits >= 8) { bytes.push(cur & 255); cur >>>= 8; bits -= 8; } };
+    emit(256); let prefix = ix[0];
+    for (let i = 1; i < ix.length; i++) {
+      const k = ix[i], key = prefix * 256 + k, v = dict.get(key);
+      if (v !== undefined) { prefix = v; continue; }
+      emit(prefix);
+      if (next < 4095) { dict.set(key, next++); if (next > (1 << size) && size < 12) size++; } else { emit(256); dict.clear(); size = 9; next = 258; }
+      prefix = k;
+    }
+    emit(prefix); emit(257); if (bits > 0) bytes.push(cur & 255);
+    out.push(8);
+    for (let i = 0; i < bytes.length; i += 255) { const n = Math.min(255, bytes.length - i); out.push(n); for (let j = 0; j < n; j++) out.push(bytes[i + j]); }
+    out.push(0);
+  }
+  function upscale(ix, k) {
+    if (k === 1) return ix.slice();
+    const w = W * k, o = new Uint8Array(w * H * k);
+    for (let y = 0; y < H * k; y++) { const sy = ((y / k) | 0) * W, row = y * w; for (let x = 0; x < w; x++) o[row + x] = ix[sy + ((x / k) | 0)]; }
+    return o;
+  }
+  async function makeGif(seconds = 8, scale = 2, fps = 20, onProgress) {
+    const n = Math.round(seconds * fps), w = W * scale, h = H * scale, delay = Math.round(100 / fps);
+    const out = []; for (const ch of "GIF89a") out.push(ch.charCodeAt(0));
+    out.push(w & 255, w >> 8, h & 255, h >> 8, 0xf7, 0, 0); for (let i = 0; i < 768; i++) out.push(PALETTE[i]);
+    out.push(0x21, 0xff, 0x0b); for (const ch of "NETSCAPE2.0") out.push(ch.charCodeAt(0)); out.push(3, 1, 0, 0, 0);
+    for (let i = 0; i < n; i++) {
+      const ix = frame(1 / fps);
+      out.push(0x21, 0xf9, 4, 4, delay & 255, delay >> 8, 0, 0, 0x2c, 0, 0, 0, 0, w & 255, w >> 8, h & 255, h >> 8, 0);
+      lzw(upscale(ix, scale), out);
+      if (i % 4 === 3) { onProgress && onProgress(i + 1, n); await new Promise(r => setTimeout(r, 0)); }
+    }
+    out.push(0x3b); return new Uint8Array(out);
+  }
+
+  // ---------- UI ----------
+  let last = performance.now();
+  function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now; if (!S.paused && !busy) frame(dt); requestAnimationFrame(loop); }
+  const status = document.getElementById("status"), out = document.getElementById("out");
+  const sBtn = document.getElementById("sound");
+  sBtn.addEventListener("click", async () => {
+    if (!Snd.ac && !audioInit()) { status.textContent = "このブラウザでは音を鳴らせません。"; return; }
+    Snd.on = !Snd.on;
+    if (Snd.on) { await Snd.ac.resume(); Snd.nextBeat = Snd.ac.currentTime + 0.1; } else await Snd.ac.suspend();
+    sBtn.setAttribute("aria-pressed", String(Snd.on)); sBtn.textContent = Snd.on ? "音を消す" : "音を出す";
+  });
+  const bgmBtn = document.getElementById("bgm");
+  bgmBtn.addEventListener("click", () => { Snd.bgm = !Snd.bgm; bgmBtn.setAttribute("aria-pressed", String(Snd.bgm)); });
+  document.getElementById("vol").addEventListener("input", e => { Snd.vol = e.target.value / 100; if (Snd.n) Snd.n.master.gain.setTargetAtTime(Snd.vol, Snd.ac.currentTime, 0.05); });
+  document.querySelectorAll("[data-m]").forEach(b => b.addEventListener("click", () => {
+    const [who, m] = b.dataset.m.split(":");
+    if (who === "X") { const k = K.find(k2 => alive(k2) && !k2.special && k2.state === "idle") || K.find(k2 => alive(k2) && !k2.special); if (k) { k.forced = "special"; } else status.textContent = "必殺技はこのラウンドではもう使いました。"; return; }
+    const k = who === "A" ? K[0] : K[1]; if (alive(k)) k.forced = m;
+  }));
+  const slowBtn = document.getElementById("slow");
+  slowBtn.addEventListener("click", () => { S.userSlow = !S.userSlow; slowBtn.setAttribute("aria-pressed", String(S.userSlow)); });
+  const pBtn = document.getElementById("pause");
+  function togglePause() { S.paused = !S.paused; pBtn.setAttribute("aria-pressed", String(S.paused)); pBtn.textContent = S.paused ? "再生" : "一時停止"; }
+  pBtn.addEventListener("click", togglePause);
+  document.getElementById("again").addEventListener("click", () => { S.round++; resetRound(); log("新しい戦いが始まる！", "sys"); });
+  window.addEventListener("keydown", e => { if (e.code === "Space" && e.target === document.body) { e.preventDefault(); togglePause(); } });
+  const gifBtn = document.getElementById("gif");
+  gifBtn.addEventListener("click", async () => {
+    busy = true; gifBtn.disabled = true;
+    try {
+      const bytes = await makeGif(+document.getElementById("gifsec").value, +document.getElementById("gifscale").value, 20, (i, n) => { status.textContent = `GIF 生成中… ${i}/${n} フレーム`; });
+      const img = new Image(); img.src = URL.createObjectURL(new Blob([bytes], { type: "image/gif" })); img.alt = "書き出した怪獣バトルGIF"; out.prepend(img);
+      status.textContent = `GIF ができました（${(bytes.length / 1048576).toFixed(1)} MB）。右クリック／長押しで保存できます。`;
+    } catch (err) { status.textContent = `GIF の生成に失敗しました: ${err.message}`; }
+    finally { busy = false; gifBtn.disabled = false; last = performance.now(); }
+  });
+  const webmBtn = document.getElementById("webm"); let rec = null;
+  webmBtn.addEventListener("click", () => {
+    if (rec) { rec.stop(); return; }
+    if (!view.captureStream || typeof MediaRecorder === "undefined") { status.textContent = "このブラウザは動画録画に対応していません。GIF をお使いください。"; return; }
+    const chunks = [], type = ["video/webm;codecs=vp9", "video/webm", "video/mp4"].find(t => MediaRecorder.isTypeSupported(t)) || "";
+    rec = new MediaRecorder(view.captureStream(30), type ? { mimeType: type, videoBitsPerSecond: 8e6 } : undefined);
+    rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+    rec.onstop = () => {
+      const v = document.createElement("video"); v.src = URL.createObjectURL(new Blob(chunks, { type: rec.mimeType || "video/webm" }));
+      v.controls = v.loop = v.muted = v.autoplay = true; out.prepend(v);
+      status.textContent = "録画しました（映像のみ）。動画の右クリック／長押しで保存できます。"; rec = null; webmBtn.textContent = "動画を録画";
+    };
+    rec.start(); webmBtn.textContent = "録画を止める"; status.textContent = "録画中… もう一度押すと停止します。";
+  });
+
+  resetRound();
+  log("怪獣警報発令！ 市街地に2体の怪獣が出現", "sys");
+  window.Kaiju = { S, get K() { return K; }, frame, makeGif, start, startSpecial };
+  requestAnimationFrame(loop);
+})();
+</script>
