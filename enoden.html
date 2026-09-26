@@ -411,18 +411,18 @@
 
   // ---------- time of day ----------
   const KEYS = [
-    [0.00, [52, 60, 110], [120, 110, 150], [236, 170, 150], [0.62, 0.58, 0.7]],
-    [0.06, [92, 130, 196], [170, 190, 220], [250, 214, 180], [0.92, 0.88, 0.86]],
-    [0.14, [96, 156, 220], [150, 196, 232], [214, 230, 236], [1, 0.99, 0.96]],
-    [0.3, [70, 136, 210], [126, 182, 230], [204, 226, 238], [1, 1, 1]],
-    [0.42, [76, 132, 200], [150, 180, 214], [240, 222, 190], [1, 0.94, 0.84]],
-    [0.49, [70, 72, 132], [214, 120, 110], [255, 184, 110], [1, 0.74, 0.56]],
-    [0.55, [34, 36, 84], [110, 70, 110], [210, 110, 100], [0.55, 0.46, 0.58]],
-    [0.62, [10, 14, 34], [20, 26, 54], [44, 46, 78], [0.24, 0.27, 0.4]],
-    [0.94, [8, 12, 30], [16, 22, 46], [36, 40, 70], [0.2, 0.24, 0.36]],
-    [1.00, [52, 60, 110], [120, 110, 150], [236, 170, 150], [0.62, 0.58, 0.7]],
+    [0.00, [52, 60, 110], [120, 110, 150], [236, 170, 150], [0.62, 0.58, 0.7], [0.62, 0.6, 0.72]],
+    [0.06, [92, 130, 196], [170, 190, 220], [250, 214, 180], [0.92, 0.88, 0.86], [0.84, 0.84, 0.9]],
+    [0.14, [96, 156, 220], [150, 196, 232], [214, 230, 236], [1, 0.99, 0.96], [0.92, 0.94, 0.98]],
+    [0.3, [70, 136, 210], [126, 182, 230], [204, 226, 238], [1, 1, 1], [1, 1, 1]],
+    [0.42, [76, 132, 200], [150, 180, 214], [240, 222, 190], [1, 0.94, 0.84], [1, 0.94, 0.84]],
+    [0.49, [70, 72, 132], [214, 120, 110], [255, 184, 110], [1, 0.74, 0.56], [0.98, 0.72, 0.52]],
+    [0.55, [34, 36, 84], [110, 70, 110], [210, 110, 100], [0.55, 0.46, 0.58], [0.6, 0.52, 0.62]],
+    [0.62, [10, 14, 34], [20, 26, 54], [44, 46, 78], [0.24, 0.27, 0.4], [0.66, 0.72, 0.72]],
+    [0.94, [8, 12, 30], [16, 22, 46], [36, 40, 70], [0.2, 0.24, 0.36], [0.64, 0.7, 0.7]],
+    [1.00, [52, 60, 110], [120, 110, 150], [236, 170, 150], [0.62, 0.58, 0.7], [0.62, 0.6, 0.72]],
   ];
-  function todCols(t) { let i = 0; while (i < KEYS.length - 2 && t >= KEYS[i + 1][0]) i++; const a = KEYS[i], b = KEYS[i + 1], f = clamp((t - a[0]) / (b[0] - a[0]), 0, 1); return { top: mixc(a[1], b[1], f), mid: mixc(a[2], b[2], f), hor: mixc(a[3], b[3], f), tint: mixc(a[4], b[4], f) }; }
+  function todCols(t) { let i = 0; while (i < KEYS.length - 2 && t >= KEYS[i + 1][0]) i++; const a = KEYS[i], b = KEYS[i + 1], f = clamp((t - a[0]) / (b[0] - a[0]), 0, 1); return { top: mixc(a[1], b[1], f), mid: mixc(a[2], b[2], f), hor: mixc(a[3], b[3], f), tint: mixc(a[4], b[4], f), inner: mixc(a[5], b[5], f) }; }
   const nightOf = t => t > 0.52 && t < 0.98 ? smooth(0.52, 0.62, t) * (1 - smooth(0.93, 0.99, t)) : t < 0.03 ? 0.6 * (1 - t / 0.03) : 0;
 
   // ---------- motion ----------
@@ -566,7 +566,7 @@
     if (night > 0.2) { const f = mod(t - 0.56, 1) / 0.44, mx = lerp(40, 440, f), my = HOR - Math.sin(clamp(f, 0, 1) * Math.PI) * 80 + 4; lctx.fillStyle = rgba([240, 240, 220], night); lctx.beginPath(); lctx.arc(mx, my, 5, 0, Math.PI * 2); lctx.fill(); lctx.fillStyle = col(T.top); lctx.beginPath(); lctx.arc(mx + 2, my - 1, 4, 0, Math.PI * 2); lctx.fill(); S.moonX = mx; } else S.moonX = null;
   }
   function render() {
-    const T0c = todCols(S.tod), T = S.rain ? { top: mixc(T0c.top, [110, 118, 128], 0.7), mid: mixc(T0c.mid, [140, 146, 154], 0.7), hor: mixc(T0c.hor, [160, 166, 172], 0.7), tint: [T0c.tint[0] * 0.64, T0c.tint[1] * 0.68, T0c.tint[2] * 0.74] } : T0c, night = nightOf(S.tod), inTun = segAt(S.s).k === "tunnel";
+    const T0c = todCols(S.tod), T = S.rain ? { top: mixc(T0c.top, [110, 118, 128], 0.7), mid: mixc(T0c.mid, [140, 146, 154], 0.7), hor: mixc(T0c.hor, [160, 166, 172], 0.7), tint: [T0c.tint[0] * 0.64, T0c.tint[1] * 0.68, T0c.tint[2] * 0.74], inner: mul(mixc(T0c.inner, [0.8, 0.82, 0.86], 0.4), 0.82) } : T0c, night = nightOf(S.tod), inTun = segAt(S.s).k === "tunnel";
     const jy = S.jig;
     drawSky(T, night);
     drawOutside(T, night);
@@ -578,11 +578,11 @@
     // window glass: faint reflection streak; at night or in the tunnel the car interior reflects
     for (const [x, y, w, h] of WINS) {
       lctx.fillStyle = "rgba(255,255,255,0.05)"; lctx.beginPath(); lctx.moveTo(x + 30, y); lctx.lineTo(x + 70, y); lctx.lineTo(x + 20, y + h); lctx.lineTo(x - 20, y + h); lctx.fill();
-      const refl = Math.max(night * 0.7, inTun ? 0.8 : 0); if (refl > 0.05) { lctx.fillStyle = rgba([250, 250, 240], 0.22 * refl); for (let lx = 30; lx < W; lx += 110) { const rx = W - lx - 60; if (rx + 60 > x && rx < x + w) lctx.fillRect(Math.max(x, rx), y + 4, Math.min(x + w, rx + 60) - Math.max(x, rx), 2); } lctx.fillStyle = rgba([140, 160, 150], 0.12 * refl); lctx.fillRect(x, y + h - 30, w, 30); }
+      const refl = Math.max(night * 0.7, inTun ? 0.8 : 0); if (refl > 0.05) { lctx.fillStyle = rgba([250, 250, 240], 0.22 * refl); for (let lx = 30; lx < W; lx += 110) { const rx = W - lx - 60; if (rx + 60 > x && rx < x + w) lctx.fillRect(Math.max(x, rx), y + 4, Math.min(x + w, rx + 60) - Math.max(x, rx), 2); } lctx.fillStyle = rgba([140, 160, 150], 0.06 * refl); lctx.fillRect(x, y + h - 22, w, 22); }
     }
     for (const d of S.drops) { const x = Math.round(d.x), y = Math.round(d.y); lctx.fillStyle = "rgba(40,50,60,0.35)"; lctx.fillRect(x, y, 2, 2); lctx.fillStyle = "rgba(230,240,250,0.8)"; lctx.fillRect(x, y, 1, 1); lctx.fillStyle = "rgba(200,215,230,0.3)"; lctx.fillRect(x + 1, y - Math.round(d.l * 2), 1, Math.round(d.l * 2)); }
     // interior, lit by the day outside or by its own lamps
-    const lampOn = Math.max(night, inTun ? 1 : 0), it = mixc(mixc([0.9, 0.9, 0.9], T.tint.map(v => 0.35 + v * 0.6), 0.8), [0.96, 0.98, 0.96], lampOn);
+    const lampOn = Math.max(night, inTun ? 1 : 0), it = inTun ? mixc(T.inner, [0.74, 0.8, 0.78], 1 - night * 0.3) : T.inner;
     icx.clearRect(0, 0, W, H); icx.drawImage(INT.c, 0, 0);
     // seated passengers
     const seatX = [44, 206, 398];
@@ -592,9 +592,15 @@
     mkx.clearRect(0, 0, W, H); mkx.drawImage(ic, 0, 0);
     icx.globalCompositeOperation = "multiply"; icx.fillStyle = col(mul(it, 255)); icx.fillRect(0, 0, W, H); icx.globalCompositeOperation = "destination-in"; icx.drawImage(mk, 0, 0); icx.globalCompositeOperation = "source-over";
     const iy = S.jolt > 0.5 ? (Math.cos(S.time * 60) > 0 ? 1 : 0) : 0; lctx.drawImage(ic, 0, iy); if (iy) { lctx.fillStyle = "rgb(214,214,208)"; lctx.fillRect(0, 0, W, 1); }
+    // pools of light under the ceiling tubes and darker corners at night
+    if (lampOn > 0.1) { lctx.save(); lctx.beginPath(); lctx.rect(0, 0, W, H); for (const [x, y, w, h] of WINS) lctx.rect(x + w, y, -w, h); lctx.clip("evenodd"); for (let x = 30; x < W; x += 110) { const gl = lctx.createRadialGradient(x + 30, 20, 4, x + 30, 60, 120); gl.addColorStop(0, rgba([255, 255, 240], 0.16 * lampOn)); gl.addColorStop(1, "rgba(255,255,240,0)"); lctx.fillStyle = gl; lctx.fillRect(x - 90, 0, 240, H); } const vg = lctx.createRadialGradient(W / 2, H * 0.45, 120, W / 2, H * 0.45, 300); vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, rgba([10, 16, 20], 0.45 * lampOn)); lctx.fillStyle = vg; lctx.fillRect(0, 0, W, H); lctx.restore(); }
+    // low morning and evening sun: slanting beams through the windows onto the seat and floor, cut by poles and houses
+    if (!S.rain && !inTun && S.sunX != null && S.sunY > HOR - 55) {
+      const k = (1 - smooth(HOR - 55, HOR - 25, S.sunY) * 0) * smooth(HOR - 55, HOR - 30, S.sunY), warm = S.tod > 0.3 ? [255, 170, 90] : [255, 226, 180], z = segAt(S.s).k, shade = z === "houses" || z === "street" ? 0.35 : 1, slant = (S.sunX - W / 2) / W * 1.6;
+      for (const [x, , w] of WINS) { const flick = 0.75 + 0.25 * Math.sin(S.s * 0.09) * Math.sin(S.s * 0.023 + x); lctx.fillStyle = rgba(warm, 0.28 * k * shade * flick); lctx.beginPath(); const x0 = x + 10 - slant * 70, x1 = x + w - 10 - slant * 70; lctx.moveTo(x0, 200); lctx.lineTo(x1, 200); lctx.lineTo(x1 - slant * 60, 262); lctx.lineTo(x0 - slant * 60, 262); lctx.fill(); }
+    }
     if (lampOn > 0.1) { lctx.globalAlpha = lampOn; lctx.globalCompositeOperation = "lighter"; lctx.drawImage(INT.lc, 0, 0); S.seats.forEach((sp, i) => { if (sp) lctx.drawImage(sp.lc, seatX[i], 194); }); lctx.globalCompositeOperation = "source-over"; lctx.globalAlpha = 1; }
     // warm evening light spilling onto the seat
-    if (S.tod > 0.4 && S.tod < 0.53 && !inTun) { const k = smooth(0.4, 0.47, S.tod) * (1 - smooth(0.5, 0.53, S.tod)); lctx.fillStyle = rgba([255, 170, 90], 0.18 * k); lctx.fillRect(20, 198, 440, 50); }
     // LED board: next station
     lctx.fillStyle = "rgb(24,22,20)"; lctx.fillRect(LED_X, LED_Y - 26, 52, 12); lctx.fillStyle = "rgb(70,70,72)"; lctx.fillRect(LED_X - 1, LED_Y - 27, 54, 1);
     const msg = `NEXT ${S.led || "INAMURAGASAKI"}   `, px = painter(lctx), off = Math.floor(S.time * 14) % (msg.length * 4 + 50);
