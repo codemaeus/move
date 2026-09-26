@@ -144,7 +144,6 @@
     ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2); ctx.globalCompositeOperation = prev;
   }
   function blob(x, y, w, h, c) { rect(x + 2, y, w - 4, h, c); rect(x, y + 2, w, h - 4, c); rect(x + 1, y + 1, w - 2, h - 2, c); }
-  function scaled(ox, oy, m) { ctx.save(); ctx.translate(ox, oy); ctx.scale(m, m); ctx.translate(-ox, -oy); }
 
   // ---------- time of day ----------
   const KEYS = [

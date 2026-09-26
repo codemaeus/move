@@ -140,7 +140,6 @@
   // ---------- milky way (pre-rendered once) ----------
   (function buildMilkyWay() {
     ctx = mwX;
-    const band = (x, y) => { const u = (x * 0.62 + y * 0.78) - 70, v = (x * 0.78 - y * 0.62); return { u, v }; };
     for (let i = 0; i < 26; i++) { const t = i / 25, x = lerp(175, 10, t), y = lerp(18, 110, t) + Math.sin(t * 6) * 6; ctx.globalCompositeOperation = "lighter"; const g = ctx.createRadialGradient(x, y, 0, x, y, 26); const c = i % 3 === 0 ? [150, 90, 170] : [110, 90, 190]; g.addColorStop(0, rgba(c, 0.18)); g.addColorStop(1, rgba(c, 0)); ctx.fillStyle = g; ctx.fillRect(x - 26, y - 26, 52, 52); }
     ctx.globalCompositeOperation = "source-over";
     for (let i = 0; i < 1400; i++) {

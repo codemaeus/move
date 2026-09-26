@@ -251,7 +251,6 @@
   function makeEnemy(k, x, y) { const d = ED[k]; return { k, x, y, z: d.z || 0, hp: d.hp, hpMax: d.hp, cd: rnd(0.5, 2), hurt: 0, atk: 0, alert: false, dead: 0, ph: Math.random() * 6, wx: 0, wy: 0 }; }
 
   const logEl = document.getElementById("log");
-  let clockT = 0;
   const clock = () => { const m = Math.floor(S.time); return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; };
   function log(msg, cls = "ev") { const li = document.createElement("li"); li.className = cls; const t = document.createElement("time"); t.textContent = clock(); const sp = document.createElement("span"); sp.textContent = msg; li.append(t, sp); logEl.prepend(li); while (logEl.children.length > 9) logEl.lastChild.remove(); }
   function say(msg, cls = "ev") { S.msgs.push(msg); if (S.msgs.length > 3) S.msgs.shift(); log(msg, cls); }

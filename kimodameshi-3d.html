@@ -27,7 +27,6 @@
   }
   const nearest = t => { t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; return t; };
   const lam = (o) => ps1(new THREE.MeshLambertMaterial(o));
-  const col = c => new THREE.Color(c[0] / 255, c[1] / 255, c[2] / 255);
   // textures from the shared wall texels
   function texFrom(t, y0 = 0, y1 = null) {
     const T = K.TEX[t], h = (y1 ?? T.h) - y0, [c, x] = K.mkCanvas(T.w, h), [ec, ex] = K.mkCanvas(T.w, h);
