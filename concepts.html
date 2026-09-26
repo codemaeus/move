@@ -1,0 +1,176 @@
+<!doctype html>
+<title>Pixel Concepts</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; background: #0c0c10; color: #eee; font-family: sans-serif; padding: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; max-width: 1300px; margin: 0 auto; }
+  figure { margin: 0; } canvas { width: 100%; image-rendering: pixelated; display: block; border: 1px solid #333; }
+  figcaption { font-size: 13px; color: #bbb; padding: 6px 0; }
+</style>
+<body><div class="grid" id="grid"></div>
+<script>
+(() => {
+  const W = 320, H = 180;
+  let seed = 1; const R = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  const rgb = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  function vgrad(x, y0, y1, stops) { const g = x.createLinearGradient(0, y0, 0, y1); stops.forEach(([t, c]) => g.addColorStop(t, rgb(c))); x.fillStyle = g; x.fillRect(0, y0, W, y1 - y0); }
+  const rect = (x, px, py, w, h, c, a = 1) => { x.fillStyle = rgb(c, a); x.fillRect(Math.round(px), Math.round(py), Math.round(w), Math.round(h)); };
+  const disc = (x, cx, cy, r, c, a = 1) => { x.fillStyle = rgb(c, a); x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill(); };
+  const glow = (x, cx, cy, r, c, a = 0.6) => { const g = x.createRadialGradient(cx, cy, 0, cx, cy, r); g.addColorStop(0, rgb(c, a)); g.addColorStop(1, rgb(c, 0)); x.save(); x.globalCompositeOperation = "lighter"; x.fillStyle = g; x.fillRect(cx - r, cy - r, r * 2, r * 2); x.restore(); };
+  const poly = (x, pts, c, a = 1) => { x.fillStyle = rgb(c, a); x.beginPath(); pts.forEach(([px, py], i) => i ? x.lineTo(px, py) : x.moveTo(px, py)); x.closePath(); x.fill(); };
+  function cloud(x, cx, cy, s, lit, shade) { for (let i = 0; i < 14; i++) { const a = R() * Math.PI, r = s * (0.3 + R() * 0.45); disc(x, cx + Math.cos(a) * s * 0.9 * (R() - 0.5) * 2, cy - Math.sin(a) * s * 0.5, r, shade); } for (let i = 0; i < 12; i++) { const r = s * (0.25 + R() * 0.35); disc(x, cx + (R() - 0.6) * s * 1.4, cy - s * 0.2 - R() * s * 0.5, r, lit); } }
+
+  const SCENES = [
+    ["雨の夜の商店街", "ネオンと提灯、濡れた路面の反射、傘の人", x => {
+      vgrad(x, 0, 70, [[0, [8, 10, 26]], [1, [40, 26, 60]]]);
+      const vx = 160, vy = 70;
+      // shops on both sides in perspective
+      for (const side of [-1, 1]) for (let i = 0; i < 9; i++) {
+        const t0 = i / 9, t1 = (i + 1) / 9, f = t => 1 - Math.pow(1 - t, 1.8);
+        const xa = vx + side * (170 - f(t0) * 150), xb = vx + side * (170 - f(t1) * 150), ha = 110 - f(t0) * 90, hb = 110 - f(t1) * 90;
+        const base = [[70, 52, 48], [58, 60, 70], [80, 64, 52], [52, 48, 60]][i % 4];
+        poly(x, [[xa, vy + ha * 0.55], [xb, vy + hb * 0.55], [xb, vy - hb * 0.9], [xa, vy - ha * 0.9]], mix(base, [20, 16, 30], f(t0) * 0.6));
+        const lit = [[255, 90, 150], [90, 230, 255], [255, 210, 90], [150, 255, 120], [255, 120, 60]][(i * 3 + (side > 0 ? 1 : 0)) % 5];
+        const sx = (xa + xb) / 2, sy = vy - (ha + hb) / 2 * 0.55, sh = (ha + hb) / 2 * 0.28;
+        rect(x, sx - 2, sy - sh, Math.max(2, Math.abs(xa - xb) * 0.3), sh, lit); glow(x, sx, sy - sh / 2, sh * 1.5, lit, 0.35);
+        rect(x, Math.min(xa, xb), vy + (ha + hb) / 2 * 0.2, Math.abs(xa - xb), (ha + hb) / 2 * 0.3, [255, 220, 160], 0.55);
+      }
+      // lanterns strung across
+      for (let i = 0; i < 12; i++) { const t = i / 12, px = 20 + t * 280, py = 22 + Math.sin(t * Math.PI) * 18; disc(x, px, py, 3, [255, 70, 50]); glow(x, px, py, 10, [255, 120, 60], 0.5); }
+      // wet road with reflections
+      vgrad(x, vy, H, [[0, [30, 24, 44]], [1, [14, 12, 22]]]);
+      for (let i = 0; i < 40; i++) { const px = 40 + R() * 240, c = [[255, 90, 150], [90, 230, 255], [255, 210, 90], [255, 120, 60]][i % 4]; rect(x, px, vy + 4 + R() * 90, 1 + R() * 2, 4 + R() * 14, c, 0.35); }
+      // person with umbrella
+      poly(x, [[140, 118], [170, 118], [155, 108]], [200, 40, 60]); rect(x, 154, 118, 1, 10, [60, 60, 60]); rect(x, 150, 124, 9, 22, [40, 40, 56]); disc(x, 154.5, 122, 3, [220, 190, 170]); rect(x, 151, 146, 3, 6, [30, 30, 30]); rect(x, 156, 146, 3, 6, [30, 30, 30]);
+      // vending machine
+      rect(x, 244, 108, 16, 30, [220, 230, 240]); rect(x, 246, 111, 12, 12, [170, 220, 255]); glow(x, 252, 120, 26, [170, 220, 255], 0.35);
+      for (let i = 0; i < 160; i++) rect(x, R() * W, R() * H, 1, 4 + R() * 4, [180, 190, 230], 0.35);
+    }],
+    ["夏の田舎のバス停", "入道雲、青田、ひまわり、電柱と電線", x => {
+      vgrad(x, 0, 110, [[0, [40, 110, 210]], [0.7, [120, 190, 240]], [1, [200, 230, 245]]]);
+      cloud(x, 210, 70, 60, [255, 255, 255], [190, 205, 225]); cloud(x, 70, 90, 26, [250, 252, 255], [200, 212, 230]);
+      for (const [c, off, amp] of [[[90, 130, 150], 92, 14], [[60, 110, 90], 100, 10]]) { x.fillStyle = rgb(c); x.beginPath(); x.moveTo(0, H); for (let px = 0; px <= W; px += 4) x.lineTo(px, off - Math.sin(px * 0.02 + off) * amp - Math.sin(px * 0.07) * 3); x.lineTo(W, H); x.fill(); }
+      vgrad(x, 108, H, [[0, [110, 170, 60]], [1, [60, 130, 40]]]);
+      for (let r = 0; r < 18; r++) { const y = 110 + r * r * 0.25; x.strokeStyle = rgb([80, 140, 40], 0.6); x.beginPath(); x.moveTo(0, y); x.lineTo(W, y); x.stroke(); }
+      rect(x, 0, 150, W, 30, [150, 140, 120]); rect(x, 0, 150, W, 2, [120, 112, 96]);
+      // bus stop shelter
+      rect(x, 60, 118, 60, 4, [120, 70, 50]); rect(x, 62, 122, 3, 30, [110, 80, 60]); rect(x, 115, 122, 3, 30, [110, 80, 60]); rect(x, 64, 122, 52, 20, [140, 100, 70]); rect(x, 70, 140, 40, 3, [90, 60, 40]);
+      rect(x, 130, 118, 2, 32, [80, 80, 80]); disc(x, 131, 116, 5, [230, 230, 230]); disc(x, 131, 116, 3.5, [60, 110, 200]);
+      // girl in straw hat
+      rect(x, 88, 130, 8, 12, [255, 255, 255]); disc(x, 92, 127, 3, [230, 200, 170]); rect(x, 86, 124, 12, 2, [230, 200, 110]); rect(x, 89, 142, 2, 6, [230, 200, 170]); rect(x, 93, 142, 2, 6, [230, 200, 170]);
+      // sunflowers
+      for (let i = 0; i < 14; i++) { const px = 180 + i * 10 + R() * 4, py = 128 + R() * 8; rect(x, px, py, 1, 22, [60, 120, 40]); disc(x, px, py, 4, [255, 200, 30]); disc(x, px, py, 1.8, [110, 70, 20]); }
+      // poles and wires
+      for (const px of [20, 150, 290]) { rect(x, px, 60, 3, 92, [110, 90, 70]); rect(x, px - 6, 64, 15, 2, [100, 80, 60]); }
+      x.strokeStyle = rgb([40, 40, 40]); for (const dy of [0, 4]) { x.beginPath(); x.moveTo(20, 64 + dy); x.quadraticCurveTo(85, 76 + dy, 150, 64 + dy); x.quadraticCurveTo(220, 76 + dy, 290, 64 + dy); x.stroke(); }
+    }],
+    ["宇宙ステーションの窓", "丸窓の向こうの地球と夜明けの光、浮かぶ宇宙飛行士", x => {
+      rect(x, 0, 0, W, H, [0, 0, 6]);
+      for (let i = 0; i < 180; i++) rect(x, R() * W, R() * H, 1, 1, [230, 230, 255], 0.4 + R() * 0.6);
+      // earth
+      x.save(); x.beginPath(); x.arc(160, 330, 240, 0, Math.PI * 2); x.clip();
+      vgrad(x, 90, H, [[0, [40, 110, 200]], [1, [10, 40, 110]]]);
+      for (let i = 0; i < 40; i++) disc(x, R() * W, 95 + R() * 90, 4 + R() * 14, [240, 245, 255], 0.5);
+      poly(x, [[60, 150], [120, 130], [150, 160], [100, 180], [40, 180]], [70, 130, 70], 0.9);
+      x.restore();
+      x.strokeStyle = rgb([120, 190, 255], 0.9); x.lineWidth = 3; x.beginPath(); x.arc(160, 330, 242, Math.PI * 1.2, Math.PI * 1.8); x.stroke();
+      glow(x, 300, 98, 40, [255, 230, 180], 0.9); glow(x, 300, 98, 90, [255, 150, 90], 0.35);
+      // station interior frame
+      x.fillStyle = rgb([70, 74, 84]); x.beginPath(); x.rect(0, 0, W, H); x.arc(160, 86, 78, 0, Math.PI * 2, true); x.fill("evenodd");
+      x.strokeStyle = rgb([150, 156, 168]); x.lineWidth = 5; x.beginPath(); x.arc(160, 86, 80, 0, Math.PI * 2); x.stroke();
+      for (let a = 0; a < 12; a++) disc(x, 160 + Math.cos(a / 12 * Math.PI * 2) * 80, 86 + Math.sin(a / 12 * Math.PI * 2) * 80, 1.5, [60, 60, 70]);
+      for (let i = 0; i < 6; i++) { rect(x, 8, 20 + i * 24, 40, 16, [50, 54, 62]); rect(x, 12, 24 + i * 24, 4, 4, [80, 255, 140]); rect(x, 20, 24 + i * 24, 20, 2, [255, 180, 60]); }
+      rect(x, 270, 30, 40, 60, [60, 64, 74]); for (let i = 0; i < 5; i++) rect(x, 275, 36 + i * 10, 30, 5, [[90, 200, 255], [255, 90, 90], [120, 255, 160]][i % 3], 0.8);
+      // astronaut
+      disc(x, 250, 140, 11, [236, 236, 236]); disc(x, 252, 138, 6, [30, 50, 90]); rect(x, 238, 150, 22, 18, [230, 230, 230]); rect(x, 232, 152, 6, 12, [230, 230, 230]); rect(x, 260, 146, 6, 12, [230, 230, 230]); rect(x, 244, 156, 10, 5, [200, 60, 60]);
+      disc(x, 60, 150, 6, [60, 150, 70]); rect(x, 56, 156, 8, 8, [180, 120, 80]);
+    }],
+    ["桜の川辺", "満開の桜並木と花びら、石の太鼓橋、花見の人", x => {
+      vgrad(x, 0, 80, [[0, [150, 200, 240]], [1, [230, 236, 245]]]);
+      for (const [c, off] of [[[170, 190, 210], 70], [[140, 170, 150], 80]]) { x.fillStyle = rgb(c); x.beginPath(); x.moveTo(0, H); for (let px = 0; px <= W; px += 5) x.lineTo(px, off - Math.abs(Math.sin(px * 0.018 + off)) * 18); x.lineTo(W, H); x.fill(); }
+      for (let i = 0; i < 18; i++) rect(x, i * 18, 66 + (i % 3) * 3, 12, 10 + (i % 4) * 3, [220, 220, 215]);
+      vgrad(x, 88, H, [[0, [110, 160, 80]], [1, [80, 140, 60]]]);
+      // river diagonal
+      poly(x, [[120, 88], [200, 88], [320, 180], [80, 180]], [70, 140, 190]);
+      for (let i = 0; i < 30; i++) rect(x, 110 + R() * 190, 95 + R() * 80, 6 + R() * 10, 1, [200, 230, 250], 0.6);
+      // arched bridge
+      x.strokeStyle = rgb([150, 146, 140]); x.lineWidth = 6; x.beginPath(); x.moveTo(120, 118); x.quadraticCurveTo(170, 96, 222, 118); x.stroke();
+      x.strokeStyle = rgb([190, 60, 50]); x.lineWidth = 2; x.beginPath(); x.moveTo(120, 112); x.quadraticCurveTo(170, 90, 222, 112); x.stroke();
+      // cherry trees
+      for (const [tx, ty, s] of [[40, 110, 34], [95, 96, 22], [270, 104, 30], [300, 150, 38], [20, 160, 40]]) {
+        rect(x, tx - 2, ty, 4, s * 0.9, [80, 56, 50]);
+        for (let i = 0; i < 26; i++) disc(x, tx + (R() - 0.5) * s * 1.8, ty - R() * s * 0.9, s * (0.18 + R() * 0.2), R() < 0.5 ? [255, 190, 210] : [245, 160, 190]);
+        for (let i = 0; i < 10; i++) disc(x, tx + (R() - 0.5) * s * 1.4, ty - s * 0.5 - R() * s * 0.4, s * 0.12, [255, 230, 240]);
+      }
+      // picnic
+      poly(x, [[62, 136], [108, 136], [104, 152], [54, 152]], [70, 110, 210]); for (let i = 0; i < 4; i++) rect(x, 58 + i * 12, 136, 6, 16, [255, 255, 255], 0.35);
+      for (const [px, c] of [[66, [220, 80, 80]], [80, [90, 90, 200]], [94, [240, 200, 60]]]) { rect(x, px, 132, 6, 8, c); disc(x, px + 3, 129, 2.5, [230, 200, 170]); }
+      for (let i = 0; i < 90; i++) rect(x, R() * W, R() * H, 2, 1, [255, 200, 220], 0.9);
+    }],
+    ["雪の温泉街", "雪の夜、湯けむりの川、灯る木造の宿と提灯", x => {
+      vgrad(x, 0, 60, [[0, [10, 14, 34]], [1, [40, 44, 70]]]);
+      for (const [c, off] of [[[50, 56, 80], 52], [[70, 76, 100], 62]]) { x.fillStyle = rgb(c); x.beginPath(); x.moveTo(0, H); for (let px = 0; px <= W; px += 5) x.lineTo(px, off - Math.abs(Math.sin(px * 0.02 + off)) * 20); x.lineTo(W, H); x.fill(); }
+      rect(x, 0, 60, W, H, [60, 58, 76]);
+      // ryokan buildings on both banks
+      for (const [bx, by, bw, bh, fl] of [[4, 40, 90, 70, 3], [96, 56, 50, 50, 2], [196, 50, 60, 60, 2], [256, 34, 64, 80, 3]]) {
+        rect(x, bx, by, bw, bh, [70, 46, 36]); poly(x, [[bx - 6, by], [bx + bw + 6, by], [bx + bw - 6, by - 12], [bx + 6, by - 12]], [50, 44, 50]);
+        poly(x, [[bx - 6, by - 1], [bx + bw + 6, by - 1], [bx + bw - 4, by - 10], [bx + 4, by - 10]], [236, 240, 250], 0.95);
+        for (let f = 0; f < fl; f++) for (let k = 0; k < Math.floor(bw / 14); k++) { const wx = bx + 4 + k * 14, wy = by + 6 + f * (bh / fl); rect(x, wx, wy, 10, bh / fl - 10, [255, 200, 120]); rect(x, wx + 4, wy, 1, bh / fl - 10, [120, 70, 40]); glow(x, wx + 5, wy + 6, 12, [255, 180, 90], 0.25); }
+        for (let f = 1; f < fl; f++) rect(x, bx - 2, by + f * (bh / fl) - 3, bw + 4, 3, [236, 240, 250]);
+      }
+      // hot spring stream with steam
+      poly(x, [[130, 110], [196, 110], [230, 180], [100, 180]], [40, 70, 90]);
+      for (let i = 0; i < 20; i++) rect(x, 115 + R() * 100, 115 + R() * 60, 10, 1, [120, 170, 190], 0.6);
+      poly(x, [[100, 180], [0, 180], [0, 120], [130, 110]], [220, 226, 240]); poly(x, [[230, 180], [320, 180], [320, 120], [196, 110]], [220, 226, 240]);
+      for (let i = 0; i < 26; i++) disc(x, 130 + R() * 90, 100 + R() * 60, 6 + R() * 12, [230, 236, 245], 0.18);
+      // lanterns along the bank
+      for (let i = 0; i < 6; i++) { const px = 20 + i * 18, py = 122 + i * 7; rect(x, px, py, 1, 10, [60, 50, 50]); rect(x, px - 2, py - 6, 5, 7, [255, 200, 120]); glow(x, px, py - 3, 14, [255, 170, 90], 0.45); }
+      for (let i = 0; i < 6; i++) { const px = 300 - i * 18, py = 122 + i * 7; rect(x, px - 2, py - 6, 5, 7, [255, 200, 120]); glow(x, px, py - 3, 14, [255, 170, 90], 0.45); }
+      // bridge and a guest in yukata with umbrella
+      rect(x, 120, 128, 90, 5, [110, 60, 50]); rect(x, 120, 124, 90, 2, [150, 50, 40]);
+      poly(x, [[150, 110], [170, 110], [160, 104]], [200, 60, 50]); rect(x, 156, 114, 7, 12, [70, 90, 150]); disc(x, 159.5, 112, 2.5, [230, 200, 170]);
+      for (let i = 0; i < 220; i++) disc(x, R() * W, R() * H, R() < 0.2 ? 1.2 : 0.6, [255, 255, 255], 0.9);
+    }],
+    ["深海の遺跡", "光の差す海底の神殿、魚の群れ、光るクラゲ、探査艇", x => {
+      vgrad(x, 0, H, [[0, [30, 110, 150]], [0.5, [10, 50, 90]], [1, [4, 16, 36]]]);
+      x.save(); x.globalCompositeOperation = "lighter"; for (let i = 0; i < 6; i++) { const px = 40 + i * 50; poly(x, [[px, 0], [px + 16, 0], [px + 70, H], [px + 30, H]], [80, 180, 200], 0.08); } x.restore();
+      // temple ruins
+      rect(x, 90, 70, 160, 10, [80, 110, 120]); poly(x, [[84, 70], [256, 70], [170, 44]], [70, 100, 112]);
+      for (let i = 0; i < 6; i++) { const px = 98 + i * 27, h = i === 4 ? 30 : 70; rect(x, px, 80 + (70 - h), 10, h, [100, 130, 138]); rect(x, px + 2, 80 + (70 - h), 2, h, [130, 160, 166]); }
+      rect(x, 80, 150, 180, 8, [70, 96, 104]); poly(x, [[200, 150], [216, 140], [226, 152]], [90, 120, 128]);
+      rect(x, 0, 156, W, 24, [40, 60, 64]); for (let i = 0; i < 40; i++) disc(x, R() * W, 160 + R() * 20, 3 + R() * 6, [50 + R() * 30, 70, 70]);
+      // coral and seaweed
+      for (let i = 0; i < 12; i++) { const px = R() * W, c = [[255, 110, 120], [255, 170, 80], [200, 100, 220]][i % 3]; for (let k = 0; k < 5; k++) rect(x, px + k * 2 - 4, 150 - R() * 16, 2, 20, c); }
+      for (let i = 0; i < 10; i++) { const px = R() * W; for (let k = 0; k < 30; k++) rect(x, px + Math.sin(k * 0.4) * 3, 160 - k, 2, 1, [60, 140, 80]); }
+      // fish school
+      for (let i = 0; i < 40; i++) { const a = i * 0.5, px = 60 + Math.cos(a) * (20 + i) + i * 1.5, py = 40 + Math.sin(a) * 12 + i * 0.3; rect(x, px, py, 4, 2, [200, 220, 230]); rect(x, px - 2, py, 2, 2, [150, 180, 200]); }
+      // jellyfish
+      for (const [jx, jy] of [[270, 50], [290, 90], [40, 110]]) { disc(x, jx, jy, 7, [255, 150, 230], 0.8); glow(x, jx, jy, 22, [255, 120, 220], 0.4); for (let k = 0; k < 4; k++) for (let t = 0; t < 14; t++) rect(x, jx - 5 + k * 3 + Math.sin(t * 0.5 + k) * 1.5, jy + 4 + t, 1, 1, [255, 190, 240], 0.8); }
+      // submarine with searchlight
+      disc(x, 230, 118, 10, [240, 190, 40]); rect(x, 216, 112, 30, 12, [240, 190, 40]); disc(x, 222, 118, 3, [140, 220, 255]); rect(x, 244, 114, 6, 8, [200, 150, 30]);
+      x.save(); x.globalCompositeOperation = "lighter"; poly(x, [[214, 118], [140, 100], [140, 150]], [220, 240, 200], 0.18); x.restore();
+      for (let i = 0; i < 30; i++) disc(x, R() * W, R() * H, 1, [200, 240, 255], 0.5);
+    }],
+  ];
+
+  // same 216-colour ordered dither as the videos
+  const LEVELS = [0, 28, 66, 118, 182, 255], BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  function quantize(x) {
+    const im = x.getImageData(0, 0, W, H), d = im.data;
+    for (let y = 0; y < H; y++) for (let px = 0; px < W; px++) {
+      const o = (y * W + px) * 4, th = BAYER[(px & 3) + ((y & 3) << 2)] / 16;
+      for (let k = 0; k < 3; k++) { const v = d[o + k]; let i = 0; while (i < 4 && v >= LEVELS[i + 1]) i++; const f = (v - LEVELS[i]) / ((LEVELS[i + 1] - LEVELS[i]) || 1); d[o + k] = LEVELS[Math.min(5, i + (f > th ? 1 : 0))]; }
+      d[o + 3] = 255;
+    }
+    x.putImageData(im, 0, 0);
+  }
+  const grid = document.getElementById("grid");
+  SCENES.forEach(([title, desc, draw], i) => {
+    const c = document.createElement("canvas"); c.width = W; c.height = H; c.id = "c" + i;
+    const x = c.getContext("2d", { willReadFrequently: true }); seed = 1234 + i * 99; draw(x); quantize(x);
+    const f = document.createElement("figure"), cap = document.createElement("figcaption"); cap.textContent = `${i + 1}. ${title} ― ${desc}`; f.append(c, cap); grid.append(f);
+  });
+  window.SCENE_COUNT = SCENES.length;
+})();
+</script>
