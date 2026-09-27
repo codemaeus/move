@@ -408,12 +408,12 @@
 
   // ---------- world ----------
   const K = { x: 200, y: 0, vy: 0, dir: 1, state: "intro", t: 0, hp: 100, breath: 100, rage: 0, inv: 0, walk: 0, aim: 2, combo: 0, rise: 0, deaths: 0, emerge: 1, stepT: 0, qd: false, flash: 0, hurtF: 0, novaT: 0 };
-  const G = { mode: "title", t: 0, cam: 0, blds: [], rubble: [], props: [], cars: [], units: [], shots: [], parts: [], fires: [], fx: [], people: [], pieces: [], genX: SEA, damage: 0, kills: 0, shake: 0, flash: 0, stop: 0, alert: 1, district: "", distT: 0, spawn: { tank: 200, heli: 400, jet: 900, maser: 1500, car: 60, tram: 500 }, msg: null, beams: [], hrings: [], thrown: [], pylons: [], newsQ: [], dstat: {}, derailed: {}, rain: 0, fog: 0, dawn: 0, night: 0, cine: null, focus: null, zoomHold: 0, silh: 0, rank: null, bolt: null };
+  const G = { mode: "title", t: 0, cam: 0, blds: [], rubble: [], props: [], cars: [], units: [], shots: [], parts: [], fires: [], fx: [], people: [], pieces: [], genX: SEA, damage: 0, kills: 0, shake: 0, flash: 0, stop: 0, alert: 1, district: "", distT: 0, spawn: { tank: 200, heli: 400, jet: 900, maser: 1500, car: 60, tram: 500 }, msg: null, beams: [], hrings: [], thrown: [], pylons: [], newsQ: [], dstat: {}, derailed: {}, rain: 0, fog: 0, dawn: 0, night: 0, cine: null, focus: null, zoomHold: 0, silh: 0, rank: null, bolt: null, tv: null };
   function resetWorld() {
     G.distI = null; G.nextPylon = SEA + 260; G.dawnNews = null; G.cineLast = -9999;
     R = null; G.nextBoss = SEA + 2300; G.bossN = 0; G.zoom = 1; G.slow = 0; if (typeof A !== "undefined") A.fast = false;
     Object.assign(K, { x: 230, y: 0, vy: 0, dir: 1, state: "intro", t: 0, hp: 100, breath: 100, rage: 0, inv: 0, walk: 0, aim: 2, combo: 0, rise: 0, deaths: 0, emerge: 1, flash: 0, hurtF: 0, held: null });
-    Object.assign(G, { cam: 0, blds: [], rubble: [], props: [], cars: [], units: [], shots: [], parts: [], fires: [], fx: [], people: [], pieces: [], genX: SEA + 40, damage: 0, kills: 0, shake: 0, flash: 0, stop: 0, alert: 1, district: "", distT: 0, spawn: { tank: 300, heli: 600, jet: 1200, maser: 2200, car: 30, tram: 500 }, msg: null, beams: [], hrings: [], thrown: [], pylons: [], newsQ: [], dstat: {}, derailed: {}, rain: 0, fog: 0, dawn: 0, night: 0, cine: null, focus: null, zoomHold: 0, silh: 0, rank: null, bolt: null });
+    Object.assign(G, { cam: 0, blds: [], rubble: [], props: [], cars: [], units: [], shots: [], parts: [], fires: [], fx: [], people: [], pieces: [], genX: SEA + 40, damage: 0, kills: 0, shake: 0, flash: 0, stop: 0, alert: 1, district: "", distT: 0, spawn: { tank: 300, heli: 600, jet: 1200, maser: 2200, car: 30, tram: 500 }, msg: null, beams: [], hrings: [], thrown: [], pylons: [], newsQ: [], dstat: {}, derailed: {}, rain: 0, fog: 0, dawn: 0, night: 0, cine: null, focus: null, zoomHold: 0, silh: 0, rank: null, bolt: null, tv: null });
     generate();
   }
   let bseed = 1;
@@ -934,7 +934,7 @@
     { const na = 1 + Math.min(4, Math.floor(G.damage / 40000)); if (na > G.alert) news(`警戒レベル${na}に引き上げ　防衛隊が増援を投入`); G.alert = na; }
   }
   function updateWorld() {
-    updateSky(); updateThrown();
+    updateSky(); updateThrown(); updateTV();
     let checked = false;
     for (const b of G.blds) {
       if (b.hitT) b.hitT--; if (b.black > 0) b.black--;
@@ -1148,6 +1148,50 @@
       if (k > 44) { const sc = Math.max(1, 3.2 - (k - 44) / 3), gc = { S: [255, 220, 80], A: [255, 120, 90], B: [140, 220, 255], C: [210, 210, 210], D: [150, 150, 160] }[R_.grade], gi = text(R_.grade, 24, gc, [60, 10, 10]); g.drawImage(gi, Math.round(cx + 70 - gi.width * sc / 2), Math.round(126 - gi.height * sc / 2), Math.round(gi.width * sc), Math.round(gi.height * sc)); }
       g.globalAlpha = 1; g.restore(); }
   }
+  // ---------- foreground: dark set pieces that slide past faster than the street (never hit, only for depth) ----------
+  const FGP = 1.45, FGSEG = 440, FGC = new Map();
+  function fgPiece(k) {
+    if (FGC.has(k)) return FGC.get(k);
+    const r = rng(k * 9173 + 11), wx = (k * FGSEG + FGSEG / 2) / FGP + W * 0.3, dn = districtAt(wx).name; let o = null;
+    const base = [14, 12, 20], edge = [34, 28, 40], win = [[70, 56, 40], [120, 90, 56], [40, 38, 52]];
+    if (wx > SEA + 200 && r() < 0.68) {
+      const off = Math.round(r() * (FGSEG - 120)), kind = dn === "港湾地区" ? (r() < 0.6 ? "stack" : "mast") : dn === "下町商店街" ? (r() < 0.6 ? "pole" : "roof") : dn === "繁華街" ? (r() < 0.55 ? "sign" : "bldg") : "tower";
+      if (kind === "bldg" || kind === "tower") { const w = Math.round(lerp(56, 96, r())), h = kind === "tower" ? H + 20 : Math.round(lerp(110, 170, r())); const [gc, gx] = canvas(w, h); o = { kind, off, w, h, img: mk(w, h, p => { p.R(0, 0, w, h, base); p.R(0, 0, 2, h, edge); p.R(0, 0, w, 3, edge); for (let y = 10; y < h - 4; y += 9) for (let x = 6; x < w - 6; x += 8) if (r() < 0.55) p.R(x, y, 4, 5, r() < 0.12 ? pick(r, win.slice(0, 2)) : win[2]); if (kind === "bldg") { p.R(0, 0, w, 6, [22, 18, 28]); p.R(w - 14, -0, 8, 6, [26, 22, 32]); } }), glow: gc }; }
+      else if (kind === "sign") { const w = 22, h = 150, word = pick(r, ["ホテル", "喫茶", "麻雀", "銀河座", "カラオケ", "夜光"]), nc = pick(r, [[255, 80, 150], [90, 230, 255], [255, 210, 80], [150, 255, 150]]); const glow = mk(w, h, q => { let y = 8; for (const ch of word) { glyphInto(q, ch, 5, y, nc, 12); y += 14; } }); o = { kind, off, w: w + 40, h, glow, img: mk(w + 40, h, p => { p.R(22, 0, 40, h, base); p.R(22, 0, 2, h, edge); p.R(0, 0, w, word.length * 14 + 14, [24, 20, 30]); p.R(0, 0, w, 1, edge); p.R(8, word.length * 14 + 14, 4, h, [20, 18, 24]); }), gx: 0 }; }
+      else if (kind === "pole") { const h = H + 10; o = { kind, off, w: 30, h, img: mk(30, h, p => { p.R(13, 0, 5, h, [22, 18, 20]); p.R(3, 16, 25, 3, [26, 22, 24]); p.R(6, 30, 19, 2, [26, 22, 24]); p.R(19, 38, 9, 12, [30, 28, 32]); p.R(4, 13, 2, 3, [60, 60, 64]); p.R(25, 13, 2, 3, [60, 60, 64]); }), wires: [[4, 14], [26, 14], [7, 29]] }; }
+      else if (kind === "roof") { const w = Math.round(lerp(90, 130, r())), h = Math.round(lerp(50, 70, r())); o = { kind, off, w, h, img: mk(w, h, p => { for (let y = 0; y < 16; y++) p.R(16 - y, y, w - 32 + y * 2, 1, y % 3 ? [26, 24, 34] : [34, 30, 42]); p.R(0, 16, w, h - 16, base); p.R(20, 24, 18, 12, [120, 90, 56]); p.R(28, 24, 1, 12, base); p.R(20, 29, 18, 1, base); p.R(w - 30, 18, 6, 10, [30, 26, 36]); }) }; }
+      else if (kind === "stack") { const w = Math.round(lerp(70, 110, r())), rows = 3 + (r() * 3 | 0), h = rows * 14; o = { kind, off, w, h, img: mk(w, h, p => { for (let j = 0; j < rows; j++) for (let x = (j % 2) * -12; x < w; x += 36) { const c = pick(r, [[34, 20, 22], [18, 24, 36], [22, 30, 24], [36, 32, 20]]); p.R(x, h - (j + 1) * 14, 35, 13, c); for (let xx = x + 2; xx < x + 34; xx += 3) p.R(xx, h - (j + 1) * 14 + 1, 1, 11, mul(c, 0.7)); } }) }; }
+      else { const h = H + 10; o = { kind, off, w: 34, h, img: mk(34, h, p => { p.R(15, 0, 4, h, [24, 22, 28]); p.R(4, 4, 26, 6, [30, 28, 34]); for (let x = 6; x < 29; x += 5) p.R(x, 5, 3, 3, [140, 130, 100]); for (let y = 20; y < h; y += 10) p.line(15, y, 19, y + 10, [34, 30, 38]); }), lamp: 1 }; }
+    }
+    FGC.set(k, o); if (FGC.size > 60) FGC.delete(FGC.keys().next().value); return o;
+  }
+  function drawForeground(cam) {
+    if (G.mode !== "play") return; const fc = cam * FGP, k0 = Math.floor((fc - 200) / FGSEG), k1 = Math.floor((fc + W + 200) / FGSEG), heat = Math.min(1, G.fires.length / 25);
+    let prevPole = null;
+    for (let k = k0; k <= k1; k++) { const o = fgPiece(k); if (!o) continue; const X = Math.round(k * FGSEG + o.off - fc), Y = H - o.h + (o.kind === "pole" || o.kind === "mast" || o.kind === "tower" ? 0 : 8);
+      if (X > W + 20 || X + o.w < -20) { if (o.kind === "pole") prevPole = X; continue; }
+      g.drawImage(o.img, X, Y); g.fillStyle = rgba([150, 160, 205], 0.35 + 0.3 * G.dawn); g.fillRect(X + 1, Y, o.w - 2, 1); g.fillRect(X, Y + 1, 1, o.h);
+      if (heat > 0.05) { g.fillStyle = rgba([255, 120, 50], 0.35 * heat); g.fillRect(X + o.w - 2, Y, 2, o.h); }
+      if (o.kind === "sign") { g.globalCompositeOperation = "lighter"; g.globalAlpha = 0.8 + 0.2 * Math.sin(G.t * 0.2 + k); g.drawImage(o.glow, X, Y); g.globalAlpha = 0.3; g.drawImage(o.glow, X - 1, Y); g.drawImage(o.glow, X + 1, Y); g.globalAlpha = 1; g.globalCompositeOperation = "source-over"; }
+      if (o.lamp) { g.globalCompositeOperation = "lighter"; g.fillStyle = "rgba(255,230,170,0.08)"; g.beginPath(); g.moveTo(X + 6, Y + 8); g.lineTo(X + 30, Y + 8); g.lineTo(X + 90, H); g.lineTo(X - 60, H); g.fill(); g.globalCompositeOperation = "source-over"; }
+      if (o.kind === "pole") { g.strokeStyle = "rgb(10,8,12)"; g.lineWidth = 1; for (const [wx2, wy] of o.wires) for (const d of [-1, 1]) { const x0 = X + wx2, x1 = x0 + d * 420; g.beginPath(); g.moveTo(x0, Y + wy); g.quadraticCurveTo((x0 + x1) / 2, Y + wy + 26, x1, Y + wy + 4); g.stroke(); } }
+    }
+  }
+  // the TV station's news helicopter: hovers close to the lens, shines a spotlight on the kaiju, and cannot be attacked
+  const TVH = mk(70, 30, p => { const c = [30, 34, 52], l = [60, 66, 92]; p.E(26, 16, 17, 9, c); p.R(34, 13, 32, 4, c); p.R(62, 5, 4, 12, c); p.R(58, 6, 10, 2, l); p.E(20, 14, 8, 5, [70, 110, 150]); p.P(16, 12, [180, 220, 255]); p.R(26, 12, 14, 5, [220, 220, 230]); glyphInto(p, "TV", 27, 9, [200, 40, 40], 12); p.R(14, 25, 26, 2, [24, 24, 30]); p.R(18, 22, 2, 4, [24, 24, 30]); p.R(34, 22, 2, 4, [24, 24, 30]); p.R(25, 4, 3, 4, [24, 24, 30]); p.R(8, 20, 5, 4, [40, 40, 50]); });
+  function updateTV() {
+    if (G.tv) { const t = G.tv; t.t++; t.x += t.vx - (G.cam - (G.lastCam ?? G.cam)) * 0.45; t.y = t.y0 + Math.sin(t.t * 0.03) * 4; if (t.x < -170 || t.x > W + 170) G.tv = null; }
+    else if (G.mode === "play" && K.x > SEA + 300 && (G.alert >= 2 || R) && Math.random() < 0.0025) { const s = Math.random() < 0.5 ? 1 : -1; G.tv = { x: s > 0 ? -120 : W + 120, vx: s * rnd(0.35, 0.6), y0: rnd(66, 92), y: 40, t: 0, dir: s }; news("報道ヘリが現場上空から生中継　怪獣は なおも進撃中"); }
+    G.lastCam = G.cam;
+  }
+  function drawTV() {
+    const t = G.tv; if (!t) return; const X = Math.round(t.x), Y = Math.round(t.y), kx = K.x - G.camI, ky = GY + K.y - 60;
+    g.globalCompositeOperation = "lighter"; const sx = X + (t.dir > 0 ? 44 : -44), sy = Y + 30, a = Math.atan2(ky - sy, kx - sx), len = Math.hypot(kx - sx, ky - sy) + 30; g.fillStyle = "rgba(230,236,255,0.09)"; g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + Math.cos(a - 0.13) * len, sy + Math.sin(a - 0.13) * len); g.lineTo(sx + Math.cos(a + 0.13) * len, sy + Math.sin(a + 0.13) * len); g.fill(); g.fillStyle = "rgba(230,236,255,0.08)"; g.beginPath(); g.ellipse(kx, ky + 20, 30, 40, 0, 0, PI * 2); g.fill(); g.globalCompositeOperation = "source-over";
+    g.save(); g.translate(X, Y); if (t.dir < 0) g.scale(-1, 1); g.rotate(0.06); g.scale(1.6, 1.6); g.drawImage(TVH, -35, -15);
+    const rw = 34 + Math.abs(Math.sin(G.t * 0.9)) * 12; g.fillStyle = "rgba(20,20,28,0.8)"; g.fillRect(-9 - rw, -12, rw * 2, 1); g.fillStyle = "rgba(40,40,60,0.35)"; g.fillRect(-9 - rw, -13, rw * 2, 3); g.restore();
+    const blink = G.t % 30 < 4; if (blink) { g.fillStyle = "rgb(255,70,60)"; g.fillRect(X + (t.dir > 0 ? 46 : -48), Y - 19, 3, 3); } g.fillStyle = "rgb(255,255,230)"; g.fillRect(sx - 1, sy - 1, 3, 2);
+    if (G.t % 40 < 26) { g.fillStyle = "rgb(230,30,30)"; g.beginPath(); g.arc(12, 34, 3, 0, PI * 2); g.fill(); } g.drawImage(text("LIVE　中継中", 12, [255, 240, 240], [60, 0, 0]), 18, 27);
+  }
   function drawUnits(cam) {
     for (const u of G.units) {
       const X = Math.round(u.x - cam), Y = Math.round(u.y); if (X < -60 || X > W + 60) continue;
@@ -1270,6 +1314,7 @@
     g.drawImage(blc, 0, 0); g.drawImage(em, 0, 0);
     // bloom: the lit windows, neon and fire bleed softly into the dark
     b4.clearRect(0, 0, W / 4, H / 4); b4.drawImage(blc, 0, 0, W / 4, H / 4); b4.drawImage(em, 0, 0, W / 4, H / 4); g.globalCompositeOperation = "lighter"; g.globalAlpha = 0.55; g.imageSmoothingEnabled = true; g.drawImage(bl, -2, -2, W + 4, H + 4); g.imageSmoothingEnabled = false; g.globalAlpha = 1; g.globalCompositeOperation = "source-over";
+    drawForeground(cam); drawTV();
     g.restore();
     drawWeatherFront();
     if (G.flash) { g.fillStyle = `rgba(255,240,220,${G.flash / 30})`; g.fillRect(0, 0, W, H); }
@@ -1308,7 +1353,7 @@
     if (!A.ac || !A.on) return; const t = A.ac.currentTime;
     A.fire.g.gain.setTargetAtTime(K.firing && G.mode === "play" ? 0.35 : 0, t, 0.05); A.fire.fl.frequency.setTargetAtTime(600 + Math.sin(G.t * 0.3) * 200, t, 0.05);
     A.burn.g.gain.setTargetAtTime(Math.min(0.12, G.fires.length * 0.006), t, 0.3);
-    const helis = G.units.filter(u => u.type === "heli" && !u.dead).length; A.rotor.g.gain.setTargetAtTime(helis ? 0.12 : 0, t, 0.3); A.rotor.fl.frequency.setTargetAtTime(helis ? 120 + (G.t % 6 < 3 ? 60 : 0) : 100, t, 0.01);
+    const helis = G.units.filter(u => u.type === "heli" && !u.dead).length + (G.tv ? 1 : 0); A.rotor.g.gain.setTargetAtTime(helis ? 0.12 : 0, t, 0.3); A.rotor.fl.frequency.setTargetAtTime(helis ? 120 + (G.t % 6 < 3 ? 60 : 0) : 100, t, 0.01);
     A.siren.g.gain.setTargetAtTime(G.alert >= 2 && G.mode === "play" ? 0.012 : 0, t, 0.5); A.siren.o.frequency.setTargetAtTime(500 + 180 * Math.sin(G.t * 0.02), t, 0.1);
     if (G.mode === "play" && Math.random() < 0.004 * G.people.length / 10) nz(t, 0.5, 0.04, 1600, "bandpass", A.fx, 4);
     if (!A.song) return; const s = A.song, e8 = 60 / s.bpm / 2 * (A.fast ? 0.78 : 1);
