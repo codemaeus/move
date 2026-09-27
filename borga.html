@@ -39,7 +39,7 @@
   </div>
   <div class="group"><button id="snd" aria-pressed="false">音を出す</button><button id="pause" aria-pressed="false">ポーズ</button><button id="restart">タイトルへ</button></div>
   <p class="keys">
-    <kbd>←</kbd><kbd>→</kbd> 歩く　<kbd>Z</kbd> 爪（連打で ひっかき→すくい上げ）　<kbd>X</kbd> 火炎（押しっぱなし、<kbd>↑</kbd><kbd>↓</kbd>で角度）　<kbd>C</kbd> しっぽ叩きつけ　<kbd>Space</kbd> ジャンプ（空中で <kbd>↓</kbd> か もう一度で踏みつけ）　<kbd>V</kbd> 咆哮（怒りゲージ満タンでマグマノヴァ）　<kbd>Enter</kbd> ポーズ<br>
+    <kbd>←</kbd><kbd>→</kbd> 歩く　<kbd>Z</kbd> 爪（連打で ひっかき→すくい上げ、歩き・ダッシュ中も出せる）　<kbd>X</kbd> 火炎（押しっぱなし、<kbd>↑</kbd><kbd>↓</kbd>で角度）　<kbd>C</kbd> しっぽ叩きつけ　<kbd>Space</kbd> ジャンプ（空中で <kbd>↓</kbd> か もう一度で踏みつけ）　<kbd>V</kbd> 咆哮（怒りゲージ満タンでマグマノヴァ）　<kbd>Enter</kbd> ポーズ<br>
     雷獣ジンライと光の巨人アステルが交互に立ちはだかります。ビルは何度でも壊れ、戦車・ヘリ・戦闘機・メーサー車が迎え撃ちます。体力がなくなっても、ボタン連打で何度でもよみがえります。ゲームパッド対応（A ジャンプ／X 爪／B 火炎／Y しっぽ／RB 咆哮）。
   </p>
 </div>
@@ -184,6 +184,8 @@
   AIMS.forEach((a, i) => { KPOSE["b" + i] = { ...KB, lean: 0.3, neck: 0.1 + a * 0.3, jaw: 0.95, af: 0.6, fold: -1.4, ha: a, fire: 1, ff: [15, 0], fb: [-14, 0] }; KPOSE["c" + i] = { ...KPOSE["b" + i], jaw: 0.8 }; });
   const mixPose = (a, b, t) => { const o = {}; for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) { const x = a[k] ?? KB[k], y = b[k] ?? KB[k]; o[k] = Array.isArray(x) ? x.map((v, i) => lerp(v, y[i], t)) : typeof x === "number" && typeof y === "number" ? lerp(x, y, t) : (t < 0.5 ? x : y); } return o; };
   for (const [a, b, n] of [["s0", "s1", "s01"], ["s1", "s2", "s12"], ["u0", "u1", "u01"], ["u1", "u2", "u12"], ["tw0", "tw1", "tw01"], ["tw1", "tw2", "tw12"], ["tw2", "tw0", "tw20"], ["idle0", "idle1", "idle01"], ["roar0", "roar1", "roar01"], ["nova0", "nova1", "nova01"], ["jump", "fall", "apex"], ["pound", "idle0", "rise1"], ["kneel", "roar1", "rise2"]]) KPOSE[n] = mixPose(KPOSE[a], KPOSE[b], 0.5);
+  const CLAWK = { s: ["s0", "s1", "s2"], u: ["u0", "u1", "u2"] }, CLAWMAP = { s0: 0, s01: 0, s1: 1, s12: 2, s2: 2, u0: 0, u01: 0, u1: 1, u12: 2, u2: 2 };
+  for (const a in CLAWK) CLAWK[a].forEach((ak, ai) => { const A = KPOSE[ak]; for (let q = 0; q < 8; q++) for (const [c, L] of [["cw", KPOSE["w" + q * 2]], ["cd", KPOSE["d" + q * 2]]]) KPOSE[c + a + ai + q] = { ...L, af: A.af, fold: A.fold, ha: A.ha, jaw: A.jaw, lean: (L.lean + A.lean) / 2 + 0.05, neck: c === "cd" ? -0.1 : 0 }; });
   KPOSE.tA = mixPose(KPOSE.t0, KPOSE.t1, 0.5); KPOSE.tB = mixPose(KPOSE.t1, KPOSE.t2, 0.5); KPOSE.tC = { ...KPOSE.t2, ta: KPOSE.t2.ta + 0.12, by: 9, lean: 0.55, jaw: 0.5 };
   const KF = {}, KFC = {}; for (const k in KPOSE) Object.defineProperty(KF, k, { enumerable: true, get: () => KFC[k] || (KFC[k] = kaijuFrame(KPOSE[k])) });
   for (const k of ["idle0", "idle1", "idle01", "roar0", "roar1"]) void KF[k]; for (let i = 0; i < 16; i++) void KF["w" + i];
@@ -509,7 +511,7 @@
   function kFrame() {
     const s = K.state;
     if (K.firing) { if (s === "walk") { const q = Math.floor(K.walk / (K.dash ? 3 : 2)) % 16; return (K.dash ? "fd" : "fw") + K.aim + (q >> 1); } if (s === "air") return (K.djump ? "fda" : "fa") + K.aim; return (Math.floor(G.t / 3) % 2 ? "b" : "c") + K.aim; }
-    if (ACT[s]) { let k = ACT[s].frames[0][1]; for (const [t, fk] of ACT[s].frames) if (K.t >= t) k = fk; if (s === "roar" && K.t > 10) k = Math.floor(K.t / 3) % 2 ? "roar0" : "roar1"; return k; }
+    if (ACT[s]) { let k = ACT[s].frames[0][1]; for (const [t, fk] of ACT[s].frames) if (K.t >= t) k = fk; if (K.moving && CLAWMAP[k] != null) return (K.cdash ? "cd" : "cw") + s[0] + CLAWMAP[k] + (Math.floor(K.walk / (K.cdash ? 3 : 2)) % 16 >> 1); if (s === "roar" && K.t > 10) k = Math.floor(K.t / 3) % 2 ? "roar0" : "roar1"; return k; }
     if (s === "breath") return (Math.floor(G.t / 3) % 2 ? "b" : "c") + K.aim;
     if (s === "air") return K.pound ? "pound" : K.djump ? (K.vy < 0 ? "djump" : "dfall") : K.vy < -1.2 ? "jump" : K.vy < 1.2 ? "apex" : "fall";
     if (s === "land") return K.t < 12 ? "pound" : "rise1";
@@ -708,7 +710,7 @@
       K.x = Math.max(K.x, SEA - 140);
       doFire();
       if (want) for (const c of G.cars) if (c.alive && !c.rammed && Math.abs(c.x - (K.x + K.dir * 16)) < 22) { c.rammed = true; const r = Math.random(); if (r < 0.05) carToScreen(c); else if (r < 0.35) { c.alive = false; c.flying = true; c.vy = -rnd(6, 9); c.vx = K.dir * rnd(3, 5.5); c.spin = rnd(-0.45, 0.45); addDamage(150); sparks(c.x, c.y - 4, 10, [255, 220, 140], 3); sfx("crash"); G.shake = Math.max(G.shake, 4); G.fx.push({ k: "ono", s: "ドカッ！", x: c.x, y: c.y - 30, t: 0, life: 26, c: [255, 230, 170] }); } }
-      if (pressed("claw")) { K.combo = 0; K.lunge = K.dash ? 14 : 0; K.dash = false; startAct("swipe"); }
+      if (pressed("claw")) { K.combo = 0; K.cdash = K.dash && want === K.dir; K.lunge = K.dash && !K.cdash ? 14 : 0; K.dash = false; startAct("swipe"); }
       else if (pressed("tail")) startAct("tail");
       else if (pressed("jump")) { K.state = "air"; K.t = 0; K.djump = !!K.dash; K.vy = K.djump ? -5.6 : -5.2; K.pound = false; K.dash = false; sfx(K.djump ? "dash" : "jump"); dust(K.x, GY, K.djump ? 12 : 6, K.djump ? 1.4 : 1); if (K.djump) G.fx.push({ k: "ono", s: "ズオッ！", x: K.x - K.dir * 30, y: GY - 50, t: 0, life: 26, c: [255, 230, 160] }); }
       else if (pressed("roar")) { if (K.rage >= 100) { startAct("nova"); sfx("novaCharge"); } else { startAct("roar"); sfx("roar"); } }
@@ -718,6 +720,12 @@
     if (ACT[K.state]) {
       const A = ACT[K.state];
       if (K.lunge) { K.lunge--; K.x += K.dir * 2; }
+      K.moving = false;
+      if ((K.state === "swipe" || K.state === "upper") && btn(K.dir > 0 ? "right" : "left") && !btn(K.dir > 0 ? "left" : "right")) { // claw on the move
+        const sp = K.cdash ? 2.5 : 0.95; K.moving = true; K.x += K.dir * sp; K.walk += sp; const cyc = K.cdash ? "d" : "w", ph = Math.floor(K.walk / (K.cdash ? 3 : 2)) % 16;
+        if (ph !== K.lastPh && (ph === 4 || ph === 12)) { const f = KF[cyc + ph].feet[ph === 4 ? 1 : 0]; stomp(world(f)[0], false); if (K.cdash) dust(world(f)[0], GY + 2, 3, 1.1); } K.lastPh = ph;
+        if (K.cdash && G.t % 2 === 0) dust(K.x - K.dir * 20, GY + 2, 1, 0.9);
+      } else K.cdash = false;
       if ((K.state === "swipe" || K.state === "upper") && K.t === A.hit[0] - 1) { const sh = world([20, -70]); G.fx.push({ k: "claw", x: sh[0], y: sh[1], dir: K.dir, a0: K.state === "swipe" ? -1.35 : 1.15, a1: K.state === "swipe" ? 1.15 : -1.45, t: 0, life: 18 }); sfx("slash"); }
       if (K.state === "tail") { const fc = kFace(), tp = worldF(KF[kFrame()].tail, fc); (K.tailPath = K.tailPath || []).push({ x: tp[0], y: tp[1], t: G.t }); if (K.tailPath.length > 14) K.tailPath.shift(); (K.trail = K.trail || []).push({ fk: kFrame(), x: K.x, dir: fc }); if (K.trail.length > 5) K.trail.shift(); tailSweep(); }
       if (A.hit && K.t >= A.hit[0] && K.t <= A.hit[1]) { const [x0, y0, x1, y1] = box(A.box); G.lastHit = null; if (!K.hitDone && hitRect(x0, y0, x1, y1, A.dmg, { holes: K.state === "tail" ? 2 : 1, r: K.state === "tail" ? 13 : 10 })) { K.hitDone = true; G.stop = K.state === "tail" ? 6 : 5; G.shake = Math.max(G.shake, 5); sfx("crash"); const hp2 = G.lastHit || [(x0 + x1) / 2, (y0 + y1) / 2]; if (K.state !== "tail") { hanabi(hp2[0], hp2[1], 0); G.fx.push({ k: "ono", s: K.state === "swipe" ? "ザシュッ！" : "ズバァッ！", x: hp2[0], y: hp2[1] - 20, t: 0, life: 34, c: [255, 240, 200] }); } }
@@ -725,7 +733,7 @@
       if (K.state === "swipe" && pressed("claw") && K.t > 8) K.qd = true;
       if (K.state === "roar" && K.t === 12) { G.shake = 8; G.fx.push({ k: "roarwave", x: world(KF.roar1.mouth)[0], y: world(KF.roar1.mouth)[1], t: 0, life: 40 }); K.rage = Math.min(100, K.rage + 8); K.hp = Math.min(100, K.hp + 4); for (const u of G.units) if (u.fly && Math.abs(u.x - K.x) < 200) { u.stun = 90; } for (const b of G.blds) if (b.state === "stand" && Math.abs(b.x + b.w / 2 - K.x) < 140) { for (let i = 0; i < 8; i++) { const lx = rnd(0, b.w), ly = rnd(0, b.h); b.lx.clearRect(lx | 0, ly | 0, 4, 4); } glass(b.x + b.w / 2, SW - b.h * 0.6, 6); } }
       if (K.state === "nova") { if (K.t < 44 && G.t % 2 === 0) { const a = rnd(0, PI * 2); G.parts.push({ k: "suck", x: K.x + Math.cos(a) * 90, y: GY - 50 + Math.sin(a) * 60, tx: K.x, ty: GY - 50, t: 0, life: 30 }); } if (K.t === 44) nova(); }
-      if (K.t >= A.len) { if (K.state === "swipe" && K.qd) { K.qd = false; startAct("upper"); } else { K.state = "idle"; K.qd = false; } }
+      if (K.t >= A.len) { if (K.state === "swipe" && K.qd) { K.qd = false; startAct("upper"); } else { K.state = K.moving ? "walk" : "idle"; K.dash = !!(K.moving && K.cdash); K.qd = false; K.moving = false; } }
     } else if (K.state === "breath") {
       if (btn("up") && G.t % 6 === 0) K.aim = Math.max(0, K.aim - 1); if (btn("down") && G.t % 6 === 0) K.aim = Math.min(4, K.aim + 1);
       if (left && !right) K.dir = -1; if (right && !left) K.dir = 1;
