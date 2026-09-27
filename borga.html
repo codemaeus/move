@@ -289,7 +289,29 @@
       if (dd < rr) { a[i + 3] = 0; l[i + 3] = 0; }
       else if (dd < rr + 2.5 && a[i + 3]) { const k = dd < rr + 1.2 ? 0.25 : 0.55; a[i] *= k; a[i + 1] *= k * 0.9; a[i + 2] *= k * 0.9; if (Math.random() < 0.3) l[i + 3] = 0; }
     }
-    b.cx.putImageData(A, x0, y0); b.lx.putImageData(L, x0, y0);
+    b.cx.putImageData(A, x0, y0); b.lx.putImageData(L, x0, y0); b.dirty = true;
+  }
+  // whatever is no longer connected to the ground falls; if most of the building hangs in the air, or it stands on a thin stalk, it all comes down
+  function checkSupport(b) {
+    const w = b.w, h = b.h, A = b.cx.getImageData(0, 0, w, h), a = A.data, seen = new Uint8Array(w * h), st = [];
+    for (let x = 0; x < w; x++) { const i = (h - 1) * w + x; if (a[i * 4 + 3]) { seen[i] = 1; st.push(i); } }
+    while (st.length) { const i = st.pop(), x = i % w, y = (i / w) | 0; for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) if (j >= 0 && !seen[j] && a[j * 4 + 3]) { seen[j] = 1; st.push(j); } }
+    let total = 0, loose = 0, mx0 = w, mx1 = -1, my0 = h, my1 = -1;
+    for (let i = 0; i < w * h; i++) if (a[i * 4 + 3]) { total++; if (!seen[i]) { loose++; const x = i % w, y = (i / w) | 0; if (x < mx0) mx0 = x; if (x > mx1) mx1 = x; if (y < my0) my0 = y; if (y > my1) my1 = y; } }
+    if (!total) { b.state = "gone"; return; }
+    if (loose > total * 0.45) { collapse(b); return; }
+    if (loose > 0) {
+      const bw = mx1 - mx0 + 1, bh = my1 - my0 + 1, [pc, px] = canvas(bw, bh), P = px.createImageData(bw, bh), L = b.lx.getImageData(0, 0, w, h);
+      for (let y = my0; y <= my1; y++) for (let x = mx0; x <= mx1; x++) { const i = y * w + x; if (a[i * 4 + 3] && !seen[i]) { const o = ((y - my0) * bw + (x - mx0)) * 4; P.data[o] = a[i * 4]; P.data[o + 1] = a[i * 4 + 1]; P.data[o + 2] = a[i * 4 + 2]; P.data[o + 3] = 255; a[i * 4 + 3] = 0; L.data[i * 4 + 3] = 0; } }
+      px.putImageData(P, 0, 0); b.cx.putImageData(A, 0, 0); b.lx.putImageData(L, 0, 0);
+      const wx = b.x + mx0 + bw / 2, wy = SW - h + b.sink + my0 + bh / 2;
+      if (loose > 30) { G.pieces.push({ img: pc, x: wx, y: wy, w: bw, h: bh, vx: rnd(-0.6, 0.6), vy: 0.3, rot: 0, vr: rnd(-0.025, 0.025), sample: sample(b), delay: 0 }); dust(wx, wy + bh / 2, 3, 1); if (loose > 400) { G.fx.push({ k: "ono", s: "ガラガラ……", x: wx, y: wy - bh / 2 - 10, t: 0, life: 36, c: [230, 220, 200] }); sfx("crash"); } }
+      else debris(wx, wy, Math.min(8, loose / 3), sample(b), 1.5);
+      addDamage(b.value * loose / (total + loose));
+    }
+    // a building standing on a thin stalk gives way
+    let minRow = w; for (let y = Math.floor(h * 0.35); y < h; y++) { let c = 0; for (let x = 0; x < w; x++) if (a[(y * w + x) * 4 + 3]) c++; if (c < minRow) minRow = c; }
+    if (minRow < w * 0.22 && total - loose > w * h * 0.25) collapse(b);
   }
   function rubbleOf(b) { const r = rng(b.seed + 7), w = b.w + 16, h = Math.min(30, 8 + b.h / 7); return mk(w, h + 2, p => { const base = b.type === "tower" ? [70, 76, 92] : [110, 104, 98]; for (let x = 0; x < w; x++) { const t = Math.round(h * Math.sin(Math.PI * x / w) * (0.7 + 0.3 * Math.sin(x * 0.4 + r() * 2))); for (let y = h - t; y < h + 2; y++) { const n = h2(x >> 1, y >> 1); p.P(x, y, n > 0.7 ? mul(base, 0.7) : n < 0.2 ? mixc(base, [200, 190, 180], 0.3) : base); } } for (let i = 0; i < w / 4; i++) { const x = r() * w, y = h - r() * h * 0.7; p.line(x, y, x + rnd(-6, 6), y - rnd(2, 6), [90, 80, 70]); } for (let i = 0; i < w / 6; i++) p.R(r() * w, h - r() * h * 0.6, 3, 2, [40, 40, 50]); p.outline(O); }); }
 
@@ -413,8 +435,8 @@
 
   // ---------- kaiju actions ----------
   const ACT = {
-    swipe: { len: 30, frames: [[0, "s0"], [6, "s01"], [9, "s1"], [13, "s12"], [16, "s2"]], hit: [9, 13], box: [18, -92, 66, -36], dmg: 3 },
-    upper: { len: 32, frames: [[0, "u0"], [8, "u01"], [11, "u1"], [15, "u12"], [18, "u2"]], hit: [10, 16], box: [14, -120, 58, -44], dmg: 4 },
+    swipe: { len: 30, frames: [[0, "s0"], [6, "s01"], [9, "s1"], [13, "s12"], [16, "s2"]], hit: [9, 13], box: [18, -92, 66, -36], dmg: 4.5 },
+    upper: { len: 32, frames: [[0, "u0"], [8, "u01"], [11, "u1"], [15, "u12"], [18, "u2"]], hit: [10, 16], box: [14, -120, 58, -44], dmg: 6 },
     tail: { len: 60, frames: [[0, "tw0"], [14, "tw01"], [17, "tw1"], [28, "tw12"], [32, "tw2"], [42, "tw20"], [48, "tw0"]] },
     roar: { len: 70, frames: [[0, "roar0"], [5, "roar01"], [10, "roar1"]] },
     nova: { len: 100, frames: [[0, "nova0"], [41, "nova01"], [44, "nova1"]] },
@@ -639,8 +661,10 @@
     G.alert = 1 + Math.min(4, Math.floor(G.damage / 40000));
   }
   function updateWorld() {
+    let checked = false;
     for (const b of G.blds) {
       if (b.hitT) b.hitT--;
+      if (b.state === "stand" && b.dirty && !checked) { b.dirty = false; checked = true; checkSupport(b); }
       if (b.state === "epic") updateEpic(b);
       if (b.state === "collapse") { b.sv = Math.min(2.6, b.sv + 0.05); b.sink += b.sv; if (G.t % 3 === 0) { dust(b.x + rnd(0, b.w), SW - 2, 1, 1.4); debris(b.x + rnd(0, b.w), SW - 4, 1, sample(b), 2); } G.shake = Math.max(G.shake, 2); if (b.sink >= b.h) { b.state = "gone"; G.rubble.push({ x: b.x - 8, w: b.w + 16, c: rubbleOf(b) }); for (let i = 0; i < 2 + b.w / 30; i++) setFire(b.x + rnd(0, b.w), SW - rnd(2, 8), 900, rnd(0.8, 1.3)); } }
       for (const s of b.smoke) if (b.state === "stand" && G.t % 8 === 0) smokeP(b.x + s[0], SW - b.h + s[1], 1.3);
@@ -993,7 +1017,7 @@
   resetWorld(); G.mode = "title";
   let last = performance.now(), acc = 0, msAvg = 0;
   function loop(now) { acc += Math.min(0.1, (now - last) / 1000); last = now; while (acc >= 1 / 60) { update(); acc -= 1 / 60; } audioTick(); const t0 = performance.now(); render(); msAvg = lerp(msAvg, performance.now() - t0, 0.05); const z = G.zoom || 1; if (z > 1.002) { const sw = W / z, sh = H / z, cx = clamp(K.x - G.cam, sw / 2, W - sw / 2); vctx.drawImage(low, cx - sw / 2, (H - sh) * 0.75, sw, sh, 0, 0, view.width, view.height); } else vctx.drawImage(low, 0, 0, view.width, view.height); requestAnimationFrame(loop); }
-  window.Game = { G, K, KF, epic: (b, k) => epicCollapse(b, k), update, render, keys, resetWorld, low, ms: () => msAvg };
+  window.Game = { G, K, KF, epic: (b, k) => epicCollapse(b, k), carve: (b, x, y, r) => carve(b, x, y, r), update, render, keys, resetWorld, low, ms: () => msAvg };
   view.focus(); requestAnimationFrame(loop);
 })();
 </script>
