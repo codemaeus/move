@@ -1181,15 +1181,15 @@
   const TVH = mk(70, 30, p => { const c = [30, 34, 52], l = [60, 66, 92]; p.E(26, 16, 17, 9, c); p.R(34, 13, 32, 4, c); p.R(62, 5, 4, 12, c); p.R(58, 6, 10, 2, l); p.E(20, 14, 8, 5, [70, 110, 150]); p.P(16, 12, [180, 220, 255]); p.R(26, 12, 14, 5, [220, 220, 230]); glyphInto(p, "TV", 27, 9, [200, 40, 40], 12); p.R(14, 25, 26, 2, [24, 24, 30]); p.R(18, 22, 2, 4, [24, 24, 30]); p.R(34, 22, 2, 4, [24, 24, 30]); p.R(25, 4, 3, 4, [24, 24, 30]); p.R(8, 20, 5, 4, [40, 40, 50]); });
   function updateTV() {
     if (G.tv) { const t = G.tv; t.t++; t.x += t.vx - (G.cam - (G.lastCam ?? G.cam)) * 0.45; t.y = t.y0 + Math.sin(t.t * 0.03) * 4; if (t.x < -170 || t.x > W + 170) G.tv = null; }
-    else if (G.mode === "play" && K.x > SEA + 300 && (G.alert >= 2 || R) && Math.random() < 0.0025) { const s = Math.random() < 0.5 ? 1 : -1; G.tv = { x: s > 0 ? -120 : W + 120, vx: s * rnd(0.35, 0.6), y0: rnd(66, 92), y: 40, t: 0, dir: s }; news("報道ヘリが現場上空から生中継　怪獣は なおも進撃中"); }
+    else if (G.mode === "play" && K.x > SEA + 300 && (G.alert >= 2 || R) && Math.random() < 0.0025) { const s = Math.random() < 0.5 ? 1 : -1; G.tv = { x: s > 0 ? -120 : W + 120, vx: s * rnd(0.35, 0.6), y0: rnd(34, 42), y: 40, t: 0, dir: s }; news("報道ヘリが現場上空から生中継　怪獣は なおも進撃中"); }
     G.lastCam = G.cam;
   }
   function drawTV() {
     const t = G.tv; if (!t) return; const X = Math.round(t.x), Y = Math.round(t.y), kx = K.x - G.camI, ky = GY + K.y - 60;
-    g.globalCompositeOperation = "lighter"; const sx = X + (t.dir > 0 ? 44 : -44), sy = Y + 30, a = Math.atan2(ky - sy, kx - sx), len = Math.hypot(kx - sx, ky - sy) + 30; g.fillStyle = "rgba(230,236,255,0.09)"; g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + Math.cos(a - 0.13) * len, sy + Math.sin(a - 0.13) * len); g.lineTo(sx + Math.cos(a + 0.13) * len, sy + Math.sin(a + 0.13) * len); g.fill(); g.fillStyle = "rgba(230,236,255,0.08)"; g.beginPath(); g.ellipse(kx, ky + 20, 30, 40, 0, 0, PI * 2); g.fill(); g.globalCompositeOperation = "source-over";
-    g.save(); g.translate(X, Y); if (t.dir < 0) g.scale(-1, 1); g.rotate(0.06); g.scale(1.6, 1.6); g.drawImage(TVH, -35, -15);
+    g.globalCompositeOperation = "lighter"; const sx = X + (t.dir > 0 ? 36 : -36), sy = Y + 22, a = Math.atan2(ky - sy, kx - sx), len = Math.hypot(kx - sx, ky - sy) + 30; g.fillStyle = "rgba(230,236,255,0.09)"; g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + Math.cos(a - 0.13) * len, sy + Math.sin(a - 0.13) * len); g.lineTo(sx + Math.cos(a + 0.13) * len, sy + Math.sin(a + 0.13) * len); g.fill(); g.fillStyle = "rgba(230,236,255,0.08)"; g.beginPath(); g.ellipse(kx, ky + 20, 30, 40, 0, 0, PI * 2); g.fill(); g.globalCompositeOperation = "source-over";
+    g.save(); g.translate(X, Y); if (t.dir < 0) g.scale(-1, 1); g.rotate(0.06); g.scale(1.3, 1.3); g.drawImage(TVH, -35, -15);
     const rw = 34 + Math.abs(Math.sin(G.t * 0.9)) * 12; g.fillStyle = "rgba(20,20,28,0.8)"; g.fillRect(-9 - rw, -12, rw * 2, 1); g.fillStyle = "rgba(40,40,60,0.35)"; g.fillRect(-9 - rw, -13, rw * 2, 3); g.restore();
-    const blink = G.t % 30 < 4; if (blink) { g.fillStyle = "rgb(255,70,60)"; g.fillRect(X + (t.dir > 0 ? 46 : -48), Y - 19, 3, 3); } g.fillStyle = "rgb(255,255,230)"; g.fillRect(sx - 1, sy - 1, 3, 2);
+    const blink = G.t % 30 < 4; if (blink) { g.fillStyle = "rgb(255,70,60)"; g.fillRect(X + (t.dir > 0 ? 37 : -39), Y - 15, 3, 3); } g.fillStyle = "rgb(255,255,230)"; g.fillRect(sx - 1, sy - 1, 3, 2);
     if (G.t % 40 < 26) { g.fillStyle = "rgb(230,30,30)"; g.beginPath(); g.arc(12, 34, 3, 0, PI * 2); g.fill(); } g.drawImage(text("LIVE　中継中", 12, [255, 240, 240], [60, 0, 0]), 18, 27);
   }
   function drawUnits(cam) {
