@@ -101,7 +101,8 @@
     const hip = [AX - 4, AY - 40 + by], chest = add(hip, d, 38);
     const disc = (c, r, col) => p.E(c[0], c[1], r, r, col);
     const cap = (a, b, r0, r1, base, light, dark, shade = true) => { const n2 = Math.max(2, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]))); if (shade) for (let i = 0; i <= n2; i++) { const t = i / n2; disc([lerp(a[0], b[0], t) + 0.8, lerp(a[1], b[1], t) + 1.4], lerp(r0, r1, t), dark); } for (let i = 0; i <= n2; i++) { const t = i / n2; disc([lerp(a[0], b[0], t), lerp(a[1], b[1], t)], lerp(r0, r1, t) - 0.6, base); } if (shade && light) for (let i = 0; i <= n2; i++) { const t = i / n2, r = lerp(r0, r1, t); disc([lerp(a[0], b[0], t) - r * 0.32, lerp(a[1], b[1], t) - r * 0.4], r * 0.45, light); } };
-    const spike = (base, dir, len, wd, core = true) => { const pr = [-dir[1], dir[0]], tip = add(base, dir, len); p.poly([add(base, pr, wd), tip, add(base, pr, -wd)], C.spB); p.poly([add(add(base, pr, wd * 0.62), dir, 1), add(tip, dir, -1), add(add(base, pr, -wd * 0.62), dir, 1)], C.sp); if (core) { q.poly([add(add(base, pr, wd * 0.62), dir, 1), add(tip, dir, -1), add(add(base, pr, -wd * 0.62), dir, 1)], C.sp); q.line(...add(base, dir, 2), ...add(tip, dir, -1.5), C.spL); q.line(...add(base, dir, len * 0.35), ...add(tip, dir, -2.5), C.spC); q.P(...add(tip, dir, -2), C.spC); p.line(...add(base, dir, len * 0.4), ...add(tip, dir, -2), C.spC); } };
+    const tips = [];
+    const spike = (base, dir, len, wd, core = true) => { const pr = [-dir[1], dir[0]], tip = add(base, dir, len); if (core) tips.push(add(tip, dir, -2.5)); p.poly([add(base, pr, wd), tip, add(base, pr, -wd)], C.spB); p.poly([add(add(base, pr, wd * 0.62), dir, 1), add(tip, dir, -1), add(add(base, pr, -wd * 0.62), dir, 1)], C.sp); if (core) { q.poly([add(add(base, pr, wd * 0.62), dir, 1), add(tip, dir, -1), add(add(base, pr, -wd * 0.62), dir, 1)], C.sp); q.line(...add(base, dir, 2), ...add(tip, dir, -1.5), C.spL); q.line(...add(base, dir, len * 0.35), ...add(tip, dir, -2.5), C.spC); q.P(...add(tip, dir, -2), C.spC); p.line(...add(base, dir, len * 0.4), ...add(tip, dir, -2), C.spC); } };
     // --- back arm and back leg (in shadow)
     const armAt = (sh, aa, fold, colB, colD, colL, len1 = 13, len2 = 11) => { const el = add(sh, [Math.cos(aa), Math.sin(aa)], len1), ab = aa + fold, hand = add(el, [Math.cos(ab), Math.sin(ab)], len2); const am = C.arm || 1; cap(sh, el, 6.5 * am, 5 * am, colB, colL, colD); cap(el, hand, 5 * am, 3.6 * am, colB, colL, colD); for (const s of [-0.45, 0, 0.45]) { const dd = [Math.cos(ab + s), Math.sin(ab + s)]; p.line(...add(hand, dd, 2.5), ...add(hand, dd, 6.5), C.claw); } return hand; };
     const legAt = (hp, foot, colB, colD, colL) => { const F = [AX + foot[0], AY - (foot[1] || 0)], K = add([(hp[0] + F[0]) / 2, (hp[1] + F[1]) / 2 - 3], f, 10); cap(hp, K, 13, 9, colB, colL, colD); cap(K, [F[0] - 2, F[1] - 6], 9, 6.5, colB, colL, colD); p.E(F[0] + 3, F[1] - 3, 11, 4, colD); p.E(F[0] + 2, F[1] - 4, 10, 3.2, colB); for (let i = 0; i < 3; i++) { const cx = F[0] + 9 + i * 3; p.poly([[cx, F[1] - 4], [cx + 4, F[1]], [cx, F[1]]], C.claw); } return F; };
@@ -151,7 +152,7 @@
     for (let y = 0; y < KH; y++) for (let x = 0; x < KW; x++) { const c = p.G(x, y); if (!c) continue; if (c[1] === C.body[1] && c[0] === C.body[0] && h2(x >> 1, y >> 1) > 0.8) p.P(x, y, C.bodyD); else if (c[1] === C.bodyL[1] && h2(x, y) > 0.86) p.P(x, y, C.body); else if (c[1] === C.bodyD[1] && h2(x >> 1, (y >> 1) + 9) > 0.86) p.P(x, y, C.bodyDD); }
     p.outline(C.out);
     const main = p.done(), glow = q.done(), rel = pt => [pt[0] - AX, pt[1] - AY];
-    const out = { r: main, gr: glow, mouth: rel(add(add(Hc, F, 19), U, -1)), hand: rel(hand), feet: [rel(footB), rel(footF)], tail: rel(tailPts[15].p), head: rel(Hc) }, lz = (k, fn) => { let v = null; Object.defineProperty(out, k, { get: () => v || (v = fn()) }); };
+    const out = { r: main, gr: glow, eye: rel(eye), tips: tips.map(rel), mouth: rel(add(add(Hc, F, 19), U, -1)), hand: rel(hand), feet: [rel(footB), rel(footF)], tail: rel(tailPts[15].p), head: rel(Hc) }, lz = (k, fn) => { let v = null; Object.defineProperty(out, k, { get: () => v || (v = fn()) }); };
     lz("l", () => flip(main)); lz("gl", () => flip(glow)); lz("wr", () => tintOf(main, "#fff")); lz("wl", () => tintOf(out.l, "#fff")); lz("hr", () => tintOf(main, "#ff8040")); lz("hl", () => tintOf(out.l, "#ff8040"));
     return out;
   }
@@ -169,22 +170,27 @@
     kneel: { ...KB, by: 20, lean: 0.75, ff: [15, 0], fb: [-17, 0], af: 1.4, fold: 0.4, ha: 0.25, jaw: 0.15, eye: 0, ta: PI + 0.05 },
     nova0: { ...KB, by: 7, lean: 0.35, af: 1.5, ab: 1.5, fold: 0.6, ha: 0.2, jaw: 0.3, ta: PI + 0.1 }, nova1: { ...KB, by: 1, lean: -0.1, af: -1.3, ab: -1.2, fold: -0.5, ha: -0.85, jaw: 1, fire: 1, ta: PI - 0.6 },
   };
-  for (let i = 0; i < 8; i++) { const a = i / 8 * PI * 2, s = Math.sin(a), c = Math.cos(a); KPOSE["w" + i] = { ...KB, ff: [Math.round(13 * s) + 2, Math.round(Math.max(0, c) * 7)], fb: [Math.round(-13 * s) - 2, Math.round(Math.max(0, -c) * 7)], by: Math.round(2 * Math.abs(s)), af: 1.0 - 0.3 * s, ab: 1.1 + 0.3 * s, tw: i * 0.8, lean: 0.24, ha: -0.08 + 0.04 * Math.sin(2 * a) }; }
+  for (let i = 0; i < 16; i++) { const a = i / 16 * PI * 2, s = Math.sin(a), c = Math.cos(a); KPOSE["w" + i] = { ...KB, ff: [Math.round(13 * s) + 2, Math.round(Math.max(0, c) * 7)], fb: [Math.round(-13 * s) - 2, Math.round(Math.max(0, -c) * 7)], by: Math.round(2 * Math.abs(s)), af: 1.0 - 0.3 * s, ab: 1.1 + 0.3 * s, tw: i * 0.4, lean: 0.24, ha: -0.08 + 0.04 * Math.sin(2 * a) }; }
   const AIMS_PRE = [-0.75, -0.4, -0.05, 0.3, 0.6];
-  for (let i = 0; i < 8; i++) { const a = i / 8 * PI * 2, s = Math.sin(a), c = Math.cos(a); KPOSE["d" + i] = { ...KB, lean: 0.62, ff: [Math.round(19 * s) + 6, Math.round(Math.max(0, c) * 10)], fb: [Math.round(-19 * s) - 2, Math.round(Math.max(0, -c) * 10)], by: 5 + Math.round(3 * Math.abs(s)), af: 1.5 - 0.5 * s, ab: 1.4 + 0.5 * s, fold: -0.6, neck: -0.25, ha: 0.12 + 0.04 * Math.sin(2 * a), jaw: 0.35, ta: PI - 0.02 + 0.05 * s, curl: -0.012, tw: i * 1.2 }; }
-  AIMS_PRE.forEach((a, ai) => { for (let q = 0; q < 4; q++) { const up = { neck: 0.1 + a * 0.3, jaw: 0.95, ha: a, fire: 1 }; KPOSE["fw" + ai + q] = { ...KPOSE["w" + q * 2], ...up, lean: 0.28, af: 0.6, fold: -1.4 }; KPOSE["fd" + ai + q] = { ...KPOSE["d" + q * 2], ...up, neck: -0.1 + a * 0.3 }; } });
+  for (let i = 0; i < 16; i++) { const a = i / 16 * PI * 2, s = Math.sin(a), c = Math.cos(a); KPOSE["d" + i] = { ...KB, lean: 0.62, ff: [Math.round(19 * s) + 6, Math.round(Math.max(0, c) * 10)], fb: [Math.round(-19 * s) - 2, Math.round(Math.max(0, -c) * 10)], by: 5 + Math.round(3 * Math.abs(s)), af: 1.5 - 0.5 * s, ab: 1.4 + 0.5 * s, fold: -0.6, neck: -0.25, ha: 0.12 + 0.04 * Math.sin(2 * a), jaw: 0.35, ta: PI - 0.02 + 0.05 * s, curl: -0.012, tw: i * 0.6 }; }
+  AIMS_PRE.forEach((a, ai) => { for (let q = 0; q < 8; q++) { const up = { neck: 0.1 + a * 0.3, jaw: 0.95, ha: a, fire: 1 }; KPOSE["fw" + ai + q] = { ...KPOSE["w" + q * 2], ...up, lean: 0.28, af: 0.6, fold: -1.4 }; KPOSE["fd" + ai + q] = { ...KPOSE["d" + q * 2], ...up, neck: -0.1 + a * 0.3 }; } });
   KPOSE.tw0 = { ...KB, lean: 0.34, by: 7, fb: [-17, 0], ff: [15, 0], ha: -0.32, jaw: 0.45, af: 0.9, fold: -0.8, ta: PI + 0.38, curl: -0.03 };
   KPOSE.tw1 = { ...KB, lean: 0.46, by: 5, fb: [-22, 0], ff: [9, 0], ha: 0.12, jaw: 0.7, af: 1.4, fold: 0.3, ab: 1.5, ta: PI - 0.03, curl: 0.004, tw: 0 };
   KPOSE.tw2 = { ...KB, lean: 0.36, by: 3, fb: [-18, 0], ff: [12, 0], ha: -0.1, jaw: 0.3, af: 1.2, ta: PI - 0.6, curl: -0.05, tw: 2 };
   KPOSE.djump = { ...KB, lean: 0.6, fb: [-20, 12], ff: [14, 16], by: 2, af: 1.6, ab: 1.5, fold: -0.4, neck: -0.2, ha: 0.1, jaw: 0.5, ta: PI + 0.08, curl: -0.015 };
+  AIMS_PRE.forEach((a, ai) => { const up = { neck: 0.1 + a * 0.3, jaw: 0.95, ha: a, fire: 1, af: 0.5, fold: -1.3 }; KPOSE["fa" + ai] = { ...KPOSE.jump, ...up }; KPOSE["fda" + ai] = { ...KPOSE.djump, ...up, neck: -0.1 + a * 0.3 }; });
   KPOSE.dfall = { ...KPOSE.djump, fb: [-14, 4], ff: [18, 6], lean: 0.45, ta: PI - 0.15 };
   const AIMS = [-0.75, -0.4, -0.05, 0.3, 0.6];
   AIMS.forEach((a, i) => { KPOSE["b" + i] = { ...KB, lean: 0.3, neck: 0.1 + a * 0.3, jaw: 0.95, af: 0.6, fold: -1.4, ha: a, fire: 1, ff: [15, 0], fb: [-14, 0] }; KPOSE["c" + i] = { ...KPOSE["b" + i], jaw: 0.8 }; });
   const mixPose = (a, b, t) => { const o = {}; for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) { const x = a[k] ?? KB[k], y = b[k] ?? KB[k]; o[k] = Array.isArray(x) ? x.map((v, i) => lerp(v, y[i], t)) : typeof x === "number" && typeof y === "number" ? lerp(x, y, t) : (t < 0.5 ? x : y); } return o; };
+  for (const [a, b, n] of [["s0", "s1", "s01"], ["s1", "s2", "s12"], ["u0", "u1", "u01"], ["u1", "u2", "u12"], ["tw0", "tw1", "tw01"], ["tw1", "tw2", "tw12"], ["tw2", "tw0", "tw20"], ["idle0", "idle1", "idle01"], ["roar0", "roar1", "roar01"], ["nova0", "nova1", "nova01"], ["jump", "fall", "apex"], ["pound", "idle0", "rise1"], ["kneel", "roar1", "rise2"]]) KPOSE[n] = mixPose(KPOSE[a], KPOSE[b], 0.5);
   KPOSE.tA = mixPose(KPOSE.t0, KPOSE.t1, 0.5); KPOSE.tB = mixPose(KPOSE.t1, KPOSE.t2, 0.5); KPOSE.tC = { ...KPOSE.t2, ta: KPOSE.t2.ta + 0.12, by: 9, lean: 0.55, jaw: 0.5 };
-  const KF = {}; for (const k in KPOSE) KF[k] = kaijuFrame(KPOSE[k]);
+  const KF = {}, KFC = {}; for (const k in KPOSE) Object.defineProperty(KF, k, { enumerable: true, get: () => KFC[k] || (KFC[k] = kaijuFrame(KPOSE[k])) });
+  for (const k of ["idle0", "idle1", "idle01", "roar0", "roar1"]) void KF[k]; for (let i = 0; i < 16; i++) void KF["w" + i];
   const JC = { ...KC, body: [70, 88, 128], bodyL: [112, 132, 180], bodyD: [46, 58, 92], bodyDD: [28, 34, 60], belly: [152, 160, 180], bellyD: [112, 120, 140], spB: [36, 56, 112], sp: [80, 180, 255], spL: [180, 236, 255], spC: [246, 255, 255], eye: [140, 255, 255], mouth: [90, 20, 50], mouthD: [50, 10, 30], arm: 1.35, plate: 0.7, horn: 1 };
-  const JF = {}; for (const k of ["idle0", "idle1", "w0", "w1", "w2", "w3", "w4", "w5", "w6", "w7", "s0", "s1", "s2", "roar0", "roar1", "hurt", "kneel", "b2", "pound"]) JF[k] = kaijuFrame(KPOSE[k], JC);
+  const JF = {}, JFC = {}; for (const k of ["idle0", "idle1", "idle01", ...Array.from({ length: 16 }, (_, i) => "w" + i), "s0", "s01", "s1", "s12", "s2", "roar0", "roar01", "roar1", "hurt", "kneel", "b2", "pound"]) Object.defineProperty(JF, k, { enumerable: true, get: () => JFC[k] || (JFC[k] = kaijuFrame(KPOSE[k], JC)) });
+  function warmFrames() { let n = 0; for (const k in KPOSE) if (!KFC[k]) { void KF[k]; if (++n >= 2) break; } if (!n) for (const k in JF) if (!JFC[k]) { void JF[k]; if (++n >= 1) break; } if (n) setTimeout(warmFrames, 30); }
+  setTimeout(warmFrames, 200);
 
   // ---------- small things: vehicles, people, props ----------
   const O = [14, 12, 16];
@@ -369,11 +375,11 @@
 
   // ---------- kaiju actions ----------
   const ACT = {
-    swipe: { len: 30, frames: [[0, "s0"], [8, "s1"], [14, "s2"]], hit: [9, 13], box: [18, -92, 66, -36], dmg: 3 },
-    upper: { len: 32, frames: [[0, "u0"], [10, "u1"], [16, "u2"]], hit: [10, 16], box: [14, -120, 58, -44], dmg: 4 },
-    tail: { len: 60, frames: [[0, "tw0"], [16, "tw1"], [31, "tw2"], [45, "tw0"]] },
-    roar: { len: 70, frames: [[0, "roar0"], [10, "roar1"]] },
-    nova: { len: 100, frames: [[0, "nova0"], [44, "nova1"]] },
+    swipe: { len: 30, frames: [[0, "s0"], [6, "s01"], [9, "s1"], [13, "s12"], [16, "s2"]], hit: [9, 13], box: [18, -92, 66, -36], dmg: 3 },
+    upper: { len: 32, frames: [[0, "u0"], [8, "u01"], [11, "u1"], [15, "u12"], [18, "u2"]], hit: [10, 16], box: [14, -120, 58, -44], dmg: 4 },
+    tail: { len: 60, frames: [[0, "tw0"], [14, "tw01"], [17, "tw1"], [28, "tw12"], [32, "tw2"], [42, "tw20"], [48, "tw0"]] },
+    roar: { len: 70, frames: [[0, "roar0"], [5, "roar01"], [10, "roar1"]] },
+    nova: { len: 100, frames: [[0, "nova0"], [41, "nova01"], [44, "nova1"]] },
   };
   function startAct(a) { K.state = a; K.t = 0; K.hitDone = false; if (a === "swipe" || a === "upper") sfx("swipe"); if (a === "tail") sfx("whoosh"); }
   function kTurn() { if (K.state !== "tail") return 1; const t = K.t; if (t < 10) return 1; if (t < 15) return 1 - (t - 10) / 5 * 2; if (t < 42) return -1; if (t < 48) return -1 + (t - 42) / 6 * 2; return 1; }
@@ -381,17 +387,17 @@
   const worldF = (pt, d) => [K.x + pt[0] * d, GY + K.y + pt[1]];
   function kFrame() {
     const s = K.state;
-    if (K.firing) { if (s === "walk") { const q = Math.floor(K.walk / (K.dash ? 6 : 4)) % 8; return (K.dash ? "fd" : "fw") + K.aim + (q >> 1); } return (Math.floor(G.t / 3) % 2 ? "b" : "c") + K.aim; }
+    if (K.firing) { if (s === "walk") { const q = Math.floor(K.walk / (K.dash ? 3 : 2)) % 16; return (K.dash ? "fd" : "fw") + K.aim + (q >> 1); } if (s === "air") return (K.djump ? "fda" : "fa") + K.aim; return (Math.floor(G.t / 3) % 2 ? "b" : "c") + K.aim; }
     if (ACT[s]) { let k = ACT[s].frames[0][1]; for (const [t, fk] of ACT[s].frames) if (K.t >= t) k = fk; if (s === "roar" && K.t > 10) k = Math.floor(K.t / 3) % 2 ? "roar0" : "roar1"; return k; }
     if (s === "breath") return (Math.floor(G.t / 3) % 2 ? "b" : "c") + K.aim;
-    if (s === "air") return K.pound ? "pound" : K.djump ? (K.vy < 0 ? "djump" : "dfall") : K.vy < 0 ? "jump" : "fall";
-    if (s === "land") return "pound";
+    if (s === "air") return K.pound ? "pound" : K.djump ? (K.vy < 0 ? "djump" : "dfall") : K.vy < -1.2 ? "jump" : K.vy < 1.2 ? "apex" : "fall";
+    if (s === "land") return K.t < 12 ? "pound" : "rise1";
     if (s === "hurt") return "hurt";
     if (s === "down") return "kneel";
-    if (s === "rise") return K.t < 40 ? "kneel" : "roar1";
-    if (s === "intro") return "w" + (Math.floor(K.walk / 4) % 8);
-    if (s === "walk") return K.dash ? "d" + (Math.floor(K.walk / 6) % 8) : "w" + (Math.floor(K.walk / 4) % 8);
-    return Math.floor(G.t / 50) % 2 ? "idle1" : "idle0";
+    if (s === "rise") return K.t < 32 ? "kneel" : K.t < 40 ? "rise2" : "roar1";
+    if (s === "intro") return "w" + (Math.floor(K.walk / 2) % 16);
+    if (s === "walk") return K.dash ? "d" + (Math.floor(K.walk / 3) % 16) : "w" + (Math.floor(K.walk / 2) % 16);
+    const ip = (G.t % 100) / 100; return ip < 0.44 ? "idle0" : ip < 0.5 ? "idle01" : ip < 0.94 ? "idle1" : "idle01";
   }
   const world = (pt) => [K.x + pt[0] * K.dir, GY + K.y + pt[1]];
   function box(b) { const [a, y0, c, y1] = b; return K.dir > 0 ? [K.x + a, GY + K.y + y0, K.x + c, GY + K.y + y1] : [K.x - c, GY + K.y + y0, K.x - a, GY + K.y + y1]; }
@@ -452,7 +458,7 @@
     const dx = K.x - R.x, dist = Math.abs(dx);
     if (R.state === "die") { if (R.t % 10 === 0) explode(R.x + rnd(-30, 30), GY - rnd(20, 100), 1.4); if (R.t % 4 === 0) sparks(R.x + rnd(-20, 20), GY - rnd(30, 100), 6, [150, 230, 255], 3); if (R.t > 110) { explode(R.x, GY - 50, 3); G.flash = 22; G.shake = 22; G.fx.push({ k: "ring", x: R.x, y: GY - 50, t: 0, life: 40, r: 200 }); hitRect(R.x - 120, 0, R.x + 120, GY + 10, 10, { rival: 1, r: 14 }); for (let i = 0; i < 8; i++) setFire(R.x + rnd(-80, 80), GY + rnd(0, 8), 700, rnd(1, 1.4)); addDamage(60000); K.rage = 100; K.hp = Math.min(100, K.hp + 50); G.nextBoss = K.x + 3200; say("ジンライを たおした！　怒りゲージ MAX", 200); A.fast = false; R = null; } return; }
     const facing = () => { R.dir = dx > 0 ? 1 : -1; };
-    const step = sp => { R.x += R.dir * sp; R.walk += sp; const ph = Math.floor(R.walk / 4) % 8; if (ph !== R.lastPh && (ph === 2 || ph === 6)) { G.shake = Math.max(G.shake, 2); dust(R.x, GY + 2, 2, 0.8); sfx("step"); for (const c of G.cars) if (c.alive && Math.abs(c.x - R.x) < 16) { c.alive = false; c.crushed = true; explode(c.x, c.y - 3, 0.6); } } R.lastPh = ph; };
+    const step = sp => { R.x += R.dir * sp; R.walk += sp; const ph = Math.floor(R.walk / 2) % 16; if (ph !== R.lastPh && (ph === 4 || ph === 12)) { G.shake = Math.max(G.shake, 2); dust(R.x, GY + 2, 2, 0.8); sfx("step"); for (const c of G.cars) if (c.alive && Math.abs(c.x - R.x) < 16) { c.alive = false; c.crushed = true; explode(c.x, c.y - 3, 0.6); } } R.lastPh = ph; };
     switch (R.state) {
       case "enter": case "walk": facing(); if (dist > 80) step(dist > 260 ? 2 : R.state === "enter" ? 1.1 : 0.9); if (--R.cd <= 0) { const r = Math.random(); R.t = 0; R.hitDone = false; if (dist < 95) R.state = "punch"; else if (r < 0.4 && dist > 110) R.state = "beam"; else if (r < 0.75) R.state = "charge"; else R.state = "roar"; if (R.state === "roar") sfx("roar", 1.4); if (R.state === "beam") sfx("charge"); } break;
       case "punch": if (R.t >= 9 && R.t <= 13) { const [x0, x1] = R.dir > 0 ? [R.x + 18, R.x + 70] : [R.x - 70, R.x - 18]; if (!R.hitDone) { hitRect(x0, GY - 92, x1, GY - 36, 3, { rival: 1 }); if (K.x > x0 - 20 && K.x < x1 + 20) { R.hitDone = true; rivalHitsKaiju(6, 14, "バキィッ！"); } } } if (R.t === 8) sfx("swipe"); if (R.t > 32) { R.state = "walk"; R.cd = rnd(40, 90); } break;
@@ -465,20 +471,21 @@
   }
   function rFrame() {
     const s = R.state, t = R.t;
-    if (s === "punch") return t < 8 ? "s0" : t < 14 ? "s1" : "s2";
-    if (s === "charge") return t < 30 ? "pound" : "w" + (Math.floor(R.walk / 4) % 8);
+    if (s === "punch") return t < 6 ? "s0" : t < 9 ? "s01" : t < 13 ? "s1" : t < 16 ? "s12" : "s2";
+    if (s === "charge") return t < 30 ? "pound" : "w" + (Math.floor(R.walk / 2) % 16);
     if (s === "beam") return t < 40 ? "roar0" : "b2";
-    if (s === "roar") return t > 10 && Math.floor(t / 3) % 2 ? "roar0" : "roar1";
+    if (s === "roar") return t < 5 ? "roar0" : t < 10 ? "roar01" : Math.floor(t / 3) % 2 ? "roar0" : "roar1";
     if (s === "stagger") return "hurt";
     if (s === "die") return R.t < 60 ? "hurt" : "kneel";
-    return R.walk > 0 && (R.state === "enter" || R.state === "walk") && Math.abs(K.x - R.x) > 80 ? "w" + (Math.floor(R.walk / 4) % 8) : Math.floor(G.t / 50) % 2 ? "idle1" : "idle0";
+    return R.walk > 0 && (R.state === "enter" || R.state === "walk") && Math.abs(K.x - R.x) > 80 ? "w" + (Math.floor(R.walk / 2) % 16) : (G.t % 100) < 44 ? "idle0" : (G.t % 100) < 50 || (G.t % 100) >= 94 ? "idle01" : "idle1";
   }
   function updateKaiju() {
     const left = btn("left"), right = btn("right");
     if (K.inv) K.inv--; if (K.flash) K.flash--;
     if (!K.firing) K.breath = Math.min(100, K.breath + 0.35);
     const free = K.state === "idle" || K.state === "walk";
-    if (!free && K.firing) { K.firing = false; sfx("fireStop"); }
+    if (!free && K.state !== "air" && K.state !== "land" && K.firing) { K.firing = false; sfx("fireStop"); }
+    K.heat = lerp(K.heat || 0, K.firing ? 1 : 0, K.firing ? 0.12 : 0.05);
     if (K.state === "intro") { K.emerge = Math.max(0, K.emerge - 0.006); K.walk += 0.5; K.x += 0.5; if (G.t % 20 === 0) { for (let i = 0; i < 6; i++) G.parts.push({ k: "water", x: K.x + rnd(-30, 30), y: GY - 30, vx: rnd(-1, 1), vy: rnd(-3, -1), t: 0, life: 40 }); } if (K.emerge <= 0 && K.x > SEA - 60) { K.state = "roar"; K.t = 0; sfx("roar"); } return; }
     if (free) {
       const want = right && !left ? 1 : left && !right ? -1 : 0;
@@ -486,10 +493,10 @@
       if (!want || want !== K.dir) K.dash = false;
       const sp = K.dash ? 2.5 : 0.95;
       if (K.dash && want) { if (G.t % 2 === 0) dust(K.x - K.dir * 20, GY + 2, 1, 0.9); G.shake = Math.max(G.shake, 1.4); if (G.t % 6 === 0) { const [x0, y0, x1, y1] = box([12, -86, 44, -18]); if (hitRect(x0, y0, x1, y1, 1.4, { r: 9, ram: 1 })) { sfx("crash"); } } if (R && R.state !== "die" && Math.abs(R.x - K.x) < 52) { tackleRival(); } }
-      if (want) { K.dir = want; K.x += want * sp; K.walk += sp; K.state = "walk"; const cyc = K.dash ? "d" : "w", ph = Math.floor(K.walk / (K.dash ? 6 : 4)) % 8; if (ph !== K.lastPh && (ph === 2 || ph === 6)) { const f = KF[cyc + ph].feet[ph === 2 ? 1 : 0]; stomp(world(f)[0], false); if (K.dash) dust(world(f)[0], GY + 2, 3, 1.1); } K.lastPh = ph; }
+      if (want) { K.dir = want; K.x += want * sp; K.walk += sp; K.state = "walk"; const cyc = K.dash ? "d" : "w", ph = Math.floor(K.walk / (K.dash ? 3 : 2)) % 16; if (ph !== K.lastPh && (ph === 4 || ph === 12)) { const f = KF[cyc + ph].feet[ph === 4 ? 1 : 0]; stomp(world(f)[0], false); if (K.dash) dust(world(f)[0], GY + 2, 3, 1.1); } K.lastPh = ph; }
       else K.state = "idle";
       K.x = Math.max(K.x, SEA - 140);
-      if (btn("fire") && K.breath > (K.firing ? 0 : 8)) { if (!K.firing) sfx("fireStart"); K.firing = true; if (btn("up") && G.t % 6 === 0) K.aim = Math.max(0, K.aim - 1); if (btn("down") && G.t % 6 === 0) K.aim = Math.min(4, K.aim + 1); K.breath -= 0.55; breathe(); G.shake = Math.max(G.shake, 1.6); } else if (K.firing) { K.firing = false; sfx("fireStop"); }
+      doFire();
       if (want) for (const c of G.cars) if (c.alive && !c.rammed && Math.abs(c.x - (K.x + K.dir * 16)) < 22) { c.rammed = true; const r = Math.random(); if (r < 0.05) carToScreen(c); else if (r < 0.35) { c.alive = false; c.flying = true; c.vy = -rnd(6, 9); c.vx = K.dir * rnd(3, 5.5); c.spin = rnd(-0.45, 0.45); addDamage(150); sparks(c.x, c.y - 4, 10, [255, 220, 140], 3); sfx("crash"); G.shake = Math.max(G.shake, 4); G.fx.push({ k: "ono", s: "ドカッ！", x: c.x, y: c.y - 30, t: 0, life: 26, c: [255, 230, 170] }); } }
       if (pressed("claw")) { K.combo = 0; K.lunge = K.dash ? 14 : 0; K.dash = false; startAct("swipe"); }
       else if (pressed("tail")) startAct("tail");
@@ -518,10 +525,11 @@
       const want = right && !left ? 1 : left && !right ? -1 : 0;
       if (K.djump && !K.pound) { K.x += K.dir * 2.7 + (want === K.dir ? 0.3 : want ? -0.9 : 0); if (G.t % 2 === 0) G.parts.push({ k: "dust", x: K.x - K.dir * 26, y: GY - 40 + K.y + rnd(-20, 20), vx: -K.dir * 0.6, vy: 0, t: 0, life: 20, r: 3 }); }
       else if (want) { K.x += want * 1.2; K.dir = want; }
-      if ((pressed("down") || pressed("jump")) && !K.pound && K.t > 6) { K.pound = true; K.vy = 7; sfx("whoosh"); }
+      if (!K.pound) doFire();
+      if (((pressed("down") && !K.firing) || pressed("jump")) && !K.pound && K.t > 6) { K.pound = true; K.vy = 7; if (K.firing) { K.firing = false; sfx("fireStop"); } sfx("whoosh"); }
       K.vy += K.pound ? 0.5 : 0.22; K.y += K.vy;
       if (K.y >= 0) { K.y = 0; stomp(K.x, K.pound || K.vy > 6 || K.djump); K.state = "land"; K.t = 0; K.vy = 0; if (K.djump && !K.pound) { K.dash = btn(K.dir > 0 ? "right" : "left"); } K.djump = false; }
-    } else if (K.state === "land") { if (K.dash) K.state = "walk"; else if (K.t > 18) K.state = "idle"; }
+    } else if (K.state === "land") { if (K.firing) doFire(); if (K.dash) K.state = "walk"; else if (K.t > 18) K.state = "idle"; }
     else if (K.state === "hurt") { if (K.t > 16) K.state = "idle"; }
     else if (K.state === "down") {
       K.rise = Math.max(0, K.rise - 0.25);
@@ -532,6 +540,10 @@
       if (K.t === 40) { sfx("roar"); G.flash = 12; G.shake = 14; G.fx.push({ k: "ring", x: K.x, y: GY - 40, t: 0, life: 36, r: 150 }); hitRect(K.x - 140, GY - 160, K.x + 140, GY + 10, 8, { r: 12 }); for (const u of G.units) if (Math.abs(u.x - K.x) < 160) { u.hp = 0; killUnit(u); } K.hp = 100; K.inv = 200; say("ボルガ　ふっかつ！", 110); }
       if (K.t > 80) K.state = "idle";
     }
+  }
+  function doFire() {
+    if (btn("fire") && K.breath > (K.firing ? 0 : 8)) { if (!K.firing) { sfx("fireStart"); K.fireT = 0; } K.firing = true; K.fireT = (K.fireT || 0) + 1; if (btn("up") && G.t % 6 === 0) K.aim = Math.max(0, K.aim - 1); if (btn("down") && G.t % 6 === 0) K.aim = Math.min(4, K.aim + 1); K.breath -= 0.55; if (K.fireT > 6) breathe(); G.shake = Math.max(G.shake, K.fireT > 6 ? 1.6 : 0.6); }
+    else if (K.firing) { K.firing = false; sfx("fireStop"); }
   }
   function breathe() {
     const fk = KF[kFrame()], m = world(fk.mouth), a = AIMS[K.aim], ang = K.dir > 0 ? a : PI - a;
@@ -706,6 +718,14 @@
     const pulse = 0.55 + 0.25 * Math.sin(G.t * 0.08) + (K.firing ? 0.4 : 0) + (K.state === "nova" ? Math.min(1, K.t / 40) : 0) + (K.rage >= 100 ? 0.2 * Math.sin(G.t * 0.3) : 0);
     if (em < 60) { e.globalAlpha = clamp(pulse, 0, 1); drawK(e, glowI, Y - AY + em); e.globalAlpha = 1; if (K.state === "nova" && K.t < 44) { e.globalAlpha = K.t / 60; e.drawImage(K.dir > 0 ? F.hr : F.hl, X - ox, Y - AY); e.globalAlpha = 1; } }
     addLight(K.x, GY - 70 + K.y, 50, 0.25 * pulse, [255, 150, 60]);
+    // breathing fire: the spines ignite from the tail to the head, then ripple white-hot; the eye burns
+    const heat = K.heat || 0;
+    if (heat > 0.03 && F.tips && em < 60) {
+      const n = F.tips.length, lit = (K.fireT || 0) / 1.2;
+      F.tips.forEach((tp, i) => { const on = K.firing ? clamp(lit - i, 0, 1) : heat; if (on <= 0) return; const wv = 0.55 + 0.45 * Math.sin(G.t * 0.45 - i * 0.8), v = on * heat * wv, x = X + tp[0] * fc, y = Y + tp[1]; e.fillStyle = rgba([255, 140, 50], 0.5 * v); e.fillRect(Math.round(x) - 2, Math.round(y) - 2, 5, 5); e.fillStyle = rgba([255, 230, 150], 0.9 * v); e.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3); e.fillStyle = rgba([255, 255, 245], v); e.fillRect(Math.round(x), Math.round(y), 1, 1); if (v > 0.7 && Math.random() < 0.08) G.parts.push({ k: "ember", x: K.x + tp[0] * fc, y: y - 1, vx: rnd(-0.3, 0.3) - fc * 0.3, vy: rnd(-1.4, -0.6), t: 0, life: 30 }); });
+      if (heat > 0.5) { e.globalCompositeOperation = "lighter"; e.globalAlpha = (heat - 0.5) * 0.9 * (0.7 + 0.3 * Math.sin(G.t * 0.6)); drawK(e, glowI, Y - AY + em); e.globalAlpha = 1; e.globalCompositeOperation = "source-over"; }
+      if (F.eye) { const ex = X + F.eye[0] * fc + (fc > 0 ? 0.5 : -0.5), ey = Y + F.eye[1] - 0.5, gl = heat * (0.8 + 0.2 * Math.sin(G.t * 0.9)); e.fillStyle = rgba([255, 60, 30], 0.55 * gl); e.fillRect(Math.round(ex) - 3, Math.round(ey) - 2, 7, 4); e.fillStyle = rgba([255, 200, 90], gl); e.fillRect(Math.round(ex) - 1, Math.round(ey) - 1, 3, 2); e.fillStyle = rgba([255, 255, 240], gl); e.fillRect(Math.round(ex), Math.round(ey) - 1, 1, 1); const gw = Math.round(5 + 7 * heat * (0.6 + 0.4 * Math.sin(G.t * 0.35))); e.fillStyle = rgba([255, 230, 180], 0.7 * gl); e.fillRect(Math.round(ex) - (fc > 0 ? 0 : gw), Math.round(ey) - 1, gw, 1); addLight(K.x + F.eye[0] * fc, ey, 22, 0.5 * heat, [255, 80, 40]); }
+    }
     if (K.firing) { const m = world(F.mouth); addLight(m[0], m[1], 60, 0.9, [255, 170, 80]); }
   }
   function drawRival(cam) {
