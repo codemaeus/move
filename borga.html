@@ -344,7 +344,15 @@
     const ww = w, hp = Math.round(w * h / 28), value = Math.round(w * h * (type === "tower" ? 3.2 : type === "neon" ? 1.8 : 1.2));
     return { x, w: ww, h, type, c, l, cx: c.getContext("2d"), lx: l.getContext("2d"), hp, max: hp, value, fires: [], beacons, smoke, state: "stand", sink: 0, sv: 0, hitT: 0, seed };
   }
+  // the untouched shape: row widths and pixels that already floated free (stacked containers, crane rigging)
+  function baseOf(b) { const w = b.w, h = b.h, a = b.cx.getImageData(0, 0, w, h).data, row = new Int16Array(h), seen = new Uint8Array(w * h), st = [], free = [];
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (a[(y * w + x) * 4 + 3]) row[y]++;
+    for (let x = 0; x < w; x++) { const i = (h - 1) * w + x; if (a[i * 4 + 3]) { seen[i] = 1; st.push(i); } }
+    while (st.length) { const i = st.pop(), x = i % w, y = (i / w) | 0; for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) if (j >= 0 && !seen[j] && a[j * 4 + 3]) { seen[j] = 1; st.push(j); } }
+    for (let i = 0; i < w * h; i++) if (a[i * 4 + 3] && !seen[i]) free.push(i);
+    return { row, free }; }
   function carve(b, lx, ly, r) {
+    if (!b.base) b.base = baseOf(b);
     const x0 = Math.max(0, Math.floor(lx - r - 3)), y0 = Math.max(0, Math.floor(ly - r - 3)), x1 = Math.min(b.w, Math.ceil(lx + r + 3)), y1 = Math.min(b.h, Math.ceil(ly + r + 3)), w = x1 - x0, h = y1 - y0; if (w <= 0 || h <= 0) return;
     const A = b.cx.getImageData(x0, y0, w, h), L = b.lx.getImageData(x0, y0, w, h), a = A.data, l = L.data, s = Math.random() * 10;
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -358,6 +366,7 @@
   function checkSupport(b) {
     const w = b.w, h = b.h, A = b.cx.getImageData(0, 0, w, h), a = A.data, seen = new Uint8Array(w * h), st = [];
     for (let x = 0; x < w; x++) { const i = (h - 1) * w + x; if (a[i * 4 + 3]) { seen[i] = 1; st.push(i); } }
+    const B = b.base || baseOf(b); for (const i of B.free) if (a[i * 4 + 3] && !seen[i]) { seen[i] = 1; st.push(i); }
     while (st.length) { const i = st.pop(), x = i % w, y = (i / w) | 0; for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1]) if (j >= 0 && !seen[j] && a[j * 4 + 3]) { seen[j] = 1; st.push(j); } }
     let total = 0, loose = 0, mx0 = w, mx1 = -1, my0 = h, my1 = -1;
     for (let i = 0; i < w * h; i++) if (a[i * 4 + 3]) { total++; if (!seen[i]) { loose++; const x = i % w, y = (i / w) | 0; if (x < mx0) mx0 = x; if (x > mx1) mx1 = x; if (y < my0) my0 = y; if (y > my1) my1 = y; } }
@@ -373,8 +382,9 @@
       addDamage(b.value * loose / (total + loose));
     }
     // a building standing on a thin stalk gives way
-    let minRow = w; for (let y = Math.floor(h * 0.35); y < h; y++) { let c = 0; for (let x = 0; x < w; x++) if (a[(y * w + x) * 4 + 3]) c++; if (c < minRow) minRow = c; }
-    if (minRow < w * 0.22 && total - loose > w * h * 0.25) collapse(b);
+    // compared with how wide each row was to begin with, so naturally slim cranes and chimneys are not mistaken for damage
+    let minK = 1; for (let y = Math.floor(h * 0.35); y < h; y++) { if (B.row[y] < 4) continue; let c = 0; for (let x = 0; x < w; x++) if (a[(y * w + x) * 4 + 3]) c++; minK = Math.min(minK, c / B.row[y]); }
+    if (minK < 0.22 && total - loose > (B.row.reduce((s, v) => s + v, 0)) * 0.3) collapse(b);
   }
   function rubbleOf(b) { const r = rng(b.seed + 7), w = b.w + 16, h = Math.min(30, 8 + b.h / 7); return mk(w, h + 2, p => { const base = b.type === "tower" ? [70, 76, 92] : [110, 104, 98]; for (let x = 0; x < w; x++) { const t = Math.round(h * Math.sin(Math.PI * x / w) * (0.7 + 0.3 * Math.sin(x * 0.4 + r() * 2))); for (let y = h - t; y < h + 2; y++) { const n = h2(x >> 1, y >> 1); p.P(x, y, n > 0.7 ? mul(base, 0.7) : n < 0.2 ? mixc(base, [200, 190, 180], 0.3) : base); } } for (let i = 0; i < w / 4; i++) { const x = r() * w, y = h - r() * h * 0.7; p.line(x, y, x + rnd(-6, 6), y - rnd(2, 6), [90, 80, 70]); } for (let i = 0; i < w / 6; i++) p.R(r() * w, h - r() * h * 0.6, 3, 2, [40, 40, 50]); p.outline(O); }); }
 
@@ -442,6 +452,11 @@
       if (b.state !== "stand") continue; const top = SW - b.h;
       if (x1 < b.x || x0 > b.x + b.w || y1 < top || y0 > SW) continue;
       const cx = clamp((x0 + x1) / 2, b.x, b.x + b.w), cy = clamp((y0 + y1) / 2, top, SW), n = opts.holes || 1;
+      if (opts.ram && b.h >= 70) { // a tall building only gets its front wall dented by a running body, never flattened
+        if (G.t - (b.ramLast || -999) > 90) b.ramN = 0; b.ramLast = G.t; if (b.ramN >= 2) continue; b.ramN++;
+        const ex = K.dir > 0 ? rnd(1, 5) : b.w - rnd(1, 5); carve(b, ex, cy - top + rnd(-8, 8), rnd(6, 8)); b.hp = Math.max(b.max * 0.35, b.hp - dmg * 0.5); b.hitT = 8; hit = true; addDamage(b.value * dmg * 0.5 / b.max);
+        debris(b.x + ex, cy, 6, sample(b), 3); glass(b.x + ex, cy, 3); dust(b.x + ex, cy, 2, 0.6); continue;
+      }
       for (let i = 0; i < n; i++) carve(b, cx - b.x + rnd(-6, 6), cy - top + rnd(-6, 6), opts.r || rnd(6, 11));
       b.hp -= dmg; b.hitT = 8; hit = true; addDamage(b.value * dmg / b.max); if (!G.lastHit) G.lastHit = [cx, cy];
       debris(cx, cy, opts.fire ? 3 : 8, sample(b), opts.fire ? 2 : 3.2); glass(cx, cy, opts.fire ? 1 : 4); if (!opts.fire) dust(cx, cy, 2, 0.6);
