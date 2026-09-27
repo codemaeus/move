@@ -151,7 +151,9 @@
     for (let y = 0; y < KH; y++) for (let x = 0; x < KW; x++) { const c = p.G(x, y); if (!c) continue; if (c[1] === C.body[1] && c[0] === C.body[0] && h2(x >> 1, y >> 1) > 0.8) p.P(x, y, C.bodyD); else if (c[1] === C.bodyL[1] && h2(x, y) > 0.86) p.P(x, y, C.body); else if (c[1] === C.bodyD[1] && h2(x >> 1, (y >> 1) + 9) > 0.86) p.P(x, y, C.bodyDD); }
     p.outline(C.out);
     const main = p.done(), glow = q.done(), rel = pt => [pt[0] - AX, pt[1] - AY];
-    return { r: main, l: flip(main), wr: tintOf(main, "#fff"), wl: tintOf(flip(main), "#fff"), hr: tintOf(main, "#ff8040"), hl: tintOf(flip(main), "#ff8040"), gr: glow, gl: flip(glow), mouth: rel(add(add(Hc, F, 19), U, -1)), hand: rel(hand), feet: [rel(footB), rel(footF)], tail: rel(tailPts[15].p), head: rel(Hc) };
+    const out = { r: main, gr: glow, mouth: rel(add(add(Hc, F, 19), U, -1)), hand: rel(hand), feet: [rel(footB), rel(footF)], tail: rel(tailPts[15].p), head: rel(Hc) }, lz = (k, fn) => { let v = null; Object.defineProperty(out, k, { get: () => v || (v = fn()) }); };
+    lz("l", () => flip(main)); lz("gl", () => flip(glow)); lz("wr", () => tintOf(main, "#fff")); lz("wl", () => tintOf(out.l, "#fff")); lz("hr", () => tintOf(main, "#ff8040")); lz("hl", () => tintOf(out.l, "#ff8040"));
+    return out;
   }
   const PI = Math.PI, KB = { lean: 0.18, by: 0, fb: [-12, 0], ff: [12, 0], ab: 1.1, af: 1.0, fold: -1.2, ha: -0.08, jaw: 0.05, ta: PI - 0.2, curl: 0.01, tw: 0 };
   const KPOSE = {
@@ -168,7 +170,12 @@
     nova0: { ...KB, by: 7, lean: 0.35, af: 1.5, ab: 1.5, fold: 0.6, ha: 0.2, jaw: 0.3, ta: PI + 0.1 }, nova1: { ...KB, by: 1, lean: -0.1, af: -1.3, ab: -1.2, fold: -0.5, ha: -0.85, jaw: 1, fire: 1, ta: PI - 0.6 },
   };
   for (let i = 0; i < 8; i++) { const a = i / 8 * PI * 2, s = Math.sin(a), c = Math.cos(a); KPOSE["w" + i] = { ...KB, ff: [Math.round(13 * s) + 2, Math.round(Math.max(0, c) * 7)], fb: [Math.round(-13 * s) - 2, Math.round(Math.max(0, -c) * 7)], by: Math.round(2 * Math.abs(s)), af: 1.0 - 0.3 * s, ab: 1.1 + 0.3 * s, tw: i * 0.8, lean: 0.24, ha: -0.08 + 0.04 * Math.sin(2 * a) }; }
+  const AIMS_PRE = [-0.75, -0.4, -0.05, 0.3, 0.6];
   for (let i = 0; i < 8; i++) { const a = i / 8 * PI * 2, s = Math.sin(a), c = Math.cos(a); KPOSE["d" + i] = { ...KB, lean: 0.62, ff: [Math.round(19 * s) + 6, Math.round(Math.max(0, c) * 10)], fb: [Math.round(-19 * s) - 2, Math.round(Math.max(0, -c) * 10)], by: 5 + Math.round(3 * Math.abs(s)), af: 1.5 - 0.5 * s, ab: 1.4 + 0.5 * s, fold: -0.6, neck: -0.25, ha: 0.12 + 0.04 * Math.sin(2 * a), jaw: 0.35, ta: PI - 0.02 + 0.05 * s, curl: -0.012, tw: i * 1.2 }; }
+  AIMS_PRE.forEach((a, ai) => { for (let q = 0; q < 4; q++) { const up = { neck: 0.1 + a * 0.3, jaw: 0.95, ha: a, fire: 1 }; KPOSE["fw" + ai + q] = { ...KPOSE["w" + q * 2], ...up, lean: 0.28, af: 0.6, fold: -1.4 }; KPOSE["fd" + ai + q] = { ...KPOSE["d" + q * 2], ...up, neck: -0.1 + a * 0.3 }; } });
+  KPOSE.tw0 = { ...KB, lean: 0.34, by: 7, fb: [-17, 0], ff: [15, 0], ha: -0.32, jaw: 0.45, af: 0.9, fold: -0.8, ta: PI + 0.38, curl: -0.03 };
+  KPOSE.tw1 = { ...KB, lean: 0.46, by: 5, fb: [-22, 0], ff: [9, 0], ha: 0.12, jaw: 0.7, af: 1.4, fold: 0.3, ab: 1.5, ta: PI - 0.03, curl: 0.004, tw: 0 };
+  KPOSE.tw2 = { ...KB, lean: 0.36, by: 3, fb: [-18, 0], ff: [12, 0], ha: -0.1, jaw: 0.3, af: 1.2, ta: PI - 0.6, curl: -0.05, tw: 2 };
   KPOSE.djump = { ...KB, lean: 0.6, fb: [-20, 12], ff: [14, 16], by: 2, af: 1.6, ab: 1.5, fold: -0.4, neck: -0.2, ha: 0.1, jaw: 0.5, ta: PI + 0.08, curl: -0.015 };
   KPOSE.dfall = { ...KPOSE.djump, fb: [-14, 4], ff: [18, 6], lean: 0.45, ta: PI - 0.15 };
   const AIMS = [-0.75, -0.4, -0.05, 0.3, 0.6];
@@ -364,13 +371,17 @@
   const ACT = {
     swipe: { len: 30, frames: [[0, "s0"], [8, "s1"], [14, "s2"]], hit: [9, 13], box: [18, -92, 66, -36], dmg: 3 },
     upper: { len: 32, frames: [[0, "u0"], [10, "u1"], [16, "u2"]], hit: [10, 16], box: [14, -120, 58, -44], dmg: 4 },
-    tail: { len: 54, frames: [[0, "t0"], [9, "tA"], [15, "t1"], [20, "tB"], [24, "t2"], [36, "tC"]], hit: [25, 31], box: [20, -60, 104, 4], dmg: 6 },
+    tail: { len: 60, frames: [[0, "tw0"], [16, "tw1"], [31, "tw2"], [45, "tw0"]] },
     roar: { len: 70, frames: [[0, "roar0"], [10, "roar1"]] },
     nova: { len: 100, frames: [[0, "nova0"], [44, "nova1"]] },
   };
   function startAct(a) { K.state = a; K.t = 0; K.hitDone = false; if (a === "swipe" || a === "upper") sfx("swipe"); if (a === "tail") sfx("whoosh"); }
+  function kTurn() { if (K.state !== "tail") return 1; const t = K.t; if (t < 10) return 1; if (t < 15) return 1 - (t - 10) / 5 * 2; if (t < 42) return -1; if (t < 48) return -1 + (t - 42) / 6 * 2; return 1; }
+  const kFace = () => kTurn() >= 0 ? K.dir : -K.dir;
+  const worldF = (pt, d) => [K.x + pt[0] * d, GY + K.y + pt[1]];
   function kFrame() {
     const s = K.state;
+    if (K.firing) { if (s === "walk") { const q = Math.floor(K.walk / (K.dash ? 6 : 4)) % 8; return (K.dash ? "fd" : "fw") + K.aim + (q >> 1); } return (Math.floor(G.t / 3) % 2 ? "b" : "c") + K.aim; }
     if (ACT[s]) { let k = ACT[s].frames[0][1]; for (const [t, fk] of ACT[s].frames) if (K.t >= t) k = fk; if (s === "roar" && K.t > 10) k = Math.floor(K.t / 3) % 2 ? "roar0" : "roar1"; return k; }
     if (s === "breath") return (Math.floor(G.t / 3) % 2 ? "b" : "c") + K.aim;
     if (s === "air") return K.pound ? "pound" : K.djump ? (K.vy < 0 ? "djump" : "dfall") : K.vy < 0 ? "jump" : "fall";
@@ -388,6 +399,21 @@
     G.fx.push({ k: "hanabi", x, y, t: 0, life: 24, cool, seed: Math.random() * 6 });
     const cs = cool ? [[180, 240, 255], [120, 200, 255], [255, 255, 255], [200, 160, 255]] : [[255, 250, 210], [255, 210, 90], [255, 140, 50], [255, 120, 160], [140, 230, 255]];
     for (let i = 0; i < 26; i++) { const a = rnd(0, PI * 2), sp = rnd(1.5, 4.2); G.parts.push({ k: "spark", x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 0.6, t: 0, life: rnd(18, 34) | 0, c: cs[i % cs.length], trail: 1 }); }
+  }
+  function carToScreen(c) { c.alive = false; c.dead = true; G.fx.push({ k: "screencar", img: c.img, flipX: K.dir < 0, sx: c.x - G.cam, sy: c.y - 5, t: 0, life: 100, rot: 0, spin: rnd(0.12, 0.2) * (Math.random() < 0.5 ? -1 : 1), hx: rnd(130, 254), hy: rnd(80, 120), seed: (Math.random() * 1000) | 0 }); sfx("whoosh"); addDamage(200); }
+  function tailSweep() {
+    const t = K.t, d = K.dir;
+    if (t === 5) sfx("whoosh");
+    if (t === 12) { G.shake = Math.max(G.shake, 6); dust(K.x, GY + 2, 10, 1.4); sfx("step"); }
+    if (t === 13) G.slow = 6;
+    if (t === 16) { sfx("sweep"); G.fx.push({ k: "ono", s: "ブォンッ！", x: K.x - d * 10, y: GY - 128, t: 0, life: 30, c: [255, 236, 190] }); G.fx.push({ k: "sweep", x: K.x, y: GY - 38, dir: d, t: 0, life: 20 }); }
+    if (t >= 17 && t <= 30 && t % 3 === 2) {
+      const reach = lerp(40, 135, (t - 17) / 13), x0 = d > 0 ? K.x + 8 : K.x - reach, x1 = d > 0 ? K.x + reach : K.x - 8; G.lastHit = null;
+      if (hitRect(x0, GY - 82, x1, GY - 4, 2.6, { holes: 2, r: 11 })) { const hp = G.lastHit || [K.x + d * reach * 0.8, GY - 40]; hanabi(hp[0], hp[1], 0); if (!K.hitDone) { K.hitDone = true; G.stop = 8; G.shake = 15; G.flash = 5; G.zoom = 1.09; G.fx.push({ k: "ono", s: "ドガガッ！！", x: hp[0], y: hp[1] - 30, t: 0, life: 44, c: [255, 200, 120], big: 1 }); sfx("impact"); } else { G.stop = 3; G.shake = Math.max(G.shake, 7); sfx("crash"); } }
+      for (let i = 0; i < 3; i++) G.parts.push({ k: "chunk", x: K.x + d * reach * rnd(0.6, 1), y: GY, vx: d * rnd(1, 4), vy: rnd(-4, -1.5), t: 0, life: rnd(40, 80) | 0, c: [80, 78, 86], s: 2 });
+      dust(K.x + d * reach, GY, 3, 1.3);
+    }
+    if (t === 44) { G.shake = Math.max(G.shake, 5); dust(K.x, GY + 2, 8, 1.3); sfx("step"); }
   }
   function tailImpact() {
     const tp = world(KF.t2.tail), x = tp[0];
@@ -450,8 +476,9 @@
   function updateKaiju() {
     const left = btn("left"), right = btn("right");
     if (K.inv) K.inv--; if (K.flash) K.flash--;
-    if (K.state !== "breath") K.breath = Math.min(100, K.breath + 0.35);
+    if (!K.firing) K.breath = Math.min(100, K.breath + 0.35);
     const free = K.state === "idle" || K.state === "walk";
+    if (!free && K.firing) { K.firing = false; sfx("fireStop"); }
     if (K.state === "intro") { K.emerge = Math.max(0, K.emerge - 0.006); K.walk += 0.5; K.x += 0.5; if (G.t % 20 === 0) { for (let i = 0; i < 6; i++) G.parts.push({ k: "water", x: K.x + rnd(-30, 30), y: GY - 30, vx: rnd(-1, 1), vy: rnd(-3, -1), t: 0, life: 40 }); } if (K.emerge <= 0 && K.x > SEA - 60) { K.state = "roar"; K.t = 0; sfx("roar"); } return; }
     if (free) {
       const want = right && !left ? 1 : left && !right ? -1 : 0;
@@ -462,8 +489,9 @@
       if (want) { K.dir = want; K.x += want * sp; K.walk += sp; K.state = "walk"; const cyc = K.dash ? "d" : "w", ph = Math.floor(K.walk / (K.dash ? 6 : 4)) % 8; if (ph !== K.lastPh && (ph === 2 || ph === 6)) { const f = KF[cyc + ph].feet[ph === 2 ? 1 : 0]; stomp(world(f)[0], false); if (K.dash) dust(world(f)[0], GY + 2, 3, 1.1); } K.lastPh = ph; }
       else K.state = "idle";
       K.x = Math.max(K.x, SEA - 140);
+      if (btn("fire") && K.breath > (K.firing ? 0 : 8)) { if (!K.firing) sfx("fireStart"); K.firing = true; if (btn("up") && G.t % 6 === 0) K.aim = Math.max(0, K.aim - 1); if (btn("down") && G.t % 6 === 0) K.aim = Math.min(4, K.aim + 1); K.breath -= 0.55; breathe(); G.shake = Math.max(G.shake, 1.6); } else if (K.firing) { K.firing = false; sfx("fireStop"); }
+      if (want) for (const c of G.cars) if (c.alive && !c.rammed && Math.abs(c.x - (K.x + K.dir * 16)) < 22) { c.rammed = true; const r = Math.random(); if (r < 0.05) carToScreen(c); else if (r < 0.35) { c.alive = false; c.flying = true; c.vy = -rnd(6, 9); c.vx = K.dir * rnd(3, 5.5); c.spin = rnd(-0.45, 0.45); addDamage(150); sparks(c.x, c.y - 4, 10, [255, 220, 140], 3); sfx("crash"); G.shake = Math.max(G.shake, 4); G.fx.push({ k: "ono", s: "ドカッ！", x: c.x, y: c.y - 30, t: 0, life: 26, c: [255, 230, 170] }); } }
       if (pressed("claw")) { K.combo = 0; K.lunge = K.dash ? 14 : 0; K.dash = false; startAct("swipe"); }
-      else if (btn("fire") && K.breath > 8) { K.state = "breath"; K.t = 0; sfx("fireStart"); }
       else if (pressed("tail")) startAct("tail");
       else if (pressed("jump")) { K.state = "air"; K.t = 0; K.djump = !!K.dash; K.vy = K.djump ? -5.6 : -5.2; K.pound = false; K.dash = false; sfx(K.djump ? "dash" : "jump"); dust(K.x, GY, K.djump ? 12 : 6, K.djump ? 1.4 : 1); if (K.djump) G.fx.push({ k: "ono", s: "ズオッ！", x: K.x - K.dir * 30, y: GY - 50, t: 0, life: 26, c: [255, 230, 160] }); }
       else if (pressed("roar")) { if (K.rage >= 100) { startAct("nova"); sfx("novaCharge"); } else { startAct("roar"); sfx("roar"); } }
@@ -474,7 +502,7 @@
       const A = ACT[K.state];
       if (K.lunge) { K.lunge--; K.x += K.dir * 2; }
       if ((K.state === "swipe" || K.state === "upper") && K.t === A.hit[0] - 1) { const sh = world([20, -70]); G.fx.push({ k: "claw", x: sh[0], y: sh[1], dir: K.dir, a0: K.state === "swipe" ? -1.35 : 1.15, a1: K.state === "swipe" ? 1.15 : -1.45, t: 0, life: 18 }); sfx("slash"); }
-      if (K.state === "tail") { const tp = world(KF[kFrame()].tail); (K.tailPath = K.tailPath || []).push({ x: tp[0], y: tp[1], t: G.t }); if (K.tailPath.length > 14) K.tailPath.shift(); (K.trail = K.trail || []).push({ fk: kFrame(), x: K.x, dir: K.dir }); if (K.trail.length > 5) K.trail.shift(); if (K.t === 17) G.slow = 10; }
+      if (K.state === "tail") { const fc = kFace(), tp = worldF(KF[kFrame()].tail, fc); (K.tailPath = K.tailPath || []).push({ x: tp[0], y: tp[1], t: G.t }); if (K.tailPath.length > 14) K.tailPath.shift(); (K.trail = K.trail || []).push({ fk: kFrame(), x: K.x, dir: fc }); if (K.trail.length > 5) K.trail.shift(); tailSweep(); }
       if (A.hit && K.t >= A.hit[0] && K.t <= A.hit[1]) { const [x0, y0, x1, y1] = box(A.box); G.lastHit = null; if (!K.hitDone && hitRect(x0, y0, x1, y1, A.dmg, { holes: K.state === "tail" ? 2 : 1, r: K.state === "tail" ? 13 : 10 })) { K.hitDone = true; G.stop = K.state === "tail" ? 6 : 5; G.shake = Math.max(G.shake, 5); sfx("crash"); const hp2 = G.lastHit || [(x0 + x1) / 2, (y0 + y1) / 2]; if (K.state !== "tail") { hanabi(hp2[0], hp2[1], 0); G.fx.push({ k: "ono", s: K.state === "swipe" ? "ザシュッ！" : "ズバァッ！", x: hp2[0], y: hp2[1] - 20, t: 0, life: 34, c: [255, 240, 200] }); } }
         if (K.state === "tail" && K.t === 26) tailImpact(); }
       if (K.state === "swipe" && pressed("claw") && K.t > 8) K.qd = true;
@@ -506,7 +534,7 @@
     }
   }
   function breathe() {
-    const fk = KF["b" + K.aim], m = world(fk.mouth), a = AIMS[K.aim], ang = K.dir > 0 ? a : PI - a;
+    const fk = KF[kFrame()], m = world(fk.mouth), a = AIMS[K.aim], ang = K.dir > 0 ? a : PI - a;
     for (let i = 0; i < 4; i++) { const sp = rnd(4.2, 5.4), spread = rnd(-0.07, 0.07); G.parts.push({ k: "flame", x: m[0] + Math.cos(ang) * 2, y: m[1] + Math.sin(ang) * 2, vx: Math.cos(ang + spread) * sp, vy: Math.sin(ang + spread) * sp, t: 0, life: rnd(26, 36) | 0, r: 2 }); }
     if (G.t % 4 === 0) { // damage along the stream
       for (let s = 20; s < 170; s += 18) { const x = m[0] + Math.cos(ang) * s, y = m[1] + Math.sin(ang) * s; if (y > GY + 6) break; hitRect(x - 7, y - 7, x + 7, y + 7, 0.8, { fire: true, r: rnd(4, 7) }); }
@@ -661,23 +689,24 @@
     if (p.type === "pole") { w.strokeStyle = "rgba(20,18,20,0.9)"; w.lineWidth = 1; }
   }
   function drawKaiju(cam) {
-    const fk = kFrame(), F = KF[fk], X = Math.round(K.x - cam), Y = Math.round(GY + K.y);
-    const ox = K.dir > 0 ? AX : KW - AX, img = K.flash && K.flash % 3 ? (K.dir > 0 ? F.wr : F.wl) : K.dir > 0 ? F.r : F.l, glowI = K.dir > 0 ? F.gr : F.gl;
+    const fk = kFrame(), F = KF[fk], X = Math.round(K.x - cam), Y = Math.round(GY + K.y), fc = kFace(), sqz = Math.max(0.12, Math.abs(kTurn()));
+    const ox = fc > 0 ? AX : KW - AX, img = K.flash && K.flash % 3 ? (fc > 0 ? F.wr : F.wl) : fc > 0 ? F.r : F.l, glowI = fc > 0 ? F.gr : F.gl;
+    const drawK = (ctx, im, yy) => { if (sqz < 0.999) { ctx.save(); ctx.translate(X, 0); ctx.scale(sqz, 1); ctx.drawImage(im, -ox, yy); ctx.restore(); } else ctx.drawImage(im, X - ox, yy); };
     // shadow on the road
     w.fillStyle = "rgba(0,0,0,0.35)"; w.beginPath(); w.ellipse(X, GY + 2, 34 - Math.min(20, -K.y * 0.2), 4, 0, 0, PI * 2); w.fill();
     if (K.inv && Math.floor(K.inv / 4) % 2) w.globalAlpha = 0.6;
-    if (K.state === "tail" && K.trail) { K.trail.forEach((tr, i) => { const TF = KF[tr.fk]; w.globalAlpha = 0.12 + i * 0.06; w.drawImage(tr.dir > 0 ? TF.hr : TF.hl, Math.round(tr.x - cam) - (tr.dir > 0 ? AX : KW - AX), Y - AY); }); w.globalAlpha = 1; }
-    if (K.state === "tail" && K.tailPath && K.t < 40) { const P = K.tailPath; for (let i = 1; i < P.length; i++) { const a = P[i - 1], b = P[i], age = (G.t - b.t) / 14, al = Math.max(0, 1 - age) * (K.t < 34 ? 1 : (40 - K.t) / 6); for (let j = 0; j <= 6; j++) { const x = lerp(a.x, b.x, j / 6) - cam, y = lerp(a.y, b.y, j / 6); e.fillStyle = rgba([255, 170, 80], al * 0.5); e.fillRect(Math.round(x) - 3, Math.round(y) - 3, 6, 6); e.fillStyle = rgba([255, 250, 220], al); e.fillRect(Math.round(x) - 1, Math.round(y) - 1, 2, 2); } } for (let i = 0; i < 5; i++) { const b = P[P.length - 1]; if (!b) break; const a = P[Math.max(0, P.length - 3)]; e.strokeStyle = rgba([255, 255, 255], 0.3); e.beginPath(); e.moveTo(a.x - cam + rnd(-10, 10), a.y + rnd(-10, 10)); e.lineTo(b.x - cam + rnd(-6, 6), b.y + rnd(-6, 6)); e.stroke(); } }
+    if (K.state === "tail" && K.trail && K.t > 15 && K.t < 34) { K.trail.forEach((tr, i) => { const TF = KF[tr.fk]; w.globalAlpha = 0.12 + i * 0.06; w.drawImage(tr.dir > 0 ? TF.hr : TF.hl, Math.round(tr.x - cam) - (tr.dir > 0 ? AX : KW - AX), Y - AY); }); w.globalAlpha = 1; }
+    if (K.state === "tail" && K.tailPath && K.t > 14 && K.t < 40) { const P = K.tailPath; for (let i = 1; i < P.length; i++) { const a = P[i - 1], b = P[i], age = (G.t - b.t) / 14, al = Math.max(0, 1 - age) * (K.t < 34 ? 1 : (40 - K.t) / 6); for (let j = 0; j <= 6; j++) { const x = lerp(a.x, b.x, j / 6) - cam, y = lerp(a.y, b.y, j / 6); e.fillStyle = rgba([255, 170, 80], al * 0.5); e.fillRect(Math.round(x) - 3, Math.round(y) - 3, 6, 6); e.fillStyle = rgba([255, 250, 220], al); e.fillRect(Math.round(x) - 1, Math.round(y) - 1, 2, 2); } } for (let i = 0; i < 5; i++) { const b = P[P.length - 1]; if (!b) break; const a = P[Math.max(0, P.length - 3)]; e.strokeStyle = rgba([255, 255, 255], 0.3); e.beginPath(); e.moveTo(a.x - cam + rnd(-10, 10), a.y + rnd(-10, 10)); e.lineTo(b.x - cam + rnd(-6, 6), b.y + rnd(-6, 6)); e.stroke(); } }
     if (K.dash || K.djump) { for (let i = 0; i < 6; i++) { const y = Y - 20 - h2(i, G.t >> 2) * 80, len = 20 + h2(i, 3) * 30; e.fillStyle = rgba([255, 240, 220], 0.35); e.fillRect(Math.round(X - K.dir * (30 + h2(i, 9) * 40) - (K.dir > 0 ? len : 0)), Math.round(y), Math.round(len), 1); } }
     const em = K.state === "intro" ? K.emerge * 100 : 0;
     if (em > 0) { w.save(); w.beginPath(); w.rect(0, 0, W, 180); w.clip(); }
-    w.drawImage(img, X - ox, Y - AY + em); if (em > 0) w.restore(); w.globalAlpha = 1;
-    bx.globalCompositeOperation = "destination-out"; bx.drawImage(img, X - ox, Y - AY + em); bx.globalCompositeOperation = "source-over";
+    drawK(w, img, Y - AY + em); if (em > 0) w.restore(); w.globalAlpha = 1;
+    bx.globalCompositeOperation = "destination-out"; drawK(bx, img, Y - AY + em); bx.globalCompositeOperation = "source-over";
     // spines glow brighter while breathing fire, charging, or enraged
-    const pulse = 0.55 + 0.25 * Math.sin(G.t * 0.08) + (K.state === "breath" ? 0.4 : 0) + (K.state === "nova" ? Math.min(1, K.t / 40) : 0) + (K.rage >= 100 ? 0.2 * Math.sin(G.t * 0.3) : 0);
-    if (em < 60) { e.globalAlpha = clamp(pulse, 0, 1); e.drawImage(glowI, X - ox, Y - AY + em); e.globalAlpha = 1; if (K.state === "nova" && K.t < 44) { e.globalAlpha = K.t / 60; e.drawImage(K.dir > 0 ? F.hr : F.hl, X - ox, Y - AY); e.globalAlpha = 1; } }
+    const pulse = 0.55 + 0.25 * Math.sin(G.t * 0.08) + (K.firing ? 0.4 : 0) + (K.state === "nova" ? Math.min(1, K.t / 40) : 0) + (K.rage >= 100 ? 0.2 * Math.sin(G.t * 0.3) : 0);
+    if (em < 60) { e.globalAlpha = clamp(pulse, 0, 1); drawK(e, glowI, Y - AY + em); e.globalAlpha = 1; if (K.state === "nova" && K.t < 44) { e.globalAlpha = K.t / 60; e.drawImage(K.dir > 0 ? F.hr : F.hl, X - ox, Y - AY); e.globalAlpha = 1; } }
     addLight(K.x, GY - 70 + K.y, 50, 0.25 * pulse, [255, 150, 60]);
-    if (K.state === "breath") { const m = world(F.mouth); addLight(m[0], m[1], 60, 0.9, [255, 170, 80]); }
+    if (K.firing) { const m = world(F.mouth); addLight(m[0], m[1], 60, 0.9, [255, 170, 80]); }
   }
   function drawRival(cam) {
     if (!R) return; const fk = rFrame(), F = JF[fk], X = Math.round(R.x - cam), Y = GY, ox = R.dir > 0 ? AX : KW - AX;
@@ -749,11 +778,30 @@
       else if (f.k === "crack") {
         const a = Math.min(1, (f.life - f.t) / 40); for (const sd of [-1, 1]) { let x = X, y = Y; const r = rng((f.seed * 10 | 0) + (sd > 0 ? 1 : 2)); for (let i = 0; i < 14; i++) { const nx = x + sd * rnd(4, 8) * (0.7 + r() * 0.6), ny = clamp(y + (r() - 0.5) * 5, GY - 2, H - 2); w.strokeStyle = rgba([12, 10, 12], a); w.lineWidth = 2; w.beginPath(); w.moveTo(x, y); w.lineTo(nx, ny); w.stroke(); if (f.t < 30) { e.strokeStyle = rgba([255, 150, 60], (1 - f.t / 30) * 0.9); e.lineWidth = 1; e.beginPath(); e.moveTo(x, y); e.lineTo(nx, ny); e.stroke(); } if (r() < 0.3) { w.beginPath(); w.moveTo(nx, ny); w.lineTo(nx + sd * 6, ny + (r() - 0.5) * 8); w.stroke(); } x = nx; y = ny; } }
       }
+      else if (f.k === "sweep") { for (let j = 0; j < 3; j++) { const r = 60 + j * 22 + f.t * 3, a0 = f.dir > 0 ? -0.5 : PI - 0.35, a1 = f.dir > 0 ? 0.35 : PI + 0.5; e.strokeStyle = rgba([255, 240, 210], 0.45 * (1 - k)); e.lineWidth = j === 1 ? 2 : 1; e.beginPath(); e.ellipse(X, Y, r, r * 0.3, 0, a0, a1); e.stroke(); } }
       else if (f.k === "mash") { e.fillStyle = rgba([255, 220, 120], 1 - k); e.fillRect(Math.round(X - 20 + f.t * 3), Math.round(Y - f.t * 2), 3, 3); e.fillRect(Math.round(X + 20 - f.t * 3), Math.round(Y - f.t * 2), 3, 3); }
     }
     for (const s of G.shots) { const X = Math.round(s.x - cam), Y = Math.round(s.y); e.fillStyle = s.k === "bomb" ? "rgb(60,60,70)" : "rgb(255,240,180)"; if (s.k === "bomb") { w.fillStyle = "rgb(60,60,70)"; w.fillRect(X - 1, Y - 2, 3, 5); } else { e.fillRect(X - 1, Y - 1, 3, 2); e.fillStyle = "rgba(255,180,90,0.7)"; e.fillRect(X - Math.sign(s.vx) * 4, Y, 4, 1); addLight(s.x, s.y, 16, 0.4, [255, 200, 120]); } }
     for (const bm of G.beams) { const x0 = bm.x0 - cam, x1 = bm.x1 - cam, n = 14; if (bm.big) { for (const [lw, c] of [[7, "rgba(80,160,255,0.35)"], [4, "rgba(150,220,255,0.8)"]]) { e.strokeStyle = c; e.lineWidth = lw; e.beginPath(); e.moveTo(x0, bm.y0); e.lineTo(x1, bm.y1); e.stroke(); } for (let b2 = 0; b2 < 2; b2++) { e.strokeStyle = "rgba(220,245,255,0.9)"; e.lineWidth = 1; e.beginPath(); e.moveTo(x0, bm.y0); for (let i = 1; i <= n; i++) e.lineTo(lerp(x0, x1, i / n) + rnd(-3, 3), lerp(bm.y0, bm.y1, i / n) + rnd(-7, 7)); e.stroke(); } }
       e.strokeStyle = "rgba(140,210,255,0.8)"; e.lineWidth = 3; e.beginPath(); e.moveTo(x0, bm.y0); for (let i = 1; i <= n; i++) e.lineTo(lerp(x0, x1, i / n) + rnd(-2, 2), lerp(bm.y0, bm.y1, i / n) + rnd(-4, 4)); e.stroke(); e.strokeStyle = "rgb(255,255,255)"; e.lineWidth = 1; e.stroke(); addLight(lerp(bm.x0, bm.x1, 0.5), lerp(bm.y0, bm.y1, 0.5), 80, 0.8, [120, 200, 255]); addLight(bm.x1, bm.y1, 40, 1, [180, 230, 255]); }
+  }
+  function drawScreenCars() {
+    for (const f of G.fx) if (f.k === "screencar") {
+      const HIT = 24, t = f.t;
+      if (t === HIT && !f.hit) { f.hit = true; G.shake = 14; G.flash = 4; sfx("glass"); sfx("boom", 1.2); }
+      let x, y, sc, rot;
+      if (t < HIT) { const u = t / HIT, e2 = u * u; x = lerp(f.sx, f.hx, e2); y = lerp(f.sy, f.hy, e2) - Math.sin(u * PI) * 40; sc = lerp(1, 9, e2); rot = f.spin * t; }
+      else { const u = t - HIT; x = f.hx; y = f.hy + Math.max(0, u - 30) * 1.2; sc = 9; rot = f.spin * HIT + Math.max(0, u - 30) * 0.01; }
+      const a = t > 80 ? (f.life - t) / 20 : 1;
+      g.save(); g.globalAlpha = a; g.translate(x, y); g.rotate(rot); g.scale(f.flipX ? -sc : sc, sc); g.drawImage(f.img, -10, -5); g.restore();
+      if (t >= HIT) {
+        const r = rng(f.seed), cx = f.hx + 6, cy = f.hy - 4, al = t > 70 ? (f.life - t) / 30 : 1;
+        g.lineWidth = 1;
+        for (let i = 0; i < 16; i++) { const a0 = i / 16 * PI * 2 + r() * 0.3; let px = cx, py = cy; const len = 60 + r() * 140; g.beginPath(); g.moveTo(px, py); for (let s = 0; s < len; s += 10 + r() * 10) { px = cx + Math.cos(a0 + (r() - 0.5) * 0.15) * s; py = cy + Math.sin(a0 + (r() - 0.5) * 0.15) * s; g.lineTo(px, py); } g.strokeStyle = rgba([20, 20, 30], 0.5 * al); g.stroke(); g.translate(1, 0); g.strokeStyle = rgba([235, 245, 255], 0.9 * al); g.stroke(); g.translate(-1, 0); }
+        for (const rr of [18, 34, 58]) { g.beginPath(); for (let i = 0; i <= 16; i++) { const a0 = i / 16 * PI * 2, q = rr * (0.85 + r() * 0.3); if (i === 0) g.moveTo(cx + Math.cos(a0) * q, cy + Math.sin(a0) * q); else g.lineTo(cx + Math.cos(a0) * q, cy + Math.sin(a0) * q); } g.strokeStyle = rgba([235, 245, 255], 0.55 * al); g.stroke(); }
+        g.fillStyle = rgba([255, 255, 255], 0.5 * al); g.fillRect(cx - 3, cy - 3, 6, 6);
+      }
+    }
   }
   function drawOno(cam) {
     for (const f of G.fx) if (f.k === "ono") { const k = f.t / f.life, sc = f.t < 4 ? 1.6 - f.t * 0.15 : 1, size = f.big ? 24 : 16, img = text(f.s, size, f.c, [60, 16, 10]), dk = text(f.s, size, [40, 10, 8], null), wd = img.width * sc, hg = img.height * sc, X = Math.round(f.x - cam - wd / 2), Y = Math.round(f.y - f.t * 0.4 - hg / 2); g.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1; for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [2, 2]]) g.drawImage(dk, X + ox, Y + oy, wd, hg); g.drawImage(img, X, Y, wd, hg); g.globalAlpha = 1; }
@@ -795,7 +843,7 @@
       const t1 = text("怪獣ボルガ", 24, [255, 170, 80], [60, 16, 10]), t2 = text("夜の街", 16, [255, 230, 200], [40, 10, 10]); g.drawImage(t1, 200, 60); g.drawImage(t2, 232, 92);
       if (Math.floor(G.t / 30) % 2) { const t3 = text("Z / Enter でスタート", 12); g.drawImage(t3, 214, 130); }
       const t4 = text("不死身の怪獣が 夜の街を どこまでも壊していく", 12, [200, 190, 190]); g.drawImage(t4, Math.round((W - t4.width) / 2), 196);
-    } else { drawOno(Math.round(G.cam)); drawHUD(); }
+    } else { drawScreenCars(); drawOno(Math.round(G.cam)); drawHUD(); }
     if (G.paused) { g.fillStyle = "rgba(0,0,0,0.5)"; g.fillRect(0, 0, W, H); const t1 = text("ポーズ", 24); g.drawImage(t1, Math.round((W - t1.width) / 2), 90); }
   }
 
@@ -822,7 +870,7 @@
   function music(name) { A.song = name ? MARCH : null; A.step = 0; if (A.ac) A.next = A.ac.currentTime + 0.1; }
   function audioTick() {
     if (!A.ac || !A.on) return; const t = A.ac.currentTime;
-    A.fire.g.gain.setTargetAtTime(K.state === "breath" && G.mode === "play" ? 0.35 : 0, t, 0.05); A.fire.fl.frequency.setTargetAtTime(600 + Math.sin(G.t * 0.3) * 200, t, 0.05);
+    A.fire.g.gain.setTargetAtTime(K.firing && G.mode === "play" ? 0.35 : 0, t, 0.05); A.fire.fl.frequency.setTargetAtTime(600 + Math.sin(G.t * 0.3) * 200, t, 0.05);
     A.burn.g.gain.setTargetAtTime(Math.min(0.12, G.fires.length * 0.006), t, 0.3);
     const helis = G.units.filter(u => u.type === "heli" && !u.dead).length; A.rotor.g.gain.setTargetAtTime(helis ? 0.12 : 0, t, 0.3); A.rotor.fl.frequency.setTargetAtTime(helis ? 120 + (G.t % 6 < 3 ? 60 : 0) : 100, t, 0.01);
     A.siren.g.gain.setTargetAtTime(G.alert >= 2 && G.mode === "play" ? 0.012 : 0, t, 0.5); A.siren.o.frequency.setTargetAtTime(500 + 180 * Math.sin(G.t * 0.02), t, 0.1);
@@ -849,6 +897,8 @@
       case "collapse": nz(t, 2.4, 0.45, 180); nz(t + 0.2, 1.8, 0.2, 700); for (let i = 0; i < 10; i++) nz(t + i * 0.18, 0.2, 0.08, rnd(400, 2000), "bandpass"); break;
       case "boom": nz(t, 0.9 * s, 0.4 * Math.min(1.4, s), 400); tone("sine", 80, t, 0.5, 0.3 * s, null, 35); break;
       case "roar": { const pm = s; const ac = A.ac, bp = ac.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.setValueAtTime(500, t); bp.frequency.linearRampToValueAtTime(1100, t + 0.6); bp.frequency.linearRampToValueAtTime(600, t + 2); bp.Q.value = 2; const gg = ac.createGain(); gg.gain.setValueAtTime(0.0001, t); gg.gain.linearRampToValueAtTime(0.5, t + 0.2); gg.gain.setValueAtTime(0.4, t + 1.4); gg.gain.linearRampToValueAtTime(0.0001, t + 2.2); bp.connect(gg); gg.connect(A.fx); for (const [f0, f1] of [[180, 240], [270, 330], [120, 150]]) { const o = ac.createOscillator(); o.type = "sawtooth"; o.frequency.setValueAtTime(f0 * pm, t); o.frequency.linearRampToValueAtTime(f1 * pm, t + 0.5); o.frequency.linearRampToValueAtTime(f0 * 0.8 * pm, t + 2.2); const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 23; lg.gain.value = 18; lfo.connect(lg); lg.connect(o.frequency); o.connect(bp); o.start(t); o.stop(t + 2.3); lfo.start(t); lfo.stop(t + 2.3); } nz(t, 2, 0.15, 900, "bandpass", null, 1); break; }
+      case "sweep": { const f = nz(t, 0.7, 0.35, 200, "bandpass", null, 1); f.frequency.exponentialRampToValueAtTime(1200, t + 0.5); tone("sine", 70, t, 0.6, 0.2, null, 40); break; }
+      case "glass": for (let i = 0; i < 14; i++) nz(t + i * 0.02 + Math.random() * 0.03, 0.12, 0.12, 3000 + Math.random() * 4000, "bandpass", null, 4); nz(t, 0.3, 0.3, 2500, "highpass"); break;
       case "dash": nz(t, 0.3, 0.2, 300); tone("sine", 60, t, 0.2, 0.3, null, 35); break;
       case "slash": { for (let i = 0; i < 3; i++) { const f = nz(t + i * 0.025, 0.18, 0.22, 2500, "bandpass", null, 3); f.frequency.exponentialRampToValueAtTime(7000, t + i * 0.025 + 0.15); } break; }
       case "impact": tone("sine", 55, t, 1.2, 0.8, null, 24); nz(t, 1.6, 0.5, 260); nz(t, 0.3, 0.4, 1600, "bandpass"); for (let i = 0; i < 8; i++) nz(t + 0.1 + i * 0.07, 0.1, 0.1, rnd(500, 2500), "bandpass"); break;
