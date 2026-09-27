@@ -31,7 +31,7 @@
   <div class="screen"><canvas id="view" width="1152" height="648" tabindex="0" aria-label="怪獣ボルガ 夜の街 ゲーム画面"></canvas></div>
   <div class="pad" aria-label="タッチ操作">
     <div class="dir"><span></span><button data-k="up" aria-label="上">▲</button><span></span><button data-k="left" aria-label="左">◀</button><button data-k="down" aria-label="下">▼</button><button data-k="right" aria-label="右">▶</button></div>
-    <div class="act"><button data-k="tail" aria-label="しっぽ">尾</button><button data-k="roar" aria-label="咆哮">吼</button><button data-k="jump" aria-label="ジャンプ">跳</button><button data-k="claw" aria-label="爪">爪</button><button class="fire" data-k="fire" aria-label="火炎">炎</button><span></span></div>
+    <div class="act"><button data-k="tail" aria-label="しっぽ">尾</button><button data-k="roar" aria-label="咆哮">吼</button><button data-k="jump" aria-label="ジャンプ">跳</button><button data-k="claw" aria-label="爪">爪</button><button class="fire" data-k="fire" aria-label="火炎">炎</button><button data-k="grab" aria-label="つかむ・投げる">掴</button></div>
   </div>
   <div>
     <h1>怪獣ボルガ　夜の街</h1>
@@ -39,8 +39,8 @@
   </div>
   <div class="group"><button id="snd" aria-pressed="false">音を出す</button><button id="pause" aria-pressed="false">ポーズ</button><button id="restart">タイトルへ</button></div>
   <p class="keys">
-    <kbd>←</kbd><kbd>→</kbd> 歩く　<kbd>Z</kbd> 爪（連打で ひっかき→すくい上げ、歩き・ダッシュ中も出せる）　<kbd>X</kbd> 火炎（押しっぱなし、<kbd>↑</kbd><kbd>↓</kbd>で角度）　<kbd>C</kbd> しっぽ叩きつけ　<kbd>Space</kbd> ジャンプ（空中で <kbd>↓</kbd> か もう一度で踏みつけ）　<kbd>V</kbd> 咆哮（怒りゲージ満タンでマグマノヴァ）　<kbd>Enter</kbd> ポーズ<br>
-    雷獣ジンライと光の巨人アステルが交互に立ちはだかります。ビルは何度でも壊れ、戦車・ヘリ・戦闘機・メーサー車が迎え撃ちます。体力がなくなっても、ボタン連打で何度でもよみがえります。ゲームパッド対応（A ジャンプ／X 爪／B 火炎／Y しっぽ／RB 咆哮）。
+    <kbd>←</kbd><kbd>→</kbd> 歩く　<kbd>Z</kbd> 爪（連打で ひっかき→すくい上げ、歩き・ダッシュ中も出せる）　<kbd>X</kbd> 火炎（押しっぱなし、<kbd>↑</kbd><kbd>↓</kbd>で角度）　<kbd>C</kbd> しっぽ叩きつけ　<kbd>Space</kbd> ジャンプ（空中で <kbd>↓</kbd> か もう一度で踏みつけ）　<kbd>F</kbd> つかむ／投げる（↑で山なり、↓で低く）　<kbd>V</kbd> 咆哮（怒りゲージ満タンでマグマノヴァ）　<kbd>Enter</kbd> ポーズ<br>
+    雷獣ジンライと光の巨人アステルが交互に立ちはだかります。ビルは何度でも壊れ、戦車・ヘリ・戦闘機・メーサー車が迎え撃ちます。体力がなくなっても、ボタン連打で何度でもよみがえります。ゲームパッド対応（A ジャンプ／X 爪／B 火炎／Y しっぽ／RB 咆哮／LB つかむ・投げる）。
   </p>
 </div>
 <script>
@@ -153,7 +153,7 @@
     p.outline(C.out);
     const main = p.done(), glow = q.done(), rel = pt => [pt[0] - AX, pt[1] - AY];
     const out = { r: main, gr: glow, eye: rel(eye), tips: tips.map(rel), mouth: rel(add(add(Hc, F, 19), U, -1)), hand: rel(hand), feet: [rel(footB), rel(footF)], tail: rel(tailPts[15].p), head: rel(Hc) }, lz = (k, fn) => { let v = null; Object.defineProperty(out, k, { get: () => v || (v = fn()) }); };
-    lz("l", () => flip(main)); lz("gl", () => flip(glow)); lz("wr", () => tintOf(main, "#fff")); lz("wl", () => tintOf(out.l, "#fff")); lz("hr", () => tintOf(main, "#ff8040")); lz("hl", () => tintOf(out.l, "#ff8040"));
+    lz("l", () => flip(main)); lz("gl", () => flip(glow)); lz("wr", () => tintOf(main, "#fff")); lz("wl", () => tintOf(out.l, "#fff")); lz("hr", () => tintOf(main, "#ff8040")); lz("hl", () => tintOf(out.l, "#ff8040")); lz("sr", () => tintOf(main, "#1a1014")); lz("sl", () => tintOf(out.l, "#1a1014"));
     return out;
   }
   const PI = Math.PI, KB = { lean: 0.18, by: 0, fb: [-12, 0], ff: [12, 0], ab: 1.1, af: 1.0, fold: -1.2, ha: -0.08, jaw: 0.05, ta: PI - 0.2, curl: 0.01, tw: 0 };
@@ -268,6 +268,9 @@
   SPR.tree = mk(20, 30, p => { p.R(9, 16, 3, 14, [80, 60, 44]); for (const [x, y, r] of [[10, 10, 8], [6, 13, 5], [14, 13, 5], [10, 5, 5]]) p.E(x, y, r, r, [40, 80, 56]); for (const [x, y, r] of [[9, 8, 5], [5, 12, 3]]) p.E(x, y, r, r, [60, 110, 70]); p.outline(O); });
   SPR.vend = [[210, 40, 40], [40, 90, 200], [240, 240, 240]].map(c => mk(10, 18, p => { p.R(0, 0, 10, 18, c); p.R(1, 2, 8, 8, [230, 236, 240]); for (let y = 3; y < 10; y += 2) for (let x = 2; x < 9; x += 2) p.P(x, y, [[220, 60, 60], [60, 160, 80], [240, 200, 60]][(x + y) % 3]); p.R(2, 12, 6, 2, [30, 30, 30]); p.outline(O); }));
   SPR.pole = mk(16, 44, p => { p.R(7, 0, 3, 44, [110, 96, 84]); p.R(2, 4, 13, 2, [90, 80, 70]); p.R(3, 10, 11, 1, [90, 80, 70]); p.R(10, 13, 4, 5, [120, 120, 124]); p.outline(O); });
+  SPR.tram = mk(46, 17, p => { const c = [64, 124, 92], cr = [236, 226, 196], d = [44, 50, 64]; p.R(1, 3, 44, 11, c); p.R(1, 3, 44, 5, cr); p.R(2, 2, 42, 1, mul(c, 0.8)); for (let x = 4; x < 42; x += 7) p.R(x, 4, 5, 3, d); p.R(1, 12, 44, 1, mul(c, 0.7)); p.R(1, 9, 44, 1, [200, 170, 60]); p.line(20, 2, 24, 0, [70, 70, 80]); p.line(24, 0, 28, 2, [70, 70, 80]); for (const x of [8, 38]) p.E(x, 14, 2.2, 2, [24, 24, 28]); p.outline(O); });
+  SPR.pylon = mk(40, 118, p => { const c = [96, 100, 118], L = (a, b, c2, d) => p.line(a, b, c2, d, c); L(6, 117, 17, 8); L(34, 117, 23, 8); L(17, 8, 20, 0); L(23, 8, 20, 0); for (let y = 16; y < 110; y += 12) { const k = (y - 8) / 109, k2 = (y + 4) / 109; L(lerp(17, 6, k), y, lerp(23, 34, k2), y + 12); L(lerp(23, 34, k), y, lerp(17, 6, k2), y + 12); L(lerp(17, 6, k), y, lerp(23, 34, k), y); } L(1, 14, 39, 14); L(4, 36, 36, 36); for (const [x, y] of [[1, 15], [38, 15], [4, 37], [35, 37]]) p.R(x, y, 2, 4, [200, 200, 190]); });
+  const PYW = [[-18, 19], [18, 19], [-15, 41], [15, 41]]; // wire points from the pylon's base centre, y measured down from its top
   SPR.signal = mk(10, 30, p => { p.R(4, 6, 2, 24, [70, 74, 84]); p.R(0, 0, 10, 5, [50, 54, 60]); p.outline(O); });
   // ---------- buildings (drawn once, carved when hit) ----------
   const LIT = [[255, 222, 150], [255, 236, 190], [210, 230, 255], [255, 200, 120], [240, 244, 250]];
@@ -281,12 +284,12 @@
     }
   }
   function neonText(p, q, s, x, y, c, vertical) { const size = 12; if (vertical) { [...s].forEach((ch, i) => { glyphInto(q, ch, x, y + i * 13, c, size); }); } else glyphInto(q, s, x, y, c, size); }
-  const DISTRICT = [{ name: "港湾地区", types: ["warehouse", "container", "crane", "factory", "warehouse", "office"] }, { name: "下町商店街", types: ["house", "shop", "house", "izakaya", "shop", "apart"] }, { name: "繁華街", types: ["neon", "neon", "office", "shop", "neon", "apart"] }, { name: "摩天楼街", types: ["tower", "tower", "office", "tower", "office"] }];
+  const DISTRICT = [{ name: "港湾地区", types: ["warehouse", "container", "crane", "factory", "gastank", "office", "gastank"] }, { name: "下町商店街", types: ["house", "shop", "house", "izakaya", "shop", "apart"] }, { name: "繁華街", types: ["neon", "neon", "office", "shop", "neon", "apart"] }, { name: "摩天楼街", types: ["tower", "tower", "office", "tower", "office"] }];
   const DLEN = 1500, SEA = 420;
   const districtAt = x => DISTRICT[Math.max(0, Math.floor((x - SEA) / DLEN)) % 4];
   function makeBuilding(x, type, seed) {
     const r = rng(seed); let w, h;
-    const sizes = { tower: [[46, 70], [120, 176]], office: [[36, 56], [70, 120]], apart: [[40, 60], [56, 96]], shop: [[26, 40], [30, 48]], house: [[24, 34], [24, 34]], izakaya: [[26, 36], [26, 36]], neon: [[34, 50], [60, 104]], warehouse: [[60, 90], [30, 48]], container: [[36, 50], [28, 40]], crane: [[50, 60], [120, 140]], factory: [[46, 64], [40, 60]] }[type];
+    const sizes = { gastank: [[40, 54], [38, 50]], tower: [[46, 70], [120, 176]], office: [[36, 56], [70, 120]], apart: [[40, 60], [56, 96]], shop: [[26, 40], [30, 48]], house: [[24, 34], [24, 34]], izakaya: [[26, 36], [26, 36]], neon: [[34, 50], [60, 104]], warehouse: [[60, 90], [30, 48]], container: [[36, 50], [28, 40]], crane: [[50, 60], [120, 140]], factory: [[46, 64], [40, 60]] }[type];
     w = Math.round(lerp(sizes[0][0], sizes[0][1], r())); h = Math.round(lerp(sizes[1][0], sizes[1][1], r()));
     const p = painter(w, h), q = painter(w, h), beacons = [], smoke = [];
     const wallCol = { tower: pick(r, [[52, 62, 86], [60, 72, 80], [44, 56, 70]]), office: pick(r, [[128, 122, 116], [150, 112, 92], [110, 118, 126], [168, 160, 146]]), apart: pick(r, [[196, 184, 160], [176, 170, 176], [210, 200, 186]]), shop: pick(r, [[190, 170, 140], [150, 150, 156], [200, 190, 170]]), house: pick(r, [[176, 150, 116], [200, 190, 170], [140, 110, 84]]), izakaya: [[110, 76, 52]][0], neon: pick(r, [[62, 52, 66], [70, 60, 60], [56, 60, 72]]), warehouse: pick(r, [[120, 128, 132], [140, 120, 100], [96, 112, 124]]), container: [[0, 0, 0]][0], crane: [[0, 0, 0]][0], factory: [[130, 124, 118]][0] }[type];
@@ -338,6 +341,11 @@
       shade(0, 20, w, h - 20, wallCol); for (let i = 0; i < 3; i++) p.poly([[i * (w / 3), 26], [i * (w / 3) + w / 3, 20], [i * (w / 3) + w / 3, 26]], mul(wallCol, 0.8));
       const cx = w - 12; for (let y = 0; y < 30; y++) p.R(cx, y, 7, 1, Math.floor(y / 5) % 2 ? [220, 60, 50] : [236, 236, 230]); smoke.push([cx + 3, 0]); beacons.push([cx + 3, 0]);
       windows(p, q, 4, 30, Math.floor((w - 20) / 7), 2, 5, 4, 2, 4, r, { lit: 0.6 });
+    } else if (type === "gastank") {
+      const cx = w / 2, rr = Math.min(w / 2 - 1, (h - 7) / 2), cy = h - rr - 6, tc = pick(r, [[230, 226, 214], [226, 214, 160], [206, 218, 230]]);
+      for (const lx of [cx - rr * 0.8, cx - rr * 0.3, cx + rr * 0.3, cx + rr * 0.8]) p.R(lx - 1, cy, 3, h - cy, [110, 110, 120]); p.R(cx - rr * 0.85, h - 8, rr * 1.7, 2, [110, 110, 120]);
+      p.E(cx, cy, rr, rr, mul(tc, 0.7)); p.E(cx - 1, cy - 1, rr - 1, rr - 1, tc); p.R(cx - rr + 2, cy + 2, rr * 2 - 4, 3, [196, 56, 46]); p.E(cx - rr * 0.35, cy - rr * 0.45, rr * 0.35, rr * 0.22, mixc(tc, [255, 255, 255], 0.55));
+      for (let y = cy - rr + 3; y < h; y += 3) p.R(cx + rr - 3, y, 3, 1, [80, 80, 90]); beacons.push([Math.round(cx), Math.round(cy - rr)]); q.R(cx - 2, h - 4, 4, 2, [255, 210, 120]);
     }
     p.outline(O);
     const c = p.done(), l = q.done();
@@ -400,42 +408,45 @@
 
   // ---------- world ----------
   const K = { x: 200, y: 0, vy: 0, dir: 1, state: "intro", t: 0, hp: 100, breath: 100, rage: 0, inv: 0, walk: 0, aim: 2, combo: 0, rise: 0, deaths: 0, emerge: 1, stepT: 0, qd: false, flash: 0, hurtF: 0, novaT: 0 };
-  const G = { mode: "title", t: 0, cam: 0, blds: [], rubble: [], props: [], cars: [], units: [], shots: [], parts: [], fires: [], fx: [], people: [], pieces: [], genX: SEA, damage: 0, kills: 0, shake: 0, flash: 0, stop: 0, alert: 1, district: "", distT: 0, spawn: { tank: 200, heli: 400, jet: 900, maser: 1500, car: 60 }, msg: null, beams: [], hrings: [] };
+  const G = { mode: "title", t: 0, cam: 0, blds: [], rubble: [], props: [], cars: [], units: [], shots: [], parts: [], fires: [], fx: [], people: [], pieces: [], genX: SEA, damage: 0, kills: 0, shake: 0, flash: 0, stop: 0, alert: 1, district: "", distT: 0, spawn: { tank: 200, heli: 400, jet: 900, maser: 1500, car: 60, tram: 500 }, msg: null, beams: [], hrings: [], thrown: [], pylons: [], newsQ: [], dstat: {}, derailed: {}, rain: 0, fog: 0, dawn: 0, night: 0, cine: null, focus: null, zoomHold: 0, silh: 0, rank: null, bolt: null };
   function resetWorld() {
+    G.distI = null; G.nextPylon = SEA + 260; G.dawnNews = null; G.cineLast = -9999;
     R = null; G.nextBoss = SEA + 2300; G.bossN = 0; G.zoom = 1; G.slow = 0; if (typeof A !== "undefined") A.fast = false;
-    Object.assign(K, { x: 230, y: 0, vy: 0, dir: 1, state: "intro", t: 0, hp: 100, breath: 100, rage: 0, inv: 0, walk: 0, aim: 2, combo: 0, rise: 0, deaths: 0, emerge: 1, flash: 0, hurtF: 0 });
-    Object.assign(G, { cam: 0, blds: [], rubble: [], props: [], cars: [], units: [], shots: [], parts: [], fires: [], fx: [], people: [], pieces: [], genX: SEA + 40, damage: 0, kills: 0, shake: 0, flash: 0, stop: 0, alert: 1, district: "", distT: 0, spawn: { tank: 300, heli: 600, jet: 1200, maser: 2200, car: 30 }, msg: null, beams: [], hrings: [] });
+    Object.assign(K, { x: 230, y: 0, vy: 0, dir: 1, state: "intro", t: 0, hp: 100, breath: 100, rage: 0, inv: 0, walk: 0, aim: 2, combo: 0, rise: 0, deaths: 0, emerge: 1, flash: 0, hurtF: 0, held: null });
+    Object.assign(G, { cam: 0, blds: [], rubble: [], props: [], cars: [], units: [], shots: [], parts: [], fires: [], fx: [], people: [], pieces: [], genX: SEA + 40, damage: 0, kills: 0, shake: 0, flash: 0, stop: 0, alert: 1, district: "", distT: 0, spawn: { tank: 300, heli: 600, jet: 1200, maser: 2200, car: 30, tram: 500 }, msg: null, beams: [], hrings: [], thrown: [], pylons: [], newsQ: [], dstat: {}, derailed: {}, rain: 0, fog: 0, dawn: 0, night: 0, cine: null, focus: null, zoomHold: 0, silh: 0, rank: null, bolt: null });
     generate();
   }
   let bseed = 1;
   function generate() {
     while (G.genX < G.cam + W * 2.2) {
       const D = districtAt(G.genX), r = rng(bseed * 97), type = pick(r, D.types), b = makeBuilding(G.genX, type, bseed++);
-      G.blds.push(b); const gap = 2 + (r() * 8 | 0);
+      G.blds.push(b); { const di = Math.max(0, Math.floor((G.genX - SEA) / DLEN)); b.di = di; (G.dstat[di] = G.dstat[di] || { tot: 0, dead: 0 }).tot++; }
+      if (G.genX > (G.nextPylon || SEA + 260) && D.name !== "摩天楼街") { G.pylons.push({ x: G.genX + Math.round(b.w / 2), alive: true, fall: 0, hp: 8 }); G.nextPylon = G.genX + 300 + r() * 160; }
+      const gap = 2 + (r() * 8 | 0);
       // street furniture in the gap and along the sidewalk
       for (let x = G.genX; x < G.genX + b.w + gap; x += 26 + (r() * 30 | 0)) { const k = r(), dn = D.name; const t = dn === "下町商店街" ? (k < 0.4 ? "pole" : k < 0.65 ? "vend" : k < 0.8 ? "tree" : "lamp") : dn === "港湾地区" ? (k < 0.6 ? "lamp" : "none") : (k < 0.45 ? "lamp" : k < 0.65 ? "tree" : k < 0.78 ? "signal" : k < 0.9 ? "vend" : "none"); if (t !== "none") G.props.push({ x, type: t, k: (r() * 3) | 0, alive: true, fall: 0 }); }
       G.genX += b.w + gap;
       if (r() < 0.12) G.genX += 30 + (r() * 30 | 0);
     }
-    const left = G.cam - 400; G.blds = G.blds.filter(b => b.x + b.w > left); G.rubble = G.rubble.filter(b => b.x + b.w + 20 > left); G.props = G.props.filter(p => p.x > left);
+    const left = G.cam - 400; G.blds = G.blds.filter(b => b.x + b.w > left); G.rubble = G.rubble.filter(b => b.x + b.w + 20 > left); G.props = G.props.filter(p => p.x > left); G.pylons = G.pylons.filter(p => p.x > left - 500);
   }
 
   // ---------- input ----------
   const keys = {}, prev = {};
-  const KEYMAP = { ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right", ArrowDown: "down", KeyS: "down", ArrowUp: "up", KeyW: "up", KeyZ: "claw", KeyJ: "claw", KeyX: "fire", KeyK: "fire", KeyC: "tail", KeyL: "tail", Space: "jump", KeyV: "roar", KeyI: "roar", Enter: "start", KeyP: "start", Escape: "start" };
-  const ACTS = ["claw", "fire", "tail", "jump", "roar"];
+  const KEYMAP = { ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right", ArrowDown: "down", KeyS: "down", ArrowUp: "up", KeyW: "up", KeyZ: "claw", KeyJ: "claw", KeyX: "fire", KeyK: "fire", KeyC: "tail", KeyL: "tail", Space: "jump", KeyV: "roar", KeyI: "roar", KeyF: "grab", KeyU: "grab", Enter: "start", KeyP: "start", Escape: "start" };
+  const ACTS = ["claw", "fire", "tail", "jump", "roar", "grab"];
   addEventListener("keydown", e => { const k = KEYMAP[e.code]; if (k) { keys[k] = true; e.preventDefault(); } });
   addEventListener("keyup", e => { const k = KEYMAP[e.code]; if (k) { keys[k] = false; e.preventDefault(); } });
   addEventListener("blur", () => { for (const k in keys) keys[k] = false; });
   for (const b of document.querySelectorAll(".pad button")) { const k = b.dataset.k, on = e => { e.preventDefault(); keys[k] = true; if (G.mode !== "play") keys.start = true; }, off = e => { e.preventDefault(); keys[k] = false; keys.start = false; }; b.addEventListener("pointerdown", on); b.addEventListener("pointerup", off); b.addEventListener("pointercancel", off); b.addEventListener("pointerleave", off); }
   view.addEventListener("pointerdown", () => { keys.start = true; keys.tap = true; setTimeout(() => { keys.start = false; keys.tap = false; }, 90); });
-  function pollPad() { const pads = navigator.getGamepads ? navigator.getGamepads() : []; const gp = pads && [...pads].find(p => p); if (!gp) return; const b = i => gp.buttons[i] && gp.buttons[i].pressed, ax = gp.axes[0] || 0, ay = gp.axes[1] || 0; keys.pl = b(14) || ax < -0.4; keys.pr = b(15) || ax > 0.4; keys.pd = b(13) || ay > 0.5; keys.pu = b(12) || ay < -0.5; keys.pj = b(0); keys.pc = b(2); keys.pf = b(1); keys.pt = b(3); keys.pro = b(5) || b(4); keys.ps = b(9); }
-  const PADK = { left: "pl", right: "pr", down: "pd", up: "pu", jump: "pj", claw: "pc", fire: "pf", tail: "pt", roar: "pro", start: "ps" };
+  function pollPad() { const pads = navigator.getGamepads ? navigator.getGamepads() : []; const gp = pads && [...pads].find(p => p); if (!gp) return; const b = i => gp.buttons[i] && gp.buttons[i].pressed, ax = gp.axes[0] || 0, ay = gp.axes[1] || 0; keys.pl = b(14) || ax < -0.4; keys.pr = b(15) || ax > 0.4; keys.pd = b(13) || ay > 0.5; keys.pu = b(12) || ay < -0.5; keys.pj = b(0); keys.pc = b(2); keys.pf = b(1); keys.pt = b(3); keys.pro = b(5); keys.pg = b(4); keys.ps = b(9); }
+  const PADK = { left: "pl", right: "pr", down: "pd", up: "pu", jump: "pj", claw: "pc", fire: "pf", tail: "pt", roar: "pro", grab: "pg", start: "ps" };
   const btn = k => keys[k] || keys[PADK[k]];
   const pressed = k => btn(k) && !prev[k];
 
   // ---------- effects ----------
-  function addDamage(v) { G.damage += v; K.rage = Math.min(100, K.rage + v / 900); }
+  function addDamage(v) { const b0 = G.damage; G.damage += v; if (G.damage >= 10000 && Math.floor(Math.log10(G.damage / 10000)) > Math.floor(Math.log10(Math.max(1, b0) / 10000))) news(`被害総額が ついに${yen(Math.pow(10, Math.floor(Math.log10(G.damage / 10000))) * 10000)}円を突破`); K.rage = Math.min(100, K.rage + v / 900); }
   function debris(x, y, n, c, sp = 3) { for (let i = 0; i < n; i++) G.parts.push({ k: "chunk", x, y, vx: rnd(-sp, sp), vy: rnd(-sp * 1.4, -0.5), t: 0, life: rnd(60, 110) | 0, c: mixc(c, [0, 0, 0], rnd(0, 0.4)), s: Math.random() < 0.3 ? 3 : 2 }); }
   function glass(x, y, n) { for (let i = 0; i < n; i++) G.parts.push({ k: "glass", x, y, vx: rnd(-2, 2), vy: rnd(-2.5, 0), t: 0, life: rnd(40, 70) | 0 }); }
   function dust(x, y, n, s = 1) { for (let i = 0; i < n; i++) G.parts.push({ k: "dust", x: x + rnd(-10, 10) * s, y: y + rnd(-4, 2), vx: rnd(-0.8, 0.8) * s, vy: rnd(-0.6, -0.1), t: 0, life: rnd(50, 90) | 0, r: rnd(4, 9) * s }); }
@@ -461,8 +472,10 @@
       b.hp -= dmg; b.hitT = 8; hit = true; addDamage(b.value * dmg / b.max); if (!G.lastHit) G.lastHit = [cx, cy];
       debris(cx, cy, opts.fire ? 3 : 8, sample(b), opts.fire ? 2 : 3.2); glass(cx, cy, opts.fire ? 1 : 4); if (!opts.fire) dust(cx, cy, 2, 0.6);
       if (opts.fire && Math.random() < 0.25) setFire(cx + rnd(-5, 5), cy + rnd(-5, 5), 700, rnd(0.8, 1.3), b);
+      if (b.type === "gastank" && (opts.fire || b.hp < b.max * 0.5)) igniteTank(b);
       if (b.hp <= 0) collapse(b);
     }
+    for (const py of G.pylons) if (py.alive && py.x + 16 > x0 && py.x - 16 < x1 && y1 > SW - 116 && y0 < SW) { py.hp -= opts.fire ? dmg * 0.5 : dmg; sparks(py.x, clamp((y0 + y1) / 2, SW - 110, SW), 5, [255, 230, 170], 2.5); hit = true; if (py.hp <= 0) pylonDown(py); }
     for (const p of G.props) if (p.alive && p.x > x0 - 6 && p.x < x1 + 6 && y1 > SW - 30) { p.alive = false; p.fall = 1; p.fdir = p.x > K.x ? 1 : -1; sparks(p.x, SW - 20, 6); addDamage(80); if (p.type === "vend") { glass(p.x, SW - 8, 4); } }
     for (const c of G.cars) if (c.alive && c.x + 10 > x0 && c.x - 10 < x1 && y1 > c.y - 10) { c.alive = false; c.vy = -rnd(2, 4); c.vx = (c.x > K.x ? 1 : -1) * rnd(1, 3); c.spin = rnd(-0.3, 0.3); c.flying = true; addDamage(120); }
     if (!opts.rival && R && R.state !== "die" && hitRival(x0, y0, x1, y1, opts.fire ? 1.05 : dmg * 1.6, opts.fire)) { hit = true; }
@@ -470,7 +483,7 @@
     return hit;
   }
   function sample(b) { const d = b.cx.getImageData((b.w / 2) | 0, (b.h / 2) | 0, 1, 1).data; return d[3] ? [d[0], d[1], d[2]] : [120, 120, 120]; }
-  function collapse(b) { if (b.h > 40 && Math.random() < 0.3) { addDamage(b.value); G.kills++; epicCollapse(b); return; } b.state = "collapse"; b.sv = 0.2; sfx("collapse"); G.shake = Math.max(G.shake, 6); addDamage(b.value); G.kills++; for (let i = 0; i < 8; i++) dust(b.x + b.w / 2, SW - 4, 2, 1.5); }
+  function collapse(b) { if (b.type === "gastank") { if (!b.blown) { igniteTank(b, 50); b.fuse = Math.min(b.fuse, 50); b.hp = Math.max(b.hp, 1); } return; } markDead(b); if (b.h >= 110 && G.mode === "play" && G.t - G.cineLast > 900) { G.cineLast = G.t; G.slow = Math.max(G.slow, 36); cinema({ life: 80, focus: b.x + b.w / 2, zoom: 1.08, hold: 60 }); } if (b.h > 40 && Math.random() < 0.3) { addDamage(b.value); G.kills++; epicCollapse(b); return; } b.state = "collapse"; b.sv = 0.2; sfx("collapse"); G.shake = Math.max(G.shake, 6); addDamage(b.value); G.kills++; for (let i = 0; i < 8; i++) dust(b.x + b.w / 2, SW - 4, 2, 1.5); }
   // about a third of the buildings go down in style: toppling over, blown apart into slabs, or gutted floor by floor
   function epicCollapse(b, kind) {
     kind = kind || pick(Math.random, b.h > 90 ? ["topple", "slabs", "blast"] : ["topple", "slabs"]);
@@ -518,6 +531,8 @@
     tail: { len: 60, frames: [[0, "tw0"], [14, "tw01"], [17, "tw1"], [28, "tw12"], [32, "tw2"], [42, "tw20"], [48, "tw0"]] },
     roar: { len: 70, frames: [[0, "roar0"], [5, "roar01"], [10, "roar1"]] },
     nova: { len: 100, frames: [[0, "nova0"], [41, "nova01"], [44, "nova1"]] },
+    grab: { len: 22, frames: [[0, "s0"], [6, "s01"], [9, "s1"], [15, "s12"]] },
+    throw: { len: 26, frames: [[0, "u0"], [6, "s0"], [10, "s01"], [12, "s1"], [16, "s2"]] },
   };
   function startAct(a) { K.state = a; K.t = 0; K.hitDone = false; if (a === "swipe" || a === "upper") sfx("swipe"); if (a === "tail") sfx("whoosh"); }
   function kTurn() { if (K.state !== "tail") return 1; const t = K.t; if (t < 10) return 1; if (t < 15) return 1 - (t - 10) / 5 * 2; if (t < 42) return -1; if (t < 48) return -1 + (t - 42) / 6 * 2; return 1; }
@@ -577,10 +592,91 @@
     dust(x, GY + 2, big ? 14 : 3, big ? 1.6 : 0.8);
     if (big) { G.fx.push({ k: "wave", x, y: GY, t: 0, life: 24, r: r }); for (const b of G.blds) if (b.state === "stand" && b.x < x + r && b.x + b.w > x - r) { carve(b, clamp(x - b.x, 4, b.w - 4), b.h - rnd(4, 12), rnd(8, 12)); b.hp -= 4; addDamage(b.value * 4 / b.max); debris(clamp(x, b.x, b.x + b.w), SW - 8, 6, sample(b)); if (b.hp <= 0) collapse(b); } }
   }
+  // ---------- news ticker, district ranks, weather and the night clock ----------
+  const BNAME = { tower: "超高層ビル", office: "オフィスビル", crane: "港の大型クレーン", neon: "ネオンビル", apart: "マンション", factory: "工場", warehouse: "倉庫", gastank: "ガスタンク" };
+  function yen(v) { const oku = Math.floor(v / 10000); return oku >= 10000 ? `${(oku / 10000).toFixed(oku >= 100000 ? 0 : 1)}兆` : `${oku}億`; }
+  function news(s) { if (G.mode !== "play" || G.newsQ.length >= 4 || G.newsQ.some(n => n.s === s)) return; G.newsQ.push({ s, t: 0, len: Math.ceil((text(s, 12, [255, 255, 240]).width + W - 60) / 1.3) }); }
+  function markDead(b) { if (b.counted) return; b.counted = 1; const s = G.dstat[b.di]; if (s) s.dead++; if (b.h >= 100 && G.t - (G.bigNewsT || -999) > 200) { G.bigNewsT = G.t; news(`速報　${DISTRICT[(b.di || 0) % 4].name}で${BNAME[b.type] || "ビル"}が倒壊　被害総額は${yen(G.damage)}円に`); } }
+  function rankCard(di) { const s = G.dstat[di]; if (!s || !s.tot) return; const pct = Math.round(s.dead / s.tot * 100), grade = pct >= 90 ? "S" : pct >= 70 ? "A" : pct >= 50 ? "B" : pct >= 30 ? "C" : "D", name = DISTRICT[di % 4].name; G.rank = { name, pct, grade, t: -150 }; news(`${name}　壊滅率${pct}%　被害ランク${grade}`); }
+  const WX = ["clear", "rain", "fog", "storm"];
+  const weatherOf = di => di < 4 ? WX[di % 4] : ["clear", "rain", "fog", "storm", "clear"][Math.floor(hash(di * 7 + 3) * 5)];
+  function nightClock() { const p = Math.max(0, K.x - SEA) / (DLEN * 4); return { night: Math.floor(p), p: p % 1 }; }
+  function updateSky() {
+    const di = Math.max(0, Math.floor((K.x + 150 - SEA) / DLEN)), wx = weatherOf(di);
+    G.rain = lerp(G.rain, wx === "storm" ? 1 : wx === "rain" ? 0.6 : 0, 0.005); G.fog = lerp(G.fog, wx === "fog" ? 1 : wx === "storm" ? 0.2 : 0, 0.005);
+    const { night, p } = nightClock(), dawnT = clamp((p - 0.72) / 0.26, 0, 1); G.dawn = lerp(G.dawn, dawnT, 0.01);
+    if (night !== G.night) { G.night = night; if (night > 0) say(`${night + 1}日目の夜`, 160); }
+    if (dawnT > 0.05 && G.dawnNews !== night) { G.dawnNews = night; news("夜明けが近づく　ボルガの進撃は なおも止まらない"); }
+    if (G.bolt && ++G.bolt.t > 10) G.bolt = null;
+    if (G.mode === "play" && (wx === "storm" ? 0.006 : wx === "rain" ? 0.0015 : 0) > Math.random() && G.rain > 0.4) lightning();
+  }
+  function lightning() {
+    const x = G.cam + rnd(30, W - 30), b = G.blds.find(b => b.state === "stand" && x > b.x && x < b.x + b.w), y1 = b ? SW - b.h : GY;
+    G.bolt = { x, y1, t: 0, seed: Math.random() * 1000 }; G.flash = Math.max(G.flash, 10); sfx("thunder");
+    if (b) { carve(b, x - b.x, 3, rnd(6, 9)); b.hp -= 3; b.hitT = 8; sparks(x, y1, 14, [220, 230, 255], 3); setFire(x, y1 + 4, 700, 1, b); if (b.hp <= 0) collapse(b); else if (Math.random() < 0.3) news(`${G.district}の${BNAME[b.type] || "建物"}に落雷`); }
+  }
+  // ---------- chain reactions: gas tanks, power lines, trams ----------
+  function igniteTank(b, f = 100) { if (b.fuse || b.blown) return; b.fuse = f; sfx("hiss"); G.fx.push({ k: "ono", s: "シュウゥゥ…", x: b.x + b.w / 2, y: SW - b.h - 16, t: 0, life: 60, c: [255, 230, 170] }); }
+  function blowTank(b) {
+    if (b.blown) return; b.blown = true; markDead(b); b.state = "gone"; G.kills++; addDamage(b.value * 3); G.rubble.push({ x: b.x - 8, w: b.w + 16, c: rubbleOf(b) });
+    const cx = b.x + b.w / 2, cy = SW - b.h / 2;
+    for (const o of G.blds) if (o.type === "gastank" && o !== b && !o.blown && Math.abs(o.x - b.x) < 260) o.fuse = o.fuse ? Math.min(o.fuse, 24) : 18 + (Math.random() * 20 | 0);
+    explode(cx, cy, 4); G.fx.push({ k: "fireball", x: cx, y: cy, t: 0, life: 90 }); G.fx.push({ k: "ring", x: cx, y: cy, t: 0, life: 40, r: 230 }); G.fx.push({ k: "ono", s: "ドドォォン！！", x: cx, y: cy - 60, t: 0, life: 50, c: [255, 190, 90], big: 1 });
+    G.flash = 20; G.shake = 24; G.stop = Math.max(G.stop, 6); G.slow = Math.max(G.slow, 24); sfx("impact"); sfx("boom", 2);
+    hitRect(cx - 120, SW - 170, cx + 120, SW + 10, 12, { holes: 3, r: 14 });
+    for (const u of G.units) if (!u.dead && Math.abs(u.x - cx) < 160) killUnit(u);
+    if (Math.abs(K.x - cx) < 90) { hurtKaiju(8, true); K.x += Math.sign(K.x - cx || 1) * 16; }
+    for (let i = 0; i < 12; i++) setFire(cx + rnd(-110, 110), SW + rnd(-2, 8), 900, rnd(1, 1.5));
+    news(`${DISTRICT[(b.di || 0) % 4].name}でガスタンクが大爆発　付近一帯が炎上`);
+  }
+  function pylonDown(py) {
+    py.alive = false; py.fall = 0.02; py.fdir = py.x > K.x ? 1 : -1; addDamage(4000); G.shake = Math.max(G.shake, 8); G.flash = Math.max(G.flash, 5); sfx("zap"); sfx("crash");
+    const xs = G.pylons.map(p => p.x), prev = Math.max(-1e9, ...xs.filter(x => x < py.x)), next = Math.min(1e9, ...xs.filter(x => x > py.x)), x0 = prev > -1e9 ? prev : py.x - 320, x1 = next < 1e9 ? next : py.x + 320;
+    for (const [dx, dy] of PYW) sparks(py.x + dx, SW + 2 - 118 + dy, 8, [200, 230, 255], 3);
+    let n = 0; for (const b of G.blds) if (b.state === "stand" && !b.dark && b.x + b.w > x0 && b.x < x1) { b.dark = true; b.black = 30 + (Math.random() * 40 | 0); n++; }
+    for (const p of G.props) if (p.x > x0 && p.x < x1) p.off = 20 + (Math.random() * 40 | 0);
+    G.fx.push({ k: "ono", s: "バチバチッ！", x: py.x, y: SW - 120, t: 0, life: 40, c: [200, 230, 255], big: 1 });
+    news(`送電線が切断　${districtAt(py.x).name}で大規模停電　${n}棟が暗闇に`);
+  }
+  function derail(id, x, byKaiju) {
+    if (G.derailed[id]) return; G.derailed[id] = 1;
+    for (const c of G.cars) if (c.tram === id && c.alive) { c.alive = false; c.dr = true; c.flying = true; c.vy = -rnd(3, 6.5); c.vx = c.vx * 0.7 + rnd(-1.5, 1.5); c.spin = rnd(-0.22, 0.22); }
+    explode(x, 196, 1.3); sparks(x, 200, 20, [255, 230, 160], 4); G.shake = Math.max(G.shake, 12); G.stop = Math.max(G.stop, 5); sfx("crash"); sfx("impact"); addDamage(3000);
+    G.fx.push({ k: "ono", s: "ガッシャーン！！", x, y: 160, t: 0, life: 44, c: [255, 220, 150], big: 1 });
+    if (byKaiju) { hurtKaiju(3); K.flash = 6; }
+    news(`${districtAt(x).name}で路面電車が脱線　乗客は避難済み`);
+  }
+  // ---------- grabbing and throwing ----------
+  function tryGrab() {
+    const [x0, y0, x1, y1] = box([6, -124, 76, 14]); let best = null, bd = 1e9;
+    const cand = (o, kind, img, x, y) => { const d = Math.abs(x - K.x); if (x > x0 && x < x1 && y > y0 && y < y1 && d < bd) { bd = d; best = { o, kind, img, x, y }; } };
+    for (const c of G.cars) if (c.alive && !c.flying) cand(c, "car", c.img, c.x, c.y - 5);
+    for (const u of G.units) if (!u.dead && u.type !== "jet") cand(u, u.type, u.type === "tank" ? SPR.tank[0] : u.type === "heli" ? SPR.heli[0] : SPR.maser, u.x, u.y - u.h / 2);
+    for (const p of G.pieces) cand(p, "piece", p.img, p.x, p.y);
+    if (!best) { sfx("whoosh"); return; }
+    const o = best.o; if (best.kind === "car") { o.alive = false; o.dead = true; if (o.tram) { o.dr = true; derail(o.tram, o.x); } } else if (best.kind === "piece") o.dead = true; else { o.dead = true; addDamage(600); }
+    K.held = { img: best.img, kind: best.kind, sc: Math.min(1, 60 / Math.max(best.img.width, best.img.height)) };
+    G.fx.push({ k: "ono", s: "ガシッ！", x: best.x, y: best.y - 30, t: 0, life: 26, c: [255, 230, 170] }); sfx("grab"); G.stop = Math.max(G.stop, 3); G.shake = Math.max(G.shake, 4);
+  }
+  function release(thrown) {
+    const Hd = K.held; if (!Hd) return; K.held = null; const hp = worldF(KF[kFrame()].hand, kFace()), up = btn("up"), dn = btn("down");
+    G.thrown.push({ img: Hd.img, kind: Hd.kind, sc: Hd.sc, x: hp[0], y: hp[1] - 4, vx: thrown ? K.dir * (up ? 5.5 : 8) : K.dir, vy: thrown ? (up ? -6.5 : dn ? 0.5 : -3) : 0, rot: 0, vr: K.dir * (Hd.kind === "piece" ? 0.12 : 0.3), t: 0, flip: K.dir < 0 });
+    if (thrown) { sfx("whoosh"); G.fx.push({ k: "ono", s: "ブンッ！", x: hp[0], y: hp[1] - 30, t: 0, life: 22, c: [255, 236, 190] }); }
+  }
+  function updateThrown() {
+    for (const o of G.thrown) {
+      o.t++; o.vy += 0.18; o.x += o.vx; o.y += o.vy; o.rot += o.vr; if (o.t % 2 === 0) G.parts.push({ k: "dust", x: o.x, y: o.y, vx: 0, vy: 0, t: 0, life: 14, r: 2 });
+      const r = 9 * (o.sc || 1) + 3, hit = o.t > 3 && hitRect(o.x - r, o.y - r, o.x + r, o.y + r, 8, { holes: 2, r: 12 });
+      if (hit || o.y > GY + 2 || o.t > 200) { o.dead = true; const y = Math.min(o.y, GY); explode(o.x, y, 1.5); setFire(o.x, Math.min(GY + 4, y + 6), 400, 1); G.stop = Math.max(G.stop, 4); G.shake = Math.max(G.shake, 9); sfx("impact"); G.fx.push({ k: "ono", s: "ドガァン！", x: o.x, y: y - 30, t: 0, life: 30, c: [255, 210, 150], big: 1 }); if (o.kind === "piece") debris(o.x, y, 12, [120, 114, 110], 3.5); }
+    }
+    G.thrown = G.thrown.filter(o => !o.dead);
+  }
+  // ---------- cinema: letterbox, a camera that looks at the event, a held zoom ----------
+  function cinema(o) { G.cine = { t: 0, life: o.life || 90, title: o.title, sub: o.sub, col: o.col }; if (o.focus != null || o.boss) G.focus = { x: o.focus, boss: o.boss, t: o.hold || 70 }; if (o.zoom) { G.zoomTo = o.zoom; G.zoomHold = o.hold || 60; G.zoomX = o.focus; G.zoomBoss = !!o.boss; } }
   let R = null;
   function spawnRival(kind) { G.bossN = (G.bossN || 0) + 1; kind = kind || (G.bossN % 2 ? "jinrai" : "hero");
-    if (kind === "hero") { const max = 190 + 60 * Math.floor((G.bossN - 1) / 2); R = { kind, x: K.x + 200, y: -300, vy: 0, dir: -1, hp: max, max, bar: 1, state: "descend", t: 0, walk: 0, flash: 0, cd: 60, hitDone: false }; say("光の巨人　アステル　飛来！", 170); sfx("hdescend"); G.shake = 4; A.fast = true; return; }
-    const max = 150 + 60 * Math.floor((G.bossN - 1) / 2); R = { kind, y: 0, x: K.x + 320, dir: -1, hp: max, max, bar: 1, state: "enter", t: 0, walk: 0, flash: 0, cd: 90, hitDone: false }; say(`ライバル怪獣　雷獣ジンライ　出現！${G.bossN > 2 ? "（" + Math.ceil(G.bossN / 2) + "度目）" : ""}`, 170); sfx("roar", 1.4); G.shake = 8; A.fast = true; }
+    if (kind === "hero") { const max = 190 + 60 * Math.floor((G.bossN - 1) / 2); R = { kind, x: K.x + 200, y: -300, vy: 0, dir: -1, hp: max, max, bar: 1, state: "descend", t: 0, walk: 0, flash: 0, cd: 60, hitDone: false }; cinema({ life: 170, title: "光の巨人　アステル", sub: "空の彼方から 光の戦士が舞い降りた", col: [255, 236, 170], boss: 1, zoom: 1.1, hold: 110 }); news("正体不明の光の巨人が飛来　ボルガと交戦の構え"); sfx("hdescend"); G.shake = 4; A.fast = true; return; }
+    const max = 150 + 60 * Math.floor((G.bossN - 1) / 2); R = { kind, y: 0, x: K.x + 320, dir: -1, hp: max, max, bar: 1, state: "enter", t: 0, walk: 0, flash: 0, cd: 90, hitDone: false }; cinema({ life: 170, title: "雷獣　ジンライ", sub: G.bossN > 2 ? `宿命のライバル ${Math.ceil(G.bossN / 2)}度目の襲来` : "雷をまとう 宿命のライバル怪獣", col: [170, 230, 255], boss: 1, zoom: 1.1, hold: 110 }); news("新たな怪獣が出現　雷獣ジンライと命名"); sfx("roar", 1.4); G.shake = 8; A.fast = true; }
   function rBox() { return [R.x - 26, GY - 104 + R.y, R.x + 26, GY + R.y]; }
   function hitRival(x0, y0, x1, y1, dmg, fire) {
     const [a, b, c, d] = rBox(); if (x1 < a || x0 > c || y1 < b || y0 > d) return false;
@@ -599,7 +695,7 @@
     R.t++; if (R.flash) R.flash--; R.bar = lerp(R.bar, R.hp / R.max, 0.08);
     const dx = K.x - R.x, dist = Math.abs(dx);
     if (R.kind === "hero") return updateHero(dx, dist);
-    if (R.state === "die") { if (R.t % 10 === 0) explode(R.x + rnd(-30, 30), GY - rnd(20, 100), 1.4); if (R.t % 4 === 0) sparks(R.x + rnd(-20, 20), GY - rnd(30, 100), 6, [150, 230, 255], 3); if (R.t > 110) { explode(R.x, GY - 50, 3); G.flash = 22; G.shake = 22; G.fx.push({ k: "ring", x: R.x, y: GY - 50, t: 0, life: 40, r: 200 }); hitRect(R.x - 120, 0, R.x + 120, GY + 10, 10, { rival: 1, r: 14 }); for (let i = 0; i < 8; i++) setFire(R.x + rnd(-80, 80), GY + rnd(0, 8), 700, rnd(1, 1.4)); addDamage(60000); K.rage = 100; K.hp = Math.min(100, K.hp + 50); G.nextBoss = K.x + 3200; say("ジンライを たおした！　怒りゲージ MAX", 200); A.fast = false; R = null; } return; }
+    if (R.state === "die") { if (R.t % 10 === 0) explode(R.x + rnd(-30, 30), GY - rnd(20, 100), 1.4); if (R.t % 4 === 0) sparks(R.x + rnd(-20, 20), GY - rnd(30, 100), 6, [150, 230, 255], 3); if (R.t > 110) { explode(R.x, GY - 50, 3); G.flash = 22; G.shake = 22; G.fx.push({ k: "ring", x: R.x, y: GY - 50, t: 0, life: 40, r: 200 }); hitRect(R.x - 120, 0, R.x + 120, GY + 10, 10, { rival: 1, r: 14 }); for (let i = 0; i < 8; i++) setFire(R.x + rnd(-80, 80), GY + rnd(0, 8), 700, rnd(1, 1.4)); addDamage(60000); K.rage = 100; K.hp = Math.min(100, K.hp + 50); G.nextBoss = K.x + 3200; say("ジンライを たおした！　怒りゲージ MAX", 200); news("雷獣ジンライ 沈黙　ボルガの勝利"); A.fast = false; R = null; } return; }
     const facing = () => { R.dir = dx > 0 ? 1 : -1; };
     const step = sp => { R.x += R.dir * sp; R.walk += sp; const ph = Math.floor(R.walk / 2) % 16; if (ph !== R.lastPh && (ph === 4 || ph === 12)) { G.shake = Math.max(G.shake, 2); dust(R.x, GY + 2, 2, 0.8); sfx("step"); for (const c of G.cars) if (c.alive && Math.abs(c.x - R.x) < 16) { c.alive = false; c.crushed = true; explode(c.x, c.y - 3, 0.6); } } R.lastPh = ph; };
     switch (R.state) {
@@ -636,7 +732,7 @@
       if (R.t < 100) { fall(); if (R.t % 6 === 0) sparks(R.x + rnd(-14, 14), GY + R.y - rnd(20, 90), 4, [255, 240, 180], 2.5); }
       if (R.t === 100) { sfx("hfly"); G.flash = 8; dust(R.x, GY + 2, 16, 1.8); G.fx.push({ k: "ring", x: R.x, y: GY - 20, t: 0, life: 30, r: 90 }); say("アステルは　空へ　去っていった……", 150); }
       if (R.t > 100) { R.vy = Math.max(-9, (R.vy || 0) - 0.3); R.y += R.vy; for (let i = 0; i < 2; i++) G.parts.push({ k: "spark", x: R.x + rnd(-6, 6), y: GY + R.y + rnd(0, 10), vx: rnd(-0.4, 0.4), vy: rnd(0.5, 2), t: 0, life: 24, c: [255, 250, 210] }); }
-      if (R.y < -340) { addDamage(60000); K.rage = 100; K.hp = Math.min(100, K.hp + 50); G.nextBoss = K.x + 3200; say("光の巨人を　しりぞけた！　怒りゲージ MAX", 200); A.fast = false; R = null; }
+      if (R.y < -340) { addDamage(60000); K.rage = 100; K.hp = Math.min(100, K.hp + 50); G.nextBoss = K.x + 3200; say("光の巨人を　しりぞけた！　怒りゲージ MAX", 200); news("光の巨人 撤退　ボルガを止められる者はいないのか"); A.fast = false; R = null; }
       return;
     }
     switch (R.state) {
@@ -725,7 +821,8 @@
       K.x = Math.max(K.x, SEA - 140);
       doFire();
       if (want) for (const c of G.cars) if (c.alive && !c.rammed && Math.abs(c.x - (K.x + K.dir * 16)) < 22) { c.rammed = true; const r = Math.random(); if (r < 0.05) carToScreen(c); else if (r < 0.35) { c.alive = false; c.flying = true; c.vy = -rnd(6, 9); c.vx = K.dir * rnd(3, 5.5); c.spin = rnd(-0.45, 0.45); addDamage(150); sparks(c.x, c.y - 4, 10, [255, 220, 140], 3); sfx("crash"); G.shake = Math.max(G.shake, 4); G.fx.push({ k: "ono", s: "ドカッ！", x: c.x, y: c.y - 30, t: 0, life: 26, c: [255, 230, 170] }); } }
-      if (pressed("claw")) { K.combo = 0; K.cdash = K.dash && want === K.dir; K.lunge = K.dash && !K.cdash ? 14 : 0; K.dash = false; startAct("swipe"); }
+      if (pressed("grab") || (K.held && pressed("claw"))) { K.dash = false; startAct(K.held ? "throw" : "grab"); }
+      else if (pressed("claw")) { K.combo = 0; K.cdash = K.dash && want === K.dir; K.lunge = K.dash && !K.cdash ? 14 : 0; K.dash = false; startAct("swipe"); }
       else if (pressed("tail")) startAct("tail");
       else if (pressed("jump")) { K.state = "air"; K.t = 0; K.djump = !!K.dash; K.vy = K.djump ? -5.6 : -5.2; K.pound = false; K.dash = false; sfx(K.djump ? "dash" : "jump"); dust(K.x, GY, K.djump ? 12 : 6, K.djump ? 1.4 : 1); if (K.djump) G.fx.push({ k: "ono", s: "ズオッ！", x: K.x - K.dir * 30, y: GY - 50, t: 0, life: 26, c: [255, 230, 160] }); }
       else if (pressed("roar")) { if (K.rage >= 100) { startAct("nova"); sfx("novaCharge"); } else { startAct("roar"); sfx("roar"); } }
@@ -741,6 +838,7 @@
         if (ph !== K.lastPh && (ph === 4 || ph === 12)) { const f = KF[cyc + ph].feet[ph === 4 ? 1 : 0]; stomp(world(f)[0], false); if (K.cdash) dust(world(f)[0], GY + 2, 3, 1.1); } K.lastPh = ph;
         if (K.cdash && G.t % 2 === 0) dust(K.x - K.dir * 20, GY + 2, 1, 0.9);
       } else K.cdash = false;
+      if (K.state === "grab" && K.t === 9) tryGrab(); if (K.state === "throw" && K.t === 12) release(true);
       if ((K.state === "swipe" || K.state === "upper") && K.t === A.hit[0] - 1) { const sh = world([20, -70]); G.fx.push({ k: "claw", x: sh[0], y: sh[1], dir: K.dir, a0: K.state === "swipe" ? -1.35 : 1.15, a1: K.state === "swipe" ? 1.15 : -1.45, t: 0, life: 18 }); sfx("slash"); }
       if (K.state === "tail") { const fc = kFace(), tp = worldF(KF[kFrame()].tail, fc); (K.tailPath = K.tailPath || []).push({ x: tp[0], y: tp[1], t: G.t }); if (K.tailPath.length > 14) K.tailPath.shift(); (K.trail = K.trail || []).push({ fk: kFrame(), x: K.x, dir: fc }); if (K.trail.length > 5) K.trail.shift(); tailSweep(); }
       if (A.hit && K.t >= A.hit[0] && K.t <= A.hit[1]) { const [x0, y0, x1, y1] = box(A.box); G.lastHit = null; if (!K.hitDone && hitRect(x0, y0, x1, y1, A.dmg, { holes: K.state === "tail" ? 2 : 1, r: K.state === "tail" ? 13 : 10 })) { K.hitDone = true; G.stop = K.state === "tail" ? 6 : 5; G.shake = Math.max(G.shake, 5); sfx("crash"); const hp2 = G.lastHit || [(x0 + x1) / 2, (y0 + y1) / 2]; if (K.state !== "tail") { hanabi(hp2[0], hp2[1], 0); G.fx.push({ k: "ono", s: K.state === "swipe" ? "ザシュッ！" : "ズバァッ！", x: hp2[0], y: hp2[1] - 20, t: 0, life: 34, c: [255, 240, 200] }); } }
@@ -765,6 +863,7 @@
     } else if (K.state === "land") { if (K.firing) doFire(); if (K.dash) K.state = "walk"; else if (K.t > 18) K.state = "idle"; }
     else if (K.state === "hurt") { if (K.t > 16) K.state = "idle"; }
     else if (K.state === "down") {
+      if (K.held) release(false);
       K.rise = Math.max(0, K.rise - 0.25);
       for (const a of [...ACTS, "left", "right", "up", "down"]) if (pressed(a)) { K.rise += 7; sfx("mash"); G.fx.push({ k: "mash", x: K.x, y: GY - 20, t: 0, life: 12 }); }
       if (keys.tap) { K.rise += 3.5; keys.tap = false; }
@@ -786,13 +885,14 @@
       const gx = m[0] + Math.cos(ang) * ((GY - m[1]) / Math.max(0.05, Math.sin(ang))); if (Math.sin(ang) > 0.1 && Math.abs(gx - m[0]) < 200 && Math.random() < 0.3) setFire(gx + rnd(-10, 10), GY + rnd(0, 8), 400, rnd(0.7, 1.1));
     }
   }
-  function nova() { G.flash = 30; G.shake = 22; G.stop = 10; sfx("nova"); K.rage = 0; G.fx.push({ k: "ring", x: K.x, y: GY - 50, t: 0, life: 50, r: 260 }); G.fx.push({ k: "ring", x: K.x, y: GY - 50, t: -8, life: 50, r: 200 }); hitRect(K.x - 250, 0, K.x + 250, GY + 10, 20, { holes: 3, r: 14, fire: true }); for (const u of G.units) if (Math.abs(u.x - K.x) < 300) { u.hp = 0; killUnit(u); } for (let i = 0; i < 30; i++) setFire(K.x + rnd(-240, 240), GY + rnd(0, 8), 600, rnd(0.8, 1.4)); say("マグマノヴァ！", 90); }
+  function nova() { G.silh = 24; G.flash = 30; G.shake = 22; G.stop = 10; sfx("nova"); K.rage = 0; G.fx.push({ k: "ring", x: K.x, y: GY - 50, t: 0, life: 50, r: 260 }); G.fx.push({ k: "ring", x: K.x, y: GY - 50, t: -8, life: 50, r: 200 }); hitRect(K.x - 250, 0, K.x + 250, GY + 10, 20, { holes: 3, r: 14, fire: true }); for (const u of G.units) if (Math.abs(u.x - K.x) < 300) { u.hp = 0; killUnit(u); } for (let i = 0; i < 30; i++) setFire(K.x + rnd(-240, 240), GY + rnd(0, 8), 600, rnd(0.8, 1.4)); say("マグマノヴァ！", 90); }
   function hurtKaiju(n, big) { if (K.inv || K.state === "down" || K.state === "rise" || K.state === "intro") return; K.hp -= n; K.flash = 6; K.rage = Math.min(100, K.rage + n * 0.6); if (big && (K.state === "idle" || K.state === "walk")) { K.state = "hurt"; K.t = 0; sfx("hurt"); } if (K.hp <= 0) { K.hp = 0; K.state = "down"; K.t = 0; K.rise = 0; K.deaths++; sfx("down"); G.shake = 14; dust(K.x, GY, 20, 2); say("ボルガ　たおれる……", 90); } }
 
   // ---------- military and city life ----------
   function spawnUnits() {
     const S = G.spawn, lvl = G.alert, side = () => (Math.random() < 0.8 ? 1 : -1);
     const ahead = s => s > 0 ? G.cam + W + 30 : G.cam - 30;
+    if (--S.tram <= 0) { S.tram = rnd(1000, 1600); const s = side(), id = G.t + 1; for (let i = 0; i < 3; i++) G.cars.push({ x: ahead(s) + s * i * 47, y: 203, vx: -s * 2.2, img: SPR.tram, alive: true, tram: id }); sfx("bell"); }
     if (--S.car <= 0) { S.car = rnd(40, 100); const s = side(), r = Math.random(); G.cars.push({ x: ahead(s), y: r < 0.5 ? 212 : 207, vx: -s * rnd(0.6, 1.4), img: r < 0.1 ? SPR.bus : r < 0.2 ? SPR.truck : r < 0.28 ? SPR.police : pick(Math.random, SPR.cars), alive: true, police: r >= 0.2 && r < 0.28 }); }
     if (Math.random() < 0.02 && G.people.length < 30) for (let i = 0; i < 4; i++) G.people.push({ x: G.cam + rnd(0, W), vx: 0, t: 0, c: pick(Math.random, [[220, 80, 70], [80, 120, 200], [230, 230, 230], [60, 60, 70], [230, 190, 80]]) });
     if (G.mode !== "play" || K.state === "intro") return;
@@ -827,16 +927,18 @@
       if (s.t > 400) s.dead = true;
     }
     G.shots = G.shots.filter(s => !s.dead);
-    for (const c of G.cars) { if (c.flying) { c.vy += 0.2; c.x += c.vx; c.y += c.vy; c.rot = (c.rot || 0) + c.spin; if (c.y > 214 && c.vy > 0) { c.flying = false; c.dead = true; explode(c.x, 212, 0.7); setFire(c.x, 212, 300, 0.7); } continue; } if (!c.alive) continue; const away = Math.sign(c.x - K.x) || 1; if (Math.abs(c.x - K.x) < 120) c.vx = lerp(c.vx, away * 2.2, 0.05); c.x += c.vx; }
+    for (const c of G.cars) { if (c.tram && !c.alive && !c.dr) { c.dr = true; derail(c.tram, c.x); } if (c.flying) { c.vy += 0.2; c.x += c.vx; c.y += c.vy; c.rot = (c.rot || 0) + c.spin; if (c.y > 214 && c.vy > 0) { c.flying = false; c.dead = true; explode(c.x, 212, 0.7); setFire(c.x, 212, 300, 0.7); } continue; } if (!c.alive) continue; if (c.tram) { c.x += c.vx; if (Math.abs(c.x - K.x) < 30 && K.y > -50 && K.state !== "intro") derail(c.tram, c.x, true); continue; } const away = Math.sign(c.x - K.x) || 1; if (Math.abs(c.x - K.x) < 120) c.vx = lerp(c.vx, away * 2.2, 0.05); c.x += c.vx; }
     G.cars = G.cars.filter(c => !c.dead && c.x > G.cam - 200 && c.x < G.cam + W + 200 && !(c.crushed));
     for (const p of G.people) { const away = Math.sign(p.x - K.x) || 1; p.vx = lerp(p.vx, away * (Math.abs(p.x - K.x) < 160 ? 1.2 : 0.3), 0.05); p.x += p.vx; p.t++; }
     G.people = G.people.filter(p => !p.dead && p.x > G.cam - 60 && p.x < G.cam + W + 60);
-    G.alert = 1 + Math.min(4, Math.floor(G.damage / 40000));
+    { const na = 1 + Math.min(4, Math.floor(G.damage / 40000)); if (na > G.alert) news(`警戒レベル${na}に引き上げ　防衛隊が増援を投入`); G.alert = na; }
   }
   function updateWorld() {
+    updateSky(); updateThrown();
     let checked = false;
     for (const b of G.blds) {
-      if (b.hitT) b.hitT--;
+      if (b.hitT) b.hitT--; if (b.black > 0) b.black--;
+      if (b.fuse > 0 && b.state === "stand") { b.fuse--; if (G.t % 2 === 0) G.parts.push({ k: "flame", x: b.x + b.w / 2 + rnd(-4, 4), y: SW - b.h + 2, vx: rnd(-0.5, 0.5), vy: -rnd(2, 3.5), t: 0, life: 24, r: 2 }); if (b.fuse % 25 === 0) sfx("hiss"); if (!b.fuse) blowTank(b); }
       if (b.state === "stand" && b.dirty && !checked) { b.dirty = false; checked = true; checkSupport(b); }
       if (b.state === "epic") updateEpic(b);
       if (b.state === "collapse") { b.sv = Math.min(2.6, b.sv + 0.05); b.sink += b.sv; if (G.t % 3 === 0) { dust(b.x + rnd(0, b.w), SW - 2, 1, 1.4); debris(b.x + rnd(0, b.w), SW - 4, 1, sample(b), 2); } G.shake = Math.max(G.shake, 2); if (b.sink >= b.h) { b.state = "gone"; G.rubble.push({ x: b.x - 8, w: b.w + 16, c: rubbleOf(b) }); for (let i = 0; i < 2 + b.w / 30; i++) setFire(b.x + rnd(0, b.w), SW - rnd(2, 8), 900, rnd(0.8, 1.3)); } }
@@ -845,8 +947,10 @@
     G.blds = G.blds.filter(b => b.state !== "gone");
     for (const p of G.pieces) { if (p.delay > 0) { p.delay--; p.y += 0.3; continue; } p.vy += 0.2; p.x += p.vx; p.y += p.vy; p.rot += p.vr; if (Math.random() < 0.2) G.parts.push({ k: "dust", x: p.x, y: p.y + p.h / 2, vx: 0, vy: -0.2, t: 0, life: 30, r: 3 }); if (p.y + p.h / 2 > SW + 4) { p.dead = true; debris(p.x, SW - 4, 10, p.sample, 3); dust(p.x, SW - 2, 4, 1.4); G.shake = Math.max(G.shake, 5); if (Math.random() < 0.4) { explode(p.x, SW - 6, 1); setFire(p.x, SW - 2, 600, 1); } else sfx("crash"); hitRect(p.x - p.w / 2, SW - 30, p.x + p.w / 2, SW, 2, { rival: 1 }); } }
     G.pieces = G.pieces.filter(p => !p.dead);
-    for (const p of G.props) if (p.fall) p.fall = Math.min(PI / 2, p.fall + 0.08);
-    for (const f of G.fires) { f.t++; if (f.b) { f.x = f.b.x + f.lx; f.y = SW - f.b.h + f.b.sink + f.ly; if (f.b.state !== "stand" && f.b.state !== "collapse") f.t = f.life; } if (f.t % 10 === 0) smokeP(f.x + rnd(-2, 2), f.y - 6 * f.s, f.s); if (f.t % 7 === 0) G.parts.push({ k: "ember", x: f.x + rnd(-3, 3), y: f.y - 5, vx: rnd(-0.3, 0.3), vy: rnd(-1.2, -0.5), t: 0, life: 40 }); }
+    for (const p of G.props) { if (p.fall) p.fall = Math.min(PI / 2, p.fall + 0.08); if (p.off > 1) p.off--; }
+    for (const p of G.pylons) if (p.fall && p.fall < 1.3) { p.fall = Math.min(1.3, p.fall + 0.02 + p.fall * 0.06); if (p.fall >= 1.3) { G.shake = Math.max(G.shake, 5); dust(p.x + p.fdir * 70, SW, 8, 1.3); sfx("crash"); } }
+    if (G.newsQ.length && ++G.newsQ[0].t > G.newsQ[0].len) G.newsQ.shift(); if (G.rank && ++G.rank.t > 260) G.rank = null; if (G.rank && G.rank.t === 45) { sfx("stamp"); G.shake = Math.max(G.shake, 5); }
+    for (const f of G.fires) { f.t += G.rain > 0.4 ? 2 : 1; if (f.b) { f.x = f.b.x + f.lx; f.y = SW - f.b.h + f.b.sink + f.ly; if (f.b.state !== "stand" && f.b.state !== "collapse") f.t = f.life; } if (f.t % 10 === 0) smokeP(f.x + rnd(-2, 2), f.y - 6 * f.s, f.s); if (f.t % 7 === 0) G.parts.push({ k: "ember", x: f.x + rnd(-3, 3), y: f.y - 5, vx: rnd(-0.3, 0.3), vy: rnd(-1.2, -0.5), t: 0, life: 40 }); }
     G.fires = G.fires.filter(f => f.t < f.life);
     for (const p of G.parts) {
       p.t++;
@@ -857,20 +961,22 @@
     }
     G.parts = G.parts.filter(p => p.t < p.life); if (G.parts.length > 1400) G.parts.splice(0, G.parts.length - 1400);
     for (const f of G.fx) f.t++; G.fx = G.fx.filter(f => f.t < f.life);
-    const D = districtAt(K.x).name; if (D !== G.district && K.x > SEA) { G.district = D; G.distT = 160; } if (G.distT) G.distT--;
+    const di = Math.max(0, Math.floor((K.x - SEA) / DLEN)); if (K.x > SEA && di !== G.distI) { if (G.distI != null && di > G.distI) rankCard(G.distI); G.distI = di; G.district = districtAt(K.x).name; G.distT = 160; } if (G.distT) G.distT--;
   }
 
   // ---------- main update ----------
   function update() {
     pollPad(); G.t++; G.beams = [];
-    if (G.shake > 0) { G.shake *= 0.88; if (G.shake < 0.25) G.shake = 0; } if (G.flash) G.flash--; if (G.msg && --G.msg.t <= 0) G.msg = null;
+    if (G.shake > 0) { G.shake *= 0.88; if (G.shake < 0.25) G.shake = 0; } if (G.flash) G.flash--; if (G.msg && --G.msg.t <= 0) G.msg = null; if (G.cine && ++G.cine.t > G.cine.life) G.cine = null; if (G.silh) G.silh--;
     if (G.mode === "title") { for (const k of [...ACTS, "start"]) if (pressed(k)) { resetWorld(); G.mode = "play"; music("march"); break; } G.cam += 0.4; if (G.cam > G.genX - W * 2) generate(); spawnUnits(); updateUnits(); updateWorld(); }
     else if (G.mode === "play") {
       if (pressed("start")) { G.paused = !G.paused; syncPause(); }
       if (!G.paused) {
         if (G.stop > 0) G.stop--; else if (G.slow > 0 && (G.slow--, G.t % 2)) { } else { updateKaiju(); updateRival(); spawnUnits(); updateUnits(); updateWorld(); }
-        G.zoom = lerp(G.zoom || 1, 1, 0.08);
-        const target = K.x - W * (K.dir > 0 ? 0.36 : 0.64); G.cam = lerp(G.cam, Math.max(0, target), 0.06); generate();
+        if (G.zoomHold > 0) { G.zoomHold--; if (G.zoomBoss && R) G.zoomX = (K.x + R.x) / 2; G.zoom = lerp(G.zoom || 1, G.zoomTo, 0.05); } else G.zoom = lerp(G.zoom || 1, 1, 0.08);
+        let target = K.x - W * (K.dir > 0 ? 0.36 : 0.64);
+        if (G.focus && G.focus.t > 0) { G.focus.t--; const fx = G.focus.boss && R ? (K.x + R.x) / 2 : G.focus.x; if (fx != null) target = fx - W / 2; }
+        G.cam = lerp(G.cam, Math.max(0, target), 0.06); generate();
       }
     }
     for (const k of ["left", "right", "down", "up", ...ACTS, "start"]) prev[k] = !!btn(k);
@@ -884,7 +990,7 @@
   const LIGHTS = [];
   function addLight(x, y, r, i, c = [255, 150, 60]) { const sx = x - G.camI; if (sx < -r || sx > W + r || y < -r || y > H + r) return; LIGHTS.push([sx, y, r, i, c]); }
   function lighting() {
-    const amb = 0.5; LI.fill(amb); LR.fill(0); LG.fill(0); LB.fill(0);
+    const amb = 0.5 + 0.32 * G.dawn; LI.fill(amb); LR.fill(0); LG.fill(0); LB.fill(0);
     for (const [x, y, r, i, c] of LIGHTS) { const cx0 = Math.max(0, Math.floor((x - r) / 2)), cx1 = Math.min(LW - 1, Math.ceil((x + r) / 2)), cy0 = Math.max(0, Math.floor((y - r) / 2)), cy1 = Math.min(LH - 1, Math.ceil((y + r) / 2)), r2 = r * r; for (let cy = cy0; cy <= cy1; cy++) { const dy = cy * 2 + 1 - y; for (let cx = cx0; cx <= cx1; cx++) { const dxx = cx * 2 + 1 - x, d2 = dxx * dxx + dy * dy; if (d2 >= r2) continue; const f = 1 - Math.sqrt(d2) / r, v = f * f * i, k = cy * LW + cx; LI[k] += v; LR[k] += v * c[0]; LG[k] += v * c[1]; LB[k] += v * c[2]; } } }
     for (let cy = 0; cy < LH; cy++) for (let cx = 0; cx < LW; cx++) {
       const k = cy * LW + cx, l = Math.min(1, LI[k]), q = l * 6, b = Math.floor(q), lv = (b + ((q - b) * 16 > BAY[(cx & 3) + ((cy & 3) << 2)] ? 1 : 0)) / 6, a = Math.round((1 - lv) * 220);
@@ -896,7 +1002,7 @@
   }
   function flameSprite(ctx, x, y, s, t) { const f = Math.floor(t / 4) % 3, hgt = Math.round((8 + f * 2) * s), wd = Math.round(5 * s); ctx.fillStyle = "rgb(200,50,20)"; ctx.fillRect(x - wd, y - Math.round(hgt * 0.55), wd * 2 + 1, Math.round(hgt * 0.55)); ctx.fillRect(x - Math.round(wd * 0.6), y - hgt, Math.round(wd * 1.2) + 1, hgt); ctx.fillStyle = "rgb(255,140,40)"; ctx.fillRect(x - Math.round(wd * 0.7), y - Math.round(hgt * 0.6), Math.round(wd * 1.4) + 1, Math.round(hgt * 0.6)); ctx.fillRect(x - Math.round(wd * 0.3) + (f - 1), y - Math.round(hgt * 0.85), Math.round(wd * 0.6) + 1, Math.round(hgt * 0.3)); ctx.fillStyle = "rgb(255,230,120)"; ctx.fillRect(x - Math.round(wd * 0.35), y - Math.round(hgt * 0.4), Math.round(wd * 0.7) + 1, Math.round(hgt * 0.4)); ctx.fillStyle = "rgb(255,255,230)"; ctx.fillRect(x - 1, y - Math.round(hgt * 0.22), 2, Math.round(hgt * 0.2) + 1); }
   function drawSkyAndBack(cam) {
-    g.drawImage(SKY, 0, 0);
+    g.drawImage(SKY, 0, 0); drawWeatherBack();
     // the glow over the burning city grows with the damage
     const burn = Math.min(1, G.fires.length / 30); if (burn > 0.05) { const gr = g.createLinearGradient(0, 90, 0, 190); gr.addColorStop(0, "rgba(255,90,40,0)"); gr.addColorStop(1, rgba([255, 110, 50], 0.35 * burn)); g.fillStyle = gr; g.fillRect(0, 90, W, 100); }
     // searchlights
@@ -913,6 +1019,7 @@
     const x0 = Math.max(0, seaEnd);
     ctx.fillStyle = "rgb(96,92,100)"; ctx.fillRect(x0, SW, W - x0, 7); ctx.fillStyle = "rgb(120,116,124)"; for (let x = x0 - ((cam % 8) + 8) % 8; x < W; x += 8) ctx.fillRect(Math.max(x0, x), SW, 1, 7); ctx.fillStyle = "rgb(150,146,150)"; ctx.fillRect(x0, SW + 7, W - x0, 1); ctx.fillStyle = "rgb(70,68,76)"; ctx.fillRect(x0, SW + 8, W - x0, 1);
     ctx.fillStyle = "rgb(40,40,48)"; ctx.fillRect(x0, SW + 9, W - x0, H - SW - 9); ctx.fillStyle = "rgb(48,48,56)"; for (let i = 0; i < 80; i++) { const x = ((h2(i, 7) * 900 - cam) % 900 + 900) % 900 - 100, y = SW + 10 + h2(i, 8) * 20; if (x > x0) ctx.fillRect(Math.round(x), Math.round(y), 2, 1); }
+    ctx.fillStyle = "rgb(58,54,62)"; for (let x = -((cam % 6) + 6) % 6; x < W; x += 6) if (x > x0) ctx.fillRect(x, 202, 3, 3); ctx.fillStyle = "rgb(128,128,140)"; ctx.fillRect(x0, 202, W - x0, 1); ctx.fillStyle = "rgb(150,150,160)"; ctx.fillRect(x0, 204, W - x0, 1);
     ctx.fillStyle = "rgb(210,200,150)"; for (let x = -((cam % 40) + 40) % 40; x < W; x += 40) if (x > x0) ctx.fillRect(x, 208, 18, 1);
   }
   function drawBuilding(b, cam, ctx) {
@@ -925,8 +1032,9 @@
   }
   function drawBuildingLights(b, cam) {
     const X = Math.round(b.x - cam), top = SW - b.h + Math.round(b.sink); if (X > W + 10 || X + b.w < -10 || b.state !== "stand") return;
+    if (b.dark && !b.black) return;
     const dmg = 1 - b.hp / b.max, a = dmg > 0.55 ? (Math.random() < 0.3 ? 0.2 : 0.9) : 1;
-    bx.globalAlpha = a; bx.drawImage(b.l, X + (b.hitT ? (b.hitT % 2 ? 1 : -1) : 0), top); bx.globalAlpha = 1;
+    bx.globalAlpha = b.black ? (Math.random() < 0.5 ? 0 : 1) : a; bx.drawImage(b.l, X + (b.hitT ? (b.hitT % 2 ? 1 : -1) : 0), top); bx.globalAlpha = 1;
     for (const [bbx, by] of b.beacons) if (Math.sin(G.t * 0.07 + b.x) > 0.3) { bx.fillStyle = "rgb(255,60,50)"; bx.fillRect(X + bbx - 1, top + by - 1, 2, 2); addLight(b.x + bbx, top + by, 12, 0.3, [255, 60, 50]); }
   }
   function drawProp(p, cam) {
@@ -934,9 +1042,10 @@
     const img = p.type === "lamp" ? SPR.lamp : p.type === "tree" ? SPR.tree : p.type === "vend" ? SPR.vend[p.k] : p.type === "pole" ? SPR.pole : SPR.signal;
     if (p.fall) { w.save(); w.translate(X, SW + 2); w.rotate(p.fall * p.fdir); w.drawImage(img, -img.width / 2, -img.height); w.restore(); return; }
     w.drawImage(img, X - img.width / 2, SW + 2 - img.height);
-    if (p.type === "lamp") { addLight(p.x + 3, SW - 22, 38, 0.55, [255, 200, 130]); e.fillStyle = "rgb(255,240,200)"; e.fillRect(X + 2, SW - 24, 4, 2); }
-    if (p.type === "vend") { e.fillStyle = "rgba(230,240,255,0.9)"; e.fillRect(X - 4, SW - 13, 8, 7); addLight(p.x, SW - 8, 18, 0.35, [200, 220, 255]); }
-    if (p.type === "signal") { const ph = Math.floor((G.t + p.x) / 180) % 3; e.fillStyle = ["rgb(80,255,160)", "rgb(255,210,60)", "rgb(255,60,60)"][ph]; e.fillRect(X - 4 + ph * 3, SW - 26, 2, 2); }
+    const lit = !p.off || (p.off > 1 && Math.random() < 0.5);
+    if (p.type === "lamp" && lit) { addLight(p.x + 3, SW - 22, 38, 0.55, [255, 200, 130]); e.fillStyle = "rgb(255,240,200)"; e.fillRect(X + 2, SW - 24, 4, 2); }
+    if (p.type === "vend" && lit) { e.fillStyle = "rgba(230,240,255,0.9)"; e.fillRect(X - 4, SW - 13, 8, 7); addLight(p.x, SW - 8, 18, 0.35, [200, 220, 255]); }
+    if (p.type === "signal" && lit) { const ph = Math.floor((G.t + p.x) / 180) % 3; e.fillStyle = ["rgb(80,255,160)", "rgb(255,210,60)", "rgb(255,60,60)"][ph]; e.fillRect(X - 4 + ph * 3, SW - 26, 2, 2); }
     if (p.type === "pole") { w.strokeStyle = "rgba(20,18,20,0.9)"; w.lineWidth = 1; }
   }
   function drawKaiju(cam) {
@@ -952,6 +1061,8 @@
     const em = K.state === "intro" ? K.emerge * 100 : 0;
     if (em > 0) { w.save(); w.beginPath(); w.rect(0, 0, W, 180); w.clip(); }
     drawK(w, img, Y - AY + em); if (em > 0) w.restore(); w.globalAlpha = 1;
+    G.kSil = { F, fc, x: X - ox, y: Y - AY + em };
+    if (K.held) { const Hd = K.held, hx = X + F.hand[0] * fc, hy = Y + F.hand[1]; w.save(); w.translate(hx + fc * 3, hy - 2); w.rotate(fc * (-0.3 + 0.08 * Math.sin(G.t * 0.1))); w.scale(fc * Hd.sc, Hd.sc); w.drawImage(Hd.img, -Hd.img.width / 2, -Hd.img.height / 2); w.restore(); }
     bx.globalCompositeOperation = "destination-out"; drawK(bx, img, Y - AY + em); bx.globalCompositeOperation = "source-over";
     // spines glow brighter while breathing fire, charging, or enraged
     const pulse = 0.55 + 0.25 * Math.sin(G.t * 0.08) + (K.firing ? 0.4 : 0) + (K.state === "nova" ? Math.min(1, K.t / 40) : 0) + (K.rage >= 100 ? 0.2 * Math.sin(G.t * 0.3) : 0);
@@ -1000,6 +1111,43 @@
     if (charge > 0 && G.t % 3 === 0) { const hx = X + R.dir * 10; e.strokeStyle = "rgb(200,240,255)"; e.beginPath(); let px = hx, py = Y - 110; e.moveTo(px, py); for (let i = 0; i < 4; i++) { px += rnd(-8, 8); py -= rnd(3, 8); e.lineTo(px, py); } e.stroke(); }
     addLight(R.x, GY - 80, 60, 0.35 + charge * 0.6, [120, 200, 255]);
   }
+  function drawPylons(cam) {
+    const top = SW + 2 - 118, alive = G.pylons.filter(p => p.alive).sort((a, b) => a.x - b.x);
+    w.strokeStyle = "rgba(20,20,26,0.9)"; w.lineWidth = 1;
+    for (let i = 0; i + 1 < G.pylons.length; i++) { const a = G.pylons[i], b = G.pylons[i + 1]; if (!a.alive && !b.alive) continue; if (a.x - cam > W + 400 || b.x - cam < -400) continue;
+      for (let k = 0; k < 4; k++) { const [dx, dy] = PYW[k], ax = a.x + dx - cam, bx2 = b.x + dx - cam, y = top + dy;
+        if (a.alive && b.alive) { w.beginPath(); w.moveTo(ax, y); w.quadraticCurveTo((ax + bx2) / 2, y + 16, bx2, y); w.stroke(); }
+        else { const s = a.alive ? a : b, sx = s.x + dx - cam, dir = a.alive ? 1 : -1, len = 60 + k * 8; w.beginPath(); w.moveTo(sx, y); w.quadraticCurveTo(sx + dir * len * 0.6, y + len * 0.3, sx + dir * len * 0.4, Math.min(SW + 6, y + len)); w.stroke(); if ((G.t + k * 7) % 23 < 2) { e.fillStyle = "rgb(200,230,255)"; e.fillRect(Math.round(sx + dir * len * 0.4) - 1, Math.round(Math.min(SW + 6, y + len)) - 1, 3, 3); addLight(s.x + dx + dir * len * 0.4, Math.min(SW + 6, y + len), 24, 0.6, [170, 210, 255]); } } } }
+    for (const p of G.pylons) { const X = Math.round(p.x - cam); if (X < -140 || X > W + 140) continue; if (p.fall) { w.save(); w.translate(X, SW + 2); w.rotate(p.fall * p.fdir); w.drawImage(SPR.pylon, -20, -118); w.restore(); continue; } w.drawImage(SPR.pylon, X - 20, top); if (Math.sin(G.t * 0.06 + p.x) > 0.2) { bx.fillStyle = "rgb(255,60,50)"; bx.fillRect(X - 1, top - 1, 2, 2); addLight(p.x, top, 12, 0.3, [255, 60, 50]); } }
+  }
+  function drawWeatherBack() {
+    if (G.rain > 0.02) { g.fillStyle = rgba([30, 36, 52], 0.35 * G.rain * (1 - G.dawn * 0.6)); g.fillRect(0, 0, W, 190); }
+    if (G.dawn > 0.01) { const d = G.dawn, gr = g.createLinearGradient(0, 0, 0, 190); gr.addColorStop(0, rgba([110, 140, 200], 0.8 * d)); gr.addColorStop(0.55, rgba([230, 160, 170], 0.85 * d)); gr.addColorStop(1, rgba([255, 190, 120], 0.95 * d)); g.fillStyle = gr; g.fillRect(0, 0, W, 190); g.fillStyle = rgba([255, 236, 190], 0.5 * d); g.beginPath(); g.arc(W * 0.78, 186, 26 + 6 * d, 0, PI * 2); g.fill(); }
+    if (G.bolt && G.bolt.t < 3) { g.fillStyle = "rgba(200,210,255,0.25)"; g.fillRect(0, 0, W, 190); }
+  }
+  function drawWeatherMid() { if (G.fog > 0.02) { g.fillStyle = rgba([110, 116, 140], 0.35 * G.fog); g.fillRect(0, 60, W, 130); } }
+  function drawWeatherFront() {
+    const cam = G.camI;
+    if (G.bolt) { const b = G.bolt, r = rng(b.seed | 0), X = b.x - cam; let x = X + rnd(-2, 2), y = 0; g.strokeStyle = rgba([220, 230, 255], 1 - b.t / 10); g.lineWidth = 2; g.beginPath(); g.moveTo(x, y); while (y < b.y1) { x += (r() - 0.5) * 16; y += 6 + r() * 10; g.lineTo(X + (x - X) * (1 - y / b.y1 * 0.9), Math.min(y, b.y1)); } g.stroke(); g.strokeStyle = "rgba(255,255,255,0.9)"; g.lineWidth = 1; g.stroke(); }
+    if (G.fog > 0.02) { for (let i = 0; i < 5; i++) { const y = 110 + i * 18, off = (G.t * (0.2 + i * 0.07) - cam * 0.3 + i * 97) % 160; g.fillStyle = rgba([150, 158, 180], 0.12 * G.fog); for (let x = -160 - off; x < W; x += 160) g.fillRect(Math.round(x), y + Math.round(Math.sin((x + G.t) * 0.02) * 3), 110, 14); } }
+    if (G.rain > 0.02) { const n = Math.round(160 * G.rain); g.fillStyle = "rgba(170,190,235,0.45)"; for (let i = 0; i < n; i++) { const sp = 7 + hash(i + 3) * 3, y = ((hash(i) * (H + 30) + G.t * sp) % (H + 30)) - 20, x = ((hash(i + 7) * (W + 60) - y * 0.3 - cam * 0.2) % (W + 60) + W + 60) % (W + 60) - 30; g.fillRect(Math.round(x), Math.round(y), 1, 4); g.fillRect(Math.round(x) - 1, Math.round(y) + 4, 1, 3); }
+      g.fillStyle = "rgba(190,210,240,0.5)"; for (let j = 0; j < 30 * G.rain; j++) { const x = hash(j * 13 + (G.t >> 2)) * W, y = 196 + hash(j * 7 + (G.t >> 2)) * 18; g.fillRect(Math.round(x) - 1, Math.round(y), 3, 1); } }
+  }
+  function drawCinema() {
+    if (G.cine) { const c = G.cine, k = Math.min(1, c.t / 15, (c.life - c.t) / 15), bh = Math.round(20 * k); g.fillStyle = "rgb(0,0,0)"; g.fillRect(0, 0, W, bh); g.fillRect(0, H - bh, W, bh);
+      if (c.title && c.t > 10) { const a = Math.min(1, (c.t - 10) / 15, (c.life - c.t) / 20), t1 = text(c.title, 24, c.col || [255, 236, 190], [30, 10, 10]), t2 = c.sub ? text(c.sub, 12, [220, 220, 230]) : null; g.globalAlpha = a; g.drawImage(t1, Math.round((W - t1.width) / 2), 64); if (t2) g.drawImage(t2, Math.round((W - t2.width) / 2), 96); g.globalAlpha = 1; } }
+    if (G.silh && G.kSil) { const k = Math.min(1, G.silh / 12), s = G.kSil; g.fillStyle = rgba([255, 248, 232], 0.95 * k); g.fillRect(0, 0, W, H); g.globalAlpha = k;
+      for (const b of G.blds) { const X = Math.round(b.x - G.camI); if (b.state !== "stand" || X > W || X + b.w < 0) continue; g.drawImage(b.sil || (b.sil = tintOf(b.c, "#2a1c22")), X, SW - b.h); }
+      g.fillStyle = "rgb(26,16,20)"; g.fillRect(0, SW, W, H - SW); g.drawImage(s.fc > 0 ? s.F.sr : s.F.sl, s.x, s.y); g.globalAlpha = 1; }
+  }
+  function drawNewsRank() {
+    if (G.newsQ.length) { const n = G.newsQ[0], y = H - 14, a = clamp(Math.min(n.t / 10, (n.len - n.t) / 10), 0, 1); g.globalAlpha = a; g.fillStyle = "rgba(8,10,26,0.88)"; g.fillRect(0, y, W, 14); g.fillStyle = "rgb(190,24,30)"; g.fillRect(0, y, 80, 14); g.fillStyle = "rgba(255,255,255,0.5)"; g.fillRect(0, y, W, 1);
+      g.drawImage(text("臨時ニュース", 12, [255, 255, 255], [90, 0, 0]), 3, y - 1); const tx = text(n.s, 12, [255, 255, 240]); g.save(); g.beginPath(); g.rect(82, y, W - 82, 14); g.clip(); g.drawImage(tx, Math.round(W - n.t * 1.3), y - 1); g.restore(); g.globalAlpha = 1; }
+    if (G.rank) { const R_ = G.rank, k = R_.t, a = clamp(Math.min(k / 12, (260 - k) / 20), 0, 1), cx = W / 2, oy = 0; g.save(); g.translate(0, oy); g.globalAlpha = a; g.fillStyle = "rgba(12,8,14,0.82)"; g.fillRect(cx - 110, 98, 220, 46); g.strokeStyle = "rgb(255,200,120)"; g.lineWidth = 1; g.strokeRect(cx - 109.5, 98.5, 219, 45);
+      g.drawImage(text(`${R_.name}　制圧`, 12, [255, 236, 200]), cx - 102, 101); g.drawImage(text(`壊滅率 ${Math.round(R_.pct * Math.min(1, k / 40))}%`, 16, [255, 200, 120]), cx - 102, 119); g.drawImage(text("被害ランク", 12, [220, 210, 200]), cx + 16, 101);
+      if (k > 44) { const sc = Math.max(1, 3.2 - (k - 44) / 3), gc = { S: [255, 220, 80], A: [255, 120, 90], B: [140, 220, 255], C: [210, 210, 210], D: [150, 150, 160] }[R_.grade], gi = text(R_.grade, 24, gc, [60, 10, 10]); g.drawImage(gi, Math.round(cx + 70 - gi.width * sc / 2), Math.round(126 - gi.height * sc / 2), Math.round(gi.width * sc), Math.round(gi.height * sc)); }
+      g.globalAlpha = 1; g.restore(); }
+  }
   function drawUnits(cam) {
     for (const u of G.units) {
       const X = Math.round(u.x - cam), Y = Math.round(u.y); if (X < -60 || X > W + 60) continue;
@@ -1010,7 +1158,7 @@
       if (u.type === "tank") addLight(u.x + u.dir * 10, u.y - 4, 16, 0.3, [255, 230, 180]);
       if (u.type === "maser") { const cg = u.charge ? u.charge / 90 : u.fire ? 1 : 0; if (cg > 0) { const mx = X + u.dir * 16, my = Y - 14; e.fillStyle = rgba([150, 220, 255], 0.5 + cg * 0.5); const r = 1 + cg * 4 + Math.sin(G.t) * 0.8; e.fillRect(mx - r, my - r, r * 2, r * 2); addLight(u.x + u.dir * 16, my, 30 + cg * 40, 0.6 * cg, [140, 210, 255]); } e.fillStyle = G.t % 16 < 8 ? "rgb(255,160,40)" : "rgb(120,60,20)"; e.fillRect(X - 2, Y - 17, 3, 1); }
     }
-    for (const c of G.cars) { const X = Math.round(c.x - cam), Y = Math.round(c.y); if (X < -30 || X > W + 30) continue; w.save(); w.translate(X, Y); if (c.rot) w.rotate(c.rot); if (c.vx < 0) w.scale(-1, 1); w.drawImage(c.img, -10, -9); w.restore(); if (!c.flying) { const d = c.vx >= 0 ? 1 : -1; e.fillStyle = "rgba(255,250,220,0.9)"; e.fillRect(X + d * 9, Y - 5, 1, 1); e.fillStyle = "rgba(255,40,40,0.9)"; e.fillRect(X - d * 10, Y - 5, 1, 1); addLight(c.x + d * 20, Y - 2, 20, 0.35, [255, 250, 220]); if (c.police) { e.fillStyle = G.t % 10 < 5 ? "rgb(255,40,40)" : "rgb(60,120,255)"; e.fillRect(X - 1, Y - 10, 2, 1); addLight(c.x, Y - 10, 22, 0.4, G.t % 10 < 5 ? [255, 40, 40] : [60, 120, 255]); } } }
+    for (const c of [...G.cars].sort((a, b) => a.y - b.y)) { const X = Math.round(c.x - cam), Y = Math.round(c.y); if (X < -30 || X > W + 30) continue; w.save(); w.translate(X, Y); if (c.rot) w.rotate(c.rot); if (c.vx < 0) w.scale(-1, 1); w.drawImage(c.img, -c.img.width / 2, 1 - c.img.height); if (c.tram && c.alive) { e.fillStyle = "rgba(255,226,160,0.9)"; for (let x = 4; x < 42; x += 7) e.fillRect(X - 23 + (c.vx < 0 ? 41 - x : x), Y - 12, 5, 3); addLight(c.x, Y - 8, 30, 0.35, [255, 220, 160]); } w.restore(); if (!c.flying) { const d = c.vx >= 0 ? 1 : -1; e.fillStyle = "rgba(255,250,220,0.9)"; e.fillRect(X + d * 9, Y - 5, 1, 1); e.fillStyle = "rgba(255,40,40,0.9)"; e.fillRect(X - d * 10, Y - 5, 1, 1); addLight(c.x + d * 20, Y - 2, 20, 0.35, [255, 250, 220]); if (c.police) { e.fillStyle = G.t % 10 < 5 ? "rgb(255,40,40)" : "rgb(60,120,255)"; e.fillRect(X - 1, Y - 10, 2, 1); addLight(c.x, Y - 10, 22, 0.4, G.t % 10 < 5 ? [255, 40, 40] : [60, 120, 255]); } } }
     for (const p of G.people) { const X = Math.round(p.x - cam); if (X < -4 || X > W + 4) continue; const f = Math.floor(p.t / 4) % 2; w.fillStyle = col(p.c); w.fillRect(X, SW + 1, 2, 3); w.fillStyle = "rgb(230,190,160)"; w.fillRect(X, SW - 1, 2, 2); w.fillStyle = "rgb(40,40,50)"; w.fillRect(X + f, SW + 4, 1, 2); w.fillRect(X + 1 - f, SW + 4, 1, 1); }
   }
   function drawParts(cam) {
@@ -1040,6 +1188,7 @@
       else if (f.k === "muzzle") { e.fillStyle = rgba([255, 230, 150], 1 - k); e.fillRect(Math.round(X - 3), Math.round(Y - 2), 6, 4); addLight(f.x, f.y, 30, 0.7 * (1 - k), [255, 220, 150]); }
       else if (f.k === "wave") { const r = f.r * k; e.fillStyle = rgba([255, 220, 180], 0.8 * (1 - k)); for (const s of [-1, 1]) e.fillRect(Math.round(X + s * r - 2), Math.round(Y - 2), 4, 4); w.fillStyle = rgba([160, 150, 140], 0.4 * (1 - k)); w.fillRect(Math.round(X - r), Math.round(Y - 1), Math.round(r * 2), 3); }
       else if (f.k === "roarwave") { const dr = f.dir || K.dir; for (let j = 0; j < 3; j++) { const r = 10 + (f.t + j * 8) * 3; e.strokeStyle = rgba(f.cool ? [180, 230, 255] : [255, 230, 200], 0.35 * (1 - k)); e.lineWidth = 1; e.beginPath(); if (dr > 0) e.arc(X, Y, r, -PI / 2.5, PI / 2.5); else e.arc(X, Y, r, PI - PI / 2.5, PI + PI / 2.5); e.stroke(); } }
+      else if (f.k === "fireball") { const r = 14 + Math.sqrt(k) * 50, y = Y - k * 70; if (k < 0.55) { e.fillStyle = rgba([255, 200, 90], 0.9 * (1 - k / 0.55)); e.beginPath(); e.arc(X, y, r, 0, PI * 2); e.fill(); e.fillStyle = rgba([255, 250, 210], Math.max(0, 0.9 * (1 - k / 0.4))); e.beginPath(); e.arc(X, y + r * 0.1, r * 0.55, 0, PI * 2); e.fill(); addLight(f.x, y, r * 3, 1.2 * (1 - k), [255, 160, 70]); } w.fillStyle = rgba([40, 30, 30], 0.6 * Math.min(1, k * 2) * (1 - k)); w.beginPath(); w.arc(X, y - r * 0.2, r * 1.1, 0, PI * 2); w.fill(); w.fillRect(Math.round(X - r * 0.25), Math.round(y), Math.round(r * 0.5), Math.round(Y - y + 40)); }
       else if (f.k === "ring") { const r = f.r * Math.sqrt(k); e.strokeStyle = rgba([255, 200, 120], 1 - k); e.lineWidth = 3; e.beginPath(); e.ellipse(X, Y, r, r * 0.6, 0, 0, PI * 2); e.stroke(); e.strokeStyle = rgba([255, 255, 230], 1 - k); e.lineWidth = 1; e.stroke(); addLight(f.x, f.y, 200, 1.4 * (1 - k), [255, 180, 90]); }
       else if (f.k === "claw") {
         // three curved claw streaks drawn from the shoulder: they sweep in fast and fade slowly
@@ -1094,22 +1243,26 @@
     const oku = Math.floor(G.damage / 10000), man = Math.floor(G.damage % 10000), s = `被害総額 ${oku > 0 ? oku + "億" : ""}${man.toLocaleString()}万円`;
     const ti = text(s, 12, [255, 214, 140]); g.drawImage(ti, W - ti.width - 6, 4);
     const al = text(`警戒レベル ${"■".repeat(G.alert)}${"□".repeat(5 - G.alert)}`, 12, G.alert >= 4 ? [255, 120, 110] : [200, 200, 220]); g.drawImage(al, W - al.width - 6, 18);
-    if (R) { const hero = R.kind === "hero", nm = text(hero ? "光の巨人アステル" : "雷獣ジンライ", 12, hero ? [255, 236, 170] : [170, 230, 255]); g.drawImage(nm, 96, 186); g.fillStyle = "rgb(10,10,20)"; g.fillRect(95, 200, 194, 8); g.fillStyle = hero ? "rgb(90,30,34)" : "rgb(40,60,110)"; g.fillRect(96, 201, 192, 6); g.fillStyle = hero ? "rgb(230,70,60)" : "rgb(110,200,255)"; g.fillRect(96, 201, Math.round(192 * R.bar), 6); g.fillStyle = hero ? "rgb(255,220,200)" : "rgb(220,245,255)"; g.fillRect(96, 201, Math.round(192 * R.bar), 1); }
-    if (K.deaths) { const d = text(`復活 ${K.deaths}回`, 12, [200, 200, 220]); g.drawImage(d, W - d.width - 6, 32); }
-    if (G.distT) { const a = Math.min(1, G.distT / 30), t1 = text(G.district, 16, [255, 236, 200], [30, 10, 10]); g.globalAlpha = a; g.drawImage(t1, Math.round((W - t1.width) / 2), 52); g.globalAlpha = 1; }
-    if (G.msg) { const t1 = text(G.msg.s, 16, [255, 200, 120], [40, 10, 10]); g.drawImage(t1, Math.round((W - t1.width) / 2), 74); }
+    if (R) { g.save(); if (G.newsQ.length) g.translate(0, -14); const hero = R.kind === "hero", nm = text(hero ? "光の巨人アステル" : "雷獣ジンライ", 12, hero ? [255, 236, 170] : [170, 230, 255]); g.drawImage(nm, 96, 186); g.fillStyle = "rgb(10,10,20)"; g.fillRect(95, 200, 194, 8); g.fillStyle = hero ? "rgb(90,30,34)" : "rgb(40,60,110)"; g.fillRect(96, 201, 192, 6); g.fillStyle = hero ? "rgb(230,70,60)" : "rgb(110,200,255)"; g.fillRect(96, 201, Math.round(192 * R.bar), 6); g.fillStyle = hero ? "rgb(255,220,200)" : "rgb(220,245,255)"; g.fillRect(96, 201, Math.round(192 * R.bar), 1); g.restore(); }
+    if (K.deaths) { const d = text(`復活 ${K.deaths}回`, 12, [200, 200, 220]); g.drawImage(d, W - d.width - 6, 46); }
+    { const { p } = nightClock(), hm = (22 * 60 + Math.floor(p * 480)) % 1440, hh = Math.floor(hm / 60), wx = weatherOf(Math.max(0, Math.floor((K.x + 150 - SEA) / DLEN))), t2 = text(`${hh < 12 ? "午前" : "午後"}${hh % 12}時${String(hm % 60).padStart(2, "0")}分　${{ fog: "霧", clear: "晴れ", rain: "雨", storm: "雷雨" }[wx]}`, 12, [200, 210, 230]); g.drawImage(t2, W - t2.width - 6, 32); }
+    const cineT = G.cine && G.cine.title;
+    if (G.distT && !cineT) { const a = Math.min(1, G.distT / 30), t1 = text(G.district, 16, [255, 236, 200], [30, 10, 10]); g.globalAlpha = a; g.drawImage(t1, Math.round((W - t1.width) / 2), 52); g.globalAlpha = 1; }
+    if (G.msg && !cineT) { const t1 = text(G.msg.s, 16, [255, 200, 120], [40, 10, 10]); g.drawImage(t1, Math.round((W - t1.width) / 2), 74); }
     if (K.state === "down") { g.fillStyle = "rgba(0,0,0,0.35)"; g.fillRect(0, 0, W, H); const t1 = text("ボタン連打で 復活！", 16, G.t % 20 < 10 ? [255, 255, 200] : [255, 160, 80], [40, 10, 10]); g.drawImage(t1, Math.round((W - t1.width) / 2), 92); g.fillStyle = "rgb(20,10,10)"; g.fillRect(W / 2 - 61, 117, 122, 9); g.fillStyle = "rgb(255,120,50)"; g.fillRect(W / 2 - 60, 118, 120 * K.rise / 100, 7); g.fillStyle = "rgb(255,230,160)"; g.fillRect(W / 2 - 60, 118, 120 * K.rise / 100, 1); }
   }
   function render() {
     const cam = Math.round(G.cam + (G.shake ? rnd(-G.shake, G.shake) : 0)), sy = G.shake ? Math.round(rnd(-G.shake, G.shake) * 0.7) : 0; G.camI = cam; LIGHTS.length = 0;
     g.save(); g.translate(0, sy);
-    drawSkyAndBack(cam);
+    drawSkyAndBack(cam); drawWeatherMid();
     w.clearRect(0, 0, W, H); e.clearRect(0, 0, W, H); bx.clearRect(0, 0, W, H);
     for (const r of G.rubble) { const X = Math.round(r.x - cam); if (X < W && X + r.w > 0) w.drawImage(r.c, X, SW - r.c.height + 4); }
+    drawPylons(cam);
     for (const b of G.blds) { drawBuilding(b, cam, w); drawBuildingLights(b, cam); }
     drawGround(w, cam);
     for (const p of G.props) drawProp(p, cam);
     if (G.mode === "play") { drawRival(cam); drawKaiju(cam); }
+    for (const o of G.thrown) { w.save(); w.translate(Math.round(o.x - cam), Math.round(o.y)); w.rotate(o.rot); w.scale((o.flip ? -1 : 1) * (o.sc || 1), o.sc || 1); w.drawImage(o.img, -o.img.width / 2, -o.img.height / 2); w.restore(); }
     for (const p of G.pieces) { const X = p.x - cam; if (X < -120 || X > W + 120) continue; w.save(); w.translate(Math.round(X), Math.round(p.y)); w.rotate(p.rot); w.drawImage(p.img, -p.w / 2, -p.h / 2); w.restore(); }
     drawUnits(cam); drawParts(cam); drawFlames(cam); drawFx(cam);
     lighting();
@@ -1118,6 +1271,7 @@
     // bloom: the lit windows, neon and fire bleed softly into the dark
     b4.clearRect(0, 0, W / 4, H / 4); b4.drawImage(blc, 0, 0, W / 4, H / 4); b4.drawImage(em, 0, 0, W / 4, H / 4); g.globalCompositeOperation = "lighter"; g.globalAlpha = 0.55; g.imageSmoothingEnabled = true; g.drawImage(bl, -2, -2, W + 4, H + 4); g.imageSmoothingEnabled = false; g.globalAlpha = 1; g.globalCompositeOperation = "source-over";
     g.restore();
+    drawWeatherFront();
     if (G.flash) { g.fillStyle = `rgba(255,240,220,${G.flash / 30})`; g.fillRect(0, 0, W, H); }
     if (G.mode === "title") {
       g.fillStyle = "rgba(8,6,12,0.45)"; g.fillRect(0, 0, W, H);
@@ -1125,7 +1279,7 @@
       const t1 = text("怪獣ボルガ", 24, [255, 170, 80], [60, 16, 10]), t2 = text("夜の街", 16, [255, 230, 200], [40, 10, 10]); g.drawImage(t1, 200, 60); g.drawImage(t2, 232, 92);
       if (Math.floor(G.t / 30) % 2) { const t3 = text("Z / Enter でスタート", 12); g.drawImage(t3, 214, 130); }
       const t4 = text("不死身の怪獣が 夜の街を どこまでも壊していく", 12, [200, 190, 190]); g.drawImage(t4, Math.round((W - t4.width) / 2), 196);
-    } else { drawScreenCars(); drawOno(Math.round(G.cam)); drawHUD(); }
+    } else { drawScreenCars(); drawOno(Math.round(G.cam)); drawHUD(); drawNewsRank(); drawCinema(); }
     if (G.paused) { g.fillStyle = "rgba(0,0,0,0.5)"; g.fillRect(0, 0, W, H); const t1 = text("ポーズ", 24); g.drawImage(t1, Math.round((W - t1.width) / 2), 90); }
   }
 
@@ -1199,6 +1353,12 @@
       case "jet": { const f = nz(t, 2.2, 0.25, 3000, "bandpass", null, 0.5); f.frequency.exponentialRampToValueAtTime(400, t + 2.2); break; }
       case "heli": break;
       case "charge": tone("sine", 200, t, 1.5, 0.08, null, 1800); break;
+      case "grab": tone("square", 180, t, 0.12, 0.08, null, 90); nz(t, 0.15, 0.3, 900); break;
+      case "zap": for (let i = 0; i < 6; i++) nz(t + i * 0.05, 0.06, 0.2, 4000, "bandpass", null, 4); tone("sawtooth", 120, t, 1.2, 0.08, null, 30); break;
+      case "hiss": nz(t, 0.8, 0.12, 5000, "highpass"); break;
+      case "thunder": nz(t + 0.15, 2.5, 0.6, 180); nz(t + 0.1, 0.4, 0.4, 2500, "bandpass"); tone("sine", 45, t + 0.15, 2, 0.4, null, 25); break;
+      case "stamp": tone("sine", 90, t, 0.3, 0.5, null, 40); nz(t, 0.2, 0.3, 800); break;
+      case "bell": tone("triangle", 1760, t, 0.25, 0.05); tone("triangle", 1760, t + 0.3, 0.25, 0.05); break;
       case "pikon": tone("square", 1480, t, 0.07, 0.04); tone("square", 1480, t + 0.14, 0.07, 0.04); break;
       case "hcharge": tone("sine", 300, t, 0.9, 0.08, null, 2400); tone("triangle", 600, t, 0.9, 0.04, null, 3200); break;
       case "hbeam": tone("sawtooth", 1300, t, 1.4, 0.035, null, 900); tone("square", 2600, t, 1.3, 0.012); nz(t, 1.4, 0.18, 3000, "bandpass", null, 2); break;
@@ -1218,8 +1378,8 @@
   // ---------- loop ----------
   resetWorld(); G.mode = "title";
   let last = performance.now(), acc = 0, msAvg = 0;
-  function loop(now) { acc += Math.min(0.1, (now - last) / 1000); last = now; while (acc >= 1 / 60) { update(); acc -= 1 / 60; } audioTick(); const t0 = performance.now(); render(); msAvg = lerp(msAvg, performance.now() - t0, 0.05); const z = G.zoom || 1; if (z > 1.002) { const sw = W / z, sh = H / z, cx = clamp(K.x - G.cam, sw / 2, W - sw / 2); vctx.drawImage(low, cx - sw / 2, (H - sh) * 0.75, sw, sh, 0, 0, view.width, view.height); } else vctx.drawImage(low, 0, 0, view.width, view.height); requestAnimationFrame(loop); }
-  window.Game = { G, K, KF, HF, spawnBoss: k => spawnRival(k), get R() { return R; }, epic: (b, k) => epicCollapse(b, k), carve: (b, x, y, r) => carve(b, x, y, r), update, render, keys, resetWorld, low, ms: () => msAvg };
+  function loop(now) { acc += Math.min(0.1, (now - last) / 1000); last = now; while (acc >= 1 / 60) { update(); acc -= 1 / 60; } audioTick(); const t0 = performance.now(); render(); msAvg = lerp(msAvg, performance.now() - t0, 0.05); const z = G.zoom || 1; if (z > 1.002) { const sw = W / z, sh = H / z, cx = clamp((G.zoomHold > 0 && G.zoomX != null ? G.zoomX : K.x) - G.cam, sw / 2, W - sw / 2); vctx.drawImage(low, cx - sw / 2, (H - sh) * 0.75, sw, sh, 0, 0, view.width, view.height); } else vctx.drawImage(low, 0, 0, view.width, view.height); requestAnimationFrame(loop); }
+  window.Game = { G, K, KF, HF, lightning: () => lightning(), blowTank: b => blowTank(b), pylonDown: p => pylonDown(p), spawnBoss: k => spawnRival(k), get R() { return R; }, epic: (b, k) => epicCollapse(b, k), carve: (b, x, y, r) => carve(b, x, y, r), update, render, keys, resetWorld, low, ms: () => msAvg };
   view.focus(); requestAnimationFrame(loop);
 })();
 </script>
