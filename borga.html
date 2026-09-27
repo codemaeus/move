@@ -305,11 +305,11 @@
 
   // ---------- world ----------
   const K = { x: 200, y: 0, vy: 0, dir: 1, state: "intro", t: 0, hp: 100, breath: 100, rage: 0, inv: 0, walk: 0, aim: 2, combo: 0, rise: 0, deaths: 0, emerge: 1, stepT: 0, qd: false, flash: 0, hurtF: 0, novaT: 0 };
-  const G = { mode: "title", t: 0, cam: 0, blds: [], rubble: [], props: [], cars: [], units: [], shots: [], parts: [], fires: [], fx: [], people: [], genX: SEA, damage: 0, kills: 0, shake: 0, flash: 0, stop: 0, alert: 1, district: "", distT: 0, spawn: { tank: 200, heli: 400, jet: 900, maser: 1500, car: 60 }, msg: null, beams: [] };
+  const G = { mode: "title", t: 0, cam: 0, blds: [], rubble: [], props: [], cars: [], units: [], shots: [], parts: [], fires: [], fx: [], people: [], pieces: [], genX: SEA, damage: 0, kills: 0, shake: 0, flash: 0, stop: 0, alert: 1, district: "", distT: 0, spawn: { tank: 200, heli: 400, jet: 900, maser: 1500, car: 60 }, msg: null, beams: [] };
   function resetWorld() {
     R = null; G.nextBoss = SEA + 2300; G.bossN = 0; G.zoom = 1; G.slow = 0; if (typeof A !== "undefined") A.fast = false;
     Object.assign(K, { x: 230, y: 0, vy: 0, dir: 1, state: "intro", t: 0, hp: 100, breath: 100, rage: 0, inv: 0, walk: 0, aim: 2, combo: 0, rise: 0, deaths: 0, emerge: 1, flash: 0, hurtF: 0 });
-    Object.assign(G, { cam: 0, blds: [], rubble: [], props: [], cars: [], units: [], shots: [], parts: [], fires: [], fx: [], people: [], genX: SEA + 40, damage: 0, kills: 0, shake: 0, flash: 0, stop: 0, alert: 1, district: "", distT: 0, spawn: { tank: 300, heli: 600, jet: 1200, maser: 2200, car: 30 }, msg: null, beams: [] });
+    Object.assign(G, { cam: 0, blds: [], rubble: [], props: [], cars: [], units: [], shots: [], parts: [], fires: [], fx: [], people: [], pieces: [], genX: SEA + 40, damage: 0, kills: 0, shake: 0, flash: 0, stop: 0, alert: 1, district: "", distT: 0, spawn: { tank: 300, heli: 600, jet: 1200, maser: 2200, car: 30 }, msg: null, beams: [] });
     generate();
   }
   let bseed = 1;
@@ -370,7 +370,45 @@
     return hit;
   }
   function sample(b) { const d = b.cx.getImageData((b.w / 2) | 0, (b.h / 2) | 0, 1, 1).data; return d[3] ? [d[0], d[1], d[2]] : [120, 120, 120]; }
-  function collapse(b) { b.state = "collapse"; b.sv = 0.2; sfx("collapse"); G.shake = Math.max(G.shake, 6); addDamage(b.value); G.kills++; for (let i = 0; i < 8; i++) dust(b.x + b.w / 2, SW - 4, 2, 1.5); }
+  function collapse(b) { if (b.h > 40 && Math.random() < 0.3) { addDamage(b.value); G.kills++; epicCollapse(b); return; } b.state = "collapse"; b.sv = 0.2; sfx("collapse"); G.shake = Math.max(G.shake, 6); addDamage(b.value); G.kills++; for (let i = 0; i < 8; i++) dust(b.x + b.w / 2, SW - 4, 2, 1.5); }
+  // about a third of the buildings go down in style: toppling over, blown apart into slabs, or gutted floor by floor
+  function epicCollapse(b, kind) {
+    kind = kind || pick(Math.random, b.h > 90 ? ["topple", "slabs", "blast"] : ["topple", "slabs"]);
+    b.state = "epic"; b.kind = kind; b.et = 0; b.dir = Math.sign(b.x + b.w / 2 - K.x) || 1; b.ang = 0; b.av = 0.002; G.slow = Math.max(G.slow || 0, 10); G.zoom = Math.max(G.zoom || 1, 1.04);
+    const top = SW - b.h, cx = b.x + b.w / 2;
+    if (kind === "topple") { G.fx.push({ k: "ono", s: "グラッ……", x: cx, y: top - 10, t: 0, life: 50, c: [255, 230, 190] }); sfx("creak"); }
+    else if (kind === "blast") { G.fx.push({ k: "ono", s: "ゴゴゴゴ……", x: cx, y: top - 10, t: 0, life: 50, c: [255, 210, 160] }); sfx("collapse"); }
+    else {
+      // cut the building into slabs and blow them apart from a point inside
+      const blastY = b.h * rnd(0.3, 0.6), bx = b.w / 2, sh = Math.max(14, Math.round(b.h / 7));
+      for (let y = 0; y < b.h; y += sh) { const hh = Math.min(sh, b.h - y), [pc, px] = canvas(b.w, hh); px.drawImage(b.c, 0, -y); const above = y + hh / 2 < b.h - blastY, dist = (b.h - blastY) - (y + hh / 2), k = clamp(1 - Math.abs(dist) / b.h, 0.2, 1); G.pieces.push({ img: pc, x: b.x + b.w / 2, y: top + y + hh / 2, w: b.w, h: hh, vx: (Math.random() < 0.5 ? -1 : 1) * rnd(0.6, 2.6) * k + b.dir * 0.8, vy: above ? -rnd(1.5, 4) * k : rnd(0, 0.6), rot: 0, vr: rnd(-0.06, 0.06) * k, sample: sample(b), delay: above ? 0 : 10 }); }
+      const ex = b.x + bx, ey = top + b.h - blastY; explode(ex, ey, 3); for (let i = 0; i < 3; i++) setTimeout(() => explode(ex + rnd(-b.w / 2, b.w / 2), ey + rnd(-20, 20), 1.6), 120 + i * 140); glass(ex, ey, 40); G.flash = 8; G.shake = 16;
+      G.fx.push({ k: "ono", s: "ドカァァン！！", x: ex, y: ey - 30, t: 0, life: 46, c: [255, 190, 110], big: 1 }); sfx("impact"); sfx("boom", 2);
+      b.state = "gone"; G.rubble.push({ x: b.x - 8, w: b.w + 16, c: rubbleOf(b) });
+    }
+  }
+  function updateEpic(b) {
+    b.et++; const top = SW - b.h, cx = b.x + b.w / 2;
+    if (b.kind === "topple") {
+      b.av = Math.min(0.06, b.av * 1.055 + 0.0006); b.ang += b.av;
+      const px = b.dir > 0 ? b.x + b.w : b.x; if (b.et % 3 === 0) { dust(px, SW - 2, 2, 1.3); debris(px, SW - 6, 2, sample(b), 2.5); } if (b.et % 5 === 0) glass(cx + b.dir * b.h * Math.sin(b.ang) * 0.6, SW - b.h * Math.cos(b.ang) * 0.6, 3);
+      G.shake = Math.max(G.shake, 2 + b.ang * 2);
+      if (b.ang >= PI / 2 - 0.02) {
+        const x0 = b.dir > 0 ? px : px - b.h, x1 = b.dir > 0 ? px + b.h : px;
+        G.shake = 18; G.flash = 6; G.stop = 8; G.zoom = 1.08; sfx("impact"); sfx("collapse");
+        for (let x = x0; x < x1; x += 10) { dust(x, SW - 2, 2, 1.8); debris(x, SW - 8, 3, sample(b), 3.5); if (Math.random() < 0.25) setFire(x, SW - 2, 700, rnd(0.8, 1.3)); }
+        G.fx.push({ k: "wave", x: (x0 + x1) / 2, y: GY, t: 0, life: 30, r: b.h * 0.8 });
+        G.fx.push({ k: "ono", s: "ズドォォン！！", x: (x0 + x1) / 2, y: SW - b.w - 30, t: 0, life: 48, c: [255, 200, 130], big: 1 });
+        hitRect(x0, SW - b.w, x1, SW, 6, { rival: 1, holes: 2, r: 13 }); for (const c of G.cars) if (c.alive && c.x > x0 && c.x < x1) { c.alive = false; c.crushed = true; explode(c.x, c.y - 3, 0.8); }
+        b.state = "gone"; G.rubble.push({ x: x0 - 6, w: b.h + 12, c: rubbleOf({ ...b, w: b.h, h: b.w * 3 }) });
+      }
+    } else if (b.kind === "blast") {
+      const floors = 9, step = 6, f = Math.floor(b.et / step);
+      if (b.et % step === 0 && f < floors) { const y = SW - (f + 0.5) * b.h / floors; explode(b.x + rnd(4, b.w - 4), y, 1.3); glass(b.x + b.w / 2, y, 10); carve(b, rnd(4, b.w - 4), b.h - (f + 0.5) * b.h / floors, rnd(7, 11)); for (let i = 0; i < 2; i++) setFire(b.x + rnd(4, b.w - 4), y, 500, rnd(0.8, 1.2), b); }
+      b.hitT = 2; G.shake = Math.max(G.shake, 4);
+      if (b.et === floors * step + 6) { explode(cx, top + b.h * 0.3, 3.4); G.flash = 12; G.shake = 20; G.stop = 6; G.zoom = 1.08; G.fx.push({ k: "ring", x: cx, y: top + b.h * 0.4, t: 0, life: 40, r: 160 }); G.fx.push({ k: "ono", s: "ドゴォォン！！", x: cx, y: top - 20, t: 0, life: 50, c: [255, 180, 100], big: 1 }); sfx("impact"); sfx("boom", 2.5); for (let i = 0; i < 26; i++) G.parts.push({ k: "smoke", x: cx + rnd(-10, 10), y: top + rnd(0, 30), vx: rnd(-0.6, 0.6), vy: rnd(-1.8, -0.6), t: 0, life: rnd(150, 220) | 0, r: rnd(6, 11) }); b.state = "collapse"; b.sv = 1.2; }
+    }
+  }
   function killUnit(u) { if (u.dead) return; u.dead = true; explode(u.x, u.y - u.h / 2, u.type === "maser" ? 2 : 1); addDamage(u.type === "maser" ? 3000 : 600); if (u.fly) { u.falling = true; u.dead = false; u.hp = 0; } else { setFire(u.x, GY + 4, 300, 0.8); } }
 
   // ---------- kaiju actions ----------
@@ -603,10 +641,13 @@
   function updateWorld() {
     for (const b of G.blds) {
       if (b.hitT) b.hitT--;
+      if (b.state === "epic") updateEpic(b);
       if (b.state === "collapse") { b.sv = Math.min(2.6, b.sv + 0.05); b.sink += b.sv; if (G.t % 3 === 0) { dust(b.x + rnd(0, b.w), SW - 2, 1, 1.4); debris(b.x + rnd(0, b.w), SW - 4, 1, sample(b), 2); } G.shake = Math.max(G.shake, 2); if (b.sink >= b.h) { b.state = "gone"; G.rubble.push({ x: b.x - 8, w: b.w + 16, c: rubbleOf(b) }); for (let i = 0; i < 2 + b.w / 30; i++) setFire(b.x + rnd(0, b.w), SW - rnd(2, 8), 900, rnd(0.8, 1.3)); } }
       for (const s of b.smoke) if (b.state === "stand" && G.t % 8 === 0) smokeP(b.x + s[0], SW - b.h + s[1], 1.3);
     }
     G.blds = G.blds.filter(b => b.state !== "gone");
+    for (const p of G.pieces) { if (p.delay > 0) { p.delay--; p.y += 0.3; continue; } p.vy += 0.2; p.x += p.vx; p.y += p.vy; p.rot += p.vr; if (Math.random() < 0.2) G.parts.push({ k: "dust", x: p.x, y: p.y + p.h / 2, vx: 0, vy: -0.2, t: 0, life: 30, r: 3 }); if (p.y + p.h / 2 > SW + 4) { p.dead = true; debris(p.x, SW - 4, 10, p.sample, 3); dust(p.x, SW - 2, 4, 1.4); G.shake = Math.max(G.shake, 5); if (Math.random() < 0.4) { explode(p.x, SW - 6, 1); setFire(p.x, SW - 2, 600, 1); } else sfx("crash"); hitRect(p.x - p.w / 2, SW - 30, p.x + p.w / 2, SW, 2, { rival: 1 }); } }
+    G.pieces = G.pieces.filter(p => !p.dead);
     for (const p of G.props) if (p.fall) p.fall = Math.min(PI / 2, p.fall + 0.08);
     for (const f of G.fires) { f.t++; if (f.b) { f.x = f.b.x + f.lx; f.y = SW - f.b.h + f.b.sink + f.ly; if (f.b.state !== "stand" && f.b.state !== "collapse") f.t = f.life; } if (f.t % 10 === 0) smokeP(f.x + rnd(-2, 2), f.y - 6 * f.s, f.s); if (f.t % 7 === 0) G.parts.push({ k: "ember", x: f.x + rnd(-3, 3), y: f.y - 5, vx: rnd(-0.3, 0.3), vy: rnd(-1.2, -0.5), t: 0, life: 40 }); }
     G.fires = G.fires.filter(f => f.t < f.life);
@@ -679,7 +720,8 @@
   }
   function drawBuilding(b, cam, ctx) {
     const X = Math.round(b.x - cam), top = SW - b.h + Math.round(b.sink); if (X > W + 10 || X + b.w < -10) return;
-    const jit = b.hitT ? (b.hitT % 2 ? 1 : -1) : b.state === "collapse" ? Math.round(rnd(-1.5, 1.5)) : 0;
+    if (b.state === "epic" && b.kind === "topple") { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, SW + 4); ctx.clip(); const px = X + (b.dir > 0 ? b.w : 0); ctx.translate(px, SW); ctx.rotate(b.ang * b.dir); ctx.drawImage(b.c, b.dir > 0 ? -b.w : 0, -b.h); ctx.restore(); return; }
+    const jit = b.hitT ? (b.hitT % 2 ? 1 : -1) : b.state === "collapse" || b.state === "epic" ? Math.round(rnd(-1.5, 1.5)) : 0;
     ctx.save(); ctx.beginPath(); ctx.rect(X - 10, 0, b.w + 20, SW); ctx.clip();
     if (b.state === "collapse") { ctx.translate(X + b.w / 2, SW); ctx.rotate(Math.sin(b.seed) * b.sink / b.h * 0.12); ctx.drawImage(b.c, -b.w / 2 + jit, -b.h + b.sink); ctx.restore(); return; }
     ctx.drawImage(b.c, X + jit, top); ctx.restore();
@@ -824,7 +866,7 @@
     }
   }
   function drawOno(cam) {
-    for (const f of G.fx) if (f.k === "ono") { const k = f.t / f.life, sc = f.t < 4 ? 1.6 - f.t * 0.15 : 1, size = f.big ? 24 : 16, img = text(f.s, size, f.c, [60, 16, 10]), dk = text(f.s, size, [40, 10, 8], null), wd = img.width * sc, hg = img.height * sc, X = Math.round(f.x - cam - wd / 2), Y = Math.round(f.y - f.t * 0.4 - hg / 2); g.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1; for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [2, 2]]) g.drawImage(dk, X + ox, Y + oy, wd, hg); g.drawImage(img, X, Y, wd, hg); g.globalAlpha = 1; }
+    for (const f of G.fx) if (f.k === "ono") { const k = f.t / f.life, sc = f.t < 4 ? 1.6 - f.t * 0.15 : 1, size = f.big ? 24 : 16, img = text(f.s, size, f.c, [60, 16, 10]), dk = text(f.s, size, [40, 10, 8], null), wd = img.width * sc, hg = img.height * sc, X = Math.round(clamp(f.x - cam - wd / 2, 4, W - wd - 4)), Y = Math.round(Math.max(44, f.y - f.t * 0.4 - hg / 2)); g.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1; for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [2, 2]]) g.drawImage(dk, X + ox, Y + oy, wd, hg); g.drawImage(img, X, Y, wd, hg); g.globalAlpha = 1; }
   }
   function drawHUD() {
     const bar = (x, y, wd, v, c, c2, label) => { g.fillStyle = "rgb(14,10,14)"; g.fillRect(x - 1, y - 1, wd + 2, 7); g.fillStyle = col(c2); g.fillRect(x, y, wd, 5); g.fillStyle = col(c); g.fillRect(x, y, Math.round(wd * clamp(v, 0, 1)), 5); g.fillStyle = "rgba(255,255,255,0.35)"; g.fillRect(x, y, Math.round(wd * clamp(v, 0, 1)), 1); g.drawImage(text(label, 12, [240, 230, 220]), x - 1, y - 15); };
@@ -849,6 +891,7 @@
     drawGround(w, cam);
     for (const p of G.props) drawProp(p, cam);
     if (G.mode === "play") { drawRival(cam); drawKaiju(cam); }
+    for (const p of G.pieces) { const X = p.x - cam; if (X < -120 || X > W + 120) continue; w.save(); w.translate(Math.round(X), Math.round(p.y)); w.rotate(p.rot); w.drawImage(p.img, -p.w / 2, -p.h / 2); w.restore(); }
     drawUnits(cam); drawParts(cam); drawFlames(cam); drawFx(cam);
     lighting();
     g.drawImage(wc, 0, 0);
@@ -919,6 +962,7 @@
       case "roar": { const pm = s; const ac = A.ac, bp = ac.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.setValueAtTime(500, t); bp.frequency.linearRampToValueAtTime(1100, t + 0.6); bp.frequency.linearRampToValueAtTime(600, t + 2); bp.Q.value = 2; const gg = ac.createGain(); gg.gain.setValueAtTime(0.0001, t); gg.gain.linearRampToValueAtTime(0.5, t + 0.2); gg.gain.setValueAtTime(0.4, t + 1.4); gg.gain.linearRampToValueAtTime(0.0001, t + 2.2); bp.connect(gg); gg.connect(A.fx); for (const [f0, f1] of [[180, 240], [270, 330], [120, 150]]) { const o = ac.createOscillator(); o.type = "sawtooth"; o.frequency.setValueAtTime(f0 * pm, t); o.frequency.linearRampToValueAtTime(f1 * pm, t + 0.5); o.frequency.linearRampToValueAtTime(f0 * 0.8 * pm, t + 2.2); const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 23; lg.gain.value = 18; lfo.connect(lg); lg.connect(o.frequency); o.connect(bp); o.start(t); o.stop(t + 2.3); lfo.start(t); lfo.stop(t + 2.3); } nz(t, 2, 0.15, 900, "bandpass", null, 1); break; }
       case "sweep": { const f = nz(t, 0.7, 0.35, 200, "bandpass", null, 1); f.frequency.exponentialRampToValueAtTime(1200, t + 0.5); tone("sine", 70, t, 0.6, 0.2, null, 40); break; }
       case "glass": for (let i = 0; i < 14; i++) nz(t + i * 0.02 + Math.random() * 0.03, 0.12, 0.12, 3000 + Math.random() * 4000, "bandpass", null, 4); nz(t, 0.3, 0.3, 2500, "highpass"); break;
+      case "creak": for (let i = 0; i < 3; i++) { tone("sawtooth", 90 + i * 20, t + i * 0.25, 0.5, 0.05, null, 60); nz(t + i * 0.25, 0.4, 0.12, 300, "bandpass", null, 3); } break;
       case "dash": nz(t, 0.3, 0.2, 300); tone("sine", 60, t, 0.2, 0.3, null, 35); break;
       case "slash": { for (let i = 0; i < 3; i++) { const f = nz(t + i * 0.025, 0.18, 0.22, 2500, "bandpass", null, 3); f.frequency.exponentialRampToValueAtTime(7000, t + i * 0.025 + 0.15); } break; }
       case "impact": tone("sine", 55, t, 1.2, 0.8, null, 24); nz(t, 1.6, 0.5, 260); nz(t, 0.3, 0.4, 1600, "bandpass"); for (let i = 0; i < 8; i++) nz(t + 0.1 + i * 0.07, 0.1, 0.1, rnd(500, 2500), "bandpass"); break;
@@ -949,7 +993,7 @@
   resetWorld(); G.mode = "title";
   let last = performance.now(), acc = 0, msAvg = 0;
   function loop(now) { acc += Math.min(0.1, (now - last) / 1000); last = now; while (acc >= 1 / 60) { update(); acc -= 1 / 60; } audioTick(); const t0 = performance.now(); render(); msAvg = lerp(msAvg, performance.now() - t0, 0.05); const z = G.zoom || 1; if (z > 1.002) { const sw = W / z, sh = H / z, cx = clamp(K.x - G.cam, sw / 2, W - sw / 2); vctx.drawImage(low, cx - sw / 2, (H - sh) * 0.75, sw, sh, 0, 0, view.width, view.height); } else vctx.drawImage(low, 0, 0, view.width, view.height); requestAnimationFrame(loop); }
-  window.Game = { G, K, KF, update, render, keys, resetWorld, low, ms: () => msAvg };
+  window.Game = { G, K, KF, epic: (b, k) => epicCollapse(b, k), update, render, keys, resetWorld, low, ms: () => msAvg };
   view.focus(); requestAnimationFrame(loop);
 })();
 </script>
