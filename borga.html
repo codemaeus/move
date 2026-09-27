@@ -453,7 +453,7 @@
     if (t === 16) { sfx("sweep"); G.fx.push({ k: "ono", s: "ブォンッ！", x: K.x - d * 10, y: GY - 128, t: 0, life: 30, c: [255, 236, 190] }); G.fx.push({ k: "sweep", x: K.x, y: GY - 38, dir: d, t: 0, life: 20 }); }
     if (t >= 17 && t <= 30 && t % 3 === 2) {
       const reach = lerp(40, 135, (t - 17) / 13), x0 = d > 0 ? K.x + 8 : K.x - reach, x1 = d > 0 ? K.x + reach : K.x - 8; G.lastHit = null;
-      if (hitRect(x0, GY - 82, x1, GY - 4, 5.2, { holes: 2, r: 11 })) { const hp = G.lastHit || [K.x + d * reach * 0.8, GY - 40]; hanabi(hp[0], hp[1], 0); if (!K.hitDone) { K.hitDone = true; G.stop = 8; G.shake = 15; G.flash = 5; G.zoom = 1.09; G.fx.push({ k: "ono", s: "ドガガッ！！", x: hp[0], y: hp[1] - 30, t: 0, life: 44, c: [255, 200, 120], big: 1 }); sfx("impact"); } else { G.stop = 3; G.shake = Math.max(G.shake, 7); sfx("crash"); } }
+      if (hitRect(x0, GY - 82, x1, GY - 4, 7.8, { holes: 2, r: 11 })) { const hp = G.lastHit || [K.x + d * reach * 0.8, GY - 40]; hanabi(hp[0], hp[1], 0); if (!K.hitDone) { K.hitDone = true; G.stop = 8; G.shake = 15; G.flash = 5; G.zoom = 1.09; G.fx.push({ k: "ono", s: "ドガガッ！！", x: hp[0], y: hp[1] - 30, t: 0, life: 44, c: [255, 200, 120], big: 1 }); sfx("impact"); } else { G.stop = 3; G.shake = Math.max(G.shake, 7); sfx("crash"); } }
       for (let i = 0; i < 3; i++) G.parts.push({ k: "chunk", x: K.x + d * reach * rnd(0.6, 1), y: GY, vx: d * rnd(1, 4), vy: rnd(-4, -1.5), t: 0, life: rnd(40, 80) | 0, c: [80, 78, 86], s: 2 });
       dust(K.x + d * reach, GY, 3, 1.3);
     }
