@@ -92,7 +92,7 @@
   function glyphInto(p, s, x, y, c, size = 12) { tcx.clearRect(0, 0, 480, 40); tcx.font = `${size}px ${PF}`; tcx.textBaseline = "top"; tcx.fillStyle = "#000"; tcx.fillText(s, 0, 0); const w = Math.ceil(tcx.measureText(s).width), d = tcx.getImageData(0, 0, w + 1, size + 2).data; for (let j = 0; j < size + 2; j++) for (let i = 0; i <= w; i++) if (d[(j * (w + 1) + i) * 4 + 3] > 110) p.P(x + i, y + j, c); return w; }
 
   // ---------- Volga, drawn from a skeleton so every pose keeps the same design ----------
-  const KC = { body: [58, 118, 72], bodyL: [92, 156, 96], bodyD: [36, 80, 52], bodyDD: [24, 52, 38], belly: [168, 150, 92], bellyD: [128, 112, 66], spB: [140, 70, 30], sp: [240, 136, 44], spL: [255, 206, 110], spC: [255, 252, 236], claw: [230, 226, 206], mouth: [120, 20, 24], mouthD: [70, 12, 18], teeth: [246, 242, 230], eye: [255, 236, 90], out: [14, 18, 14] };
+  const KC = { body: [36, 56, 42], bodyL: [62, 90, 66], bodyD: [23, 37, 29], bodyDD: [13, 22, 17], belly: [92, 90, 64], bellyD: [66, 64, 46], spB: [140, 70, 30], sp: [240, 136, 44], spL: [255, 206, 110], spC: [255, 252, 236], claw: [230, 226, 206], mouth: [120, 20, 24], mouthD: [70, 12, 18], teeth: [246, 242, 230], eye: [255, 236, 90], out: [6, 9, 7] };
   const KW = 236, KH = 184, AX = 112, AY = 180;
   function kaijuFrame(o, C = KC) {
     const p = painter(KW, KH), q = painter(KW, KH);
