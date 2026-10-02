@@ -186,6 +186,9 @@
   KPOSE.lj3 = { ...KPOSE.djump, lean: 0.55, by: -4, ff: [-34, 18], fb: [36, 32], af: 2.3, ab: -0.3, ta: PI + 0.15 };
   KPOSE.lj4 = { ...KPOSE.djump, lean: 0.62, by: -2, ff: [14, 38], fb: [-2, 30], af: 1.0, ab: 1.4, ta: PI + 0.2 };
   KPOSE.ljr = { ...KPOSE.djump, lean: 0.95, by: 2, ff: [44, 22], fb: [37, 17], af: 0.9, ab: 0.7, fold: -0.2, ta: PI + 0.45, curl: 0.03, ha: 0.45, jaw: 0.45 };
+  // the landing: the full weight comes down, knees fold deep and the tail slams the ground, then the body rises again
+  KPOSE.ljl0 = { ...KB, by: 18, lean: 0.75, ff: [28, 0], fb: [8, 0], af: 1.2, ab: 1.1, fold: 0.2, ha: 0.3, jaw: 0.6, ta: PI + 0.25, curl: 0.02 };
+  KPOSE.ljl1 = { ...KB, by: 27, lean: 0.62, ff: [23, 0], fb: [-13, 0], af: 1.55, ab: 1.45, fold: 0.5, ha: 0.28, jaw: 0.85, ta: PI - 0.06, curl: 0.01 };
   KPOSE.dfall = { ...KPOSE.djump, fb: [-14, 4], ff: [18, 6], lean: 0.45, ta: PI - 0.15 };
   const AIMS = [-0.75, -0.4, -0.05, 0.3, 0.6];
   AIMS.forEach((a, i) => { KPOSE["b" + i] = { ...KB, lean: 0.3, neck: 0.1 + a * 0.3, jaw: 0.95, af: 0.6, fold: -1.4, ha: a, fire: 1, ff: [15, 0], fb: [-14, 0] }; KPOSE["c" + i] = { ...KPOSE["b" + i], jaw: 0.8 }; });
@@ -194,7 +197,7 @@
   const CLAWK = { s: ["s0", "s1", "s2"], u: ["u0", "u1", "u2"] }, CLAWMAP = { s0: 0, s01: 0, s1: 1, s12: 2, s2: 2, u0: 0, u01: 0, u1: 1, u12: 2, u2: 2 };
   for (const a in CLAWK) CLAWK[a].forEach((ak, ai) => { const A = KPOSE[ak]; for (let q = 0; q < 8; q++) for (const [c, L] of [["cw", KPOSE["w" + q * 2]], ["cd", KPOSE["d" + q * 2]]]) KPOSE[c + a + ai + q] = { ...L, af: A.af, fold: A.fold, ha: A.ha, jaw: A.jaw, lean: (L.lean + A.lean) / 2 + 0.05, neck: c === "cd" ? -0.1 : 0 }; });
   for (const [a, b, n] of [["lj0", "lj1", "lj01"], ["lj1", "lj2", "lj12"], ["lj2", "lj3", "lj23"], ["lj3", "lj4", "lj34"], ["lj4", "ljr", "lj4r"]]) KPOSE[n] = mixPose(KPOSE[a], KPOSE[b], 0.5);
-  KPOSE.lj1ra = mixPose(KPOSE.lj1, KPOSE.ljr, 0.35); KPOSE.lj1rb = mixPose(KPOSE.lj1, KPOSE.ljr, 0.7);
+  KPOSE.ljl2 = mixPose(KPOSE.ljl1, KPOSE.pound, 0.5); KPOSE.lj1ra = mixPose(KPOSE.lj1, KPOSE.ljr, 0.35); KPOSE.lj1rb = mixPose(KPOSE.lj1, KPOSE.ljr, 0.7);
   KPOSE.tA = mixPose(KPOSE.t0, KPOSE.t1, 0.5); KPOSE.tB = mixPose(KPOSE.t1, KPOSE.t2, 0.5); KPOSE.tC = { ...KPOSE.t2, ta: KPOSE.t2.ta + 0.12, by: 9, lean: 0.55, jaw: 0.5 };
   const KF = {}, KFC = {}; for (const k in KPOSE) Object.defineProperty(KF, k, { enumerable: true, get: () => KFC[k] || (KFC[k] = kaijuFrame(KPOSE[k])) });
   for (const k of ["idle0", "idle1", "idle01", "roar0", "roar1"]) void KF[k]; for (let i = 0; i < 16; i++) void KF["w" + i];
@@ -555,7 +558,7 @@
     if (ACT[s]) { let k = ACT[s].frames[0][1]; for (const [t, fk] of ACT[s].frames) if (K.t >= t) k = fk; if (K.moving && CLAWMAP[k] != null) return (K.cdash ? "cd" : "cw") + s[0] + CLAWMAP[k] + (Math.floor(K.walk / (K.cdash ? 3 : 2)) % 16 >> 1); if (s === "roar" && K.t > 10) k = Math.floor(K.t / 3) % 2 ? "roar0" : "roar1"; return k; }
     if (s === "breath") return (Math.floor(G.t / 3) % 2 ? "b" : "c") + K.aim;
     if (s === "air") return K.pound ? "pound" : K.djump ? ljFrame() : K.vy < -1.2 ? "jump" : K.vy < 1.2 ? "apex" : "fall";
-    if (s === "land") return K.t < 12 ? "pound" : "rise1";
+    if (s === "land") return K.ljLand ? (K.t < 3 ? "ljl0" : K.t < 10 ? "ljl1" : K.t < 15 ? "ljl2" : "rise1") : K.t < 12 ? "pound" : "rise1";
     if (s === "hurt") return "hurt";
     if (s === "down") return "kneel";
     if (s === "rise") return K.t < 32 ? "kneel" : K.t < 40 ? "rise2" : "roar1";
@@ -870,8 +873,8 @@
       if (!K.pound) doFire();
       if (((pressed("down") && !K.firing) || pressed("jump")) && !K.pound && K.t > 6) { K.pound = true; K.vy = 7; if (K.firing) { K.firing = false; sfx("fireStop"); } sfx("whoosh"); }
       K.vy += K.pound ? 0.5 : 0.22; K.y += K.vy;
-      if (K.y >= 0) { K.y = 0; stomp(K.x, K.pound || K.vy > 6 || K.djump); K.state = "land"; K.t = 0; K.vy = 0; if (K.djump && !K.pound) { K.dash = btn(K.dir > 0 ? "right" : "left"); } K.djump = false; }
-    } else if (K.state === "land") { if (K.firing) doFire(); if (K.dash) K.state = "walk"; else if (K.t > 18) K.state = "idle"; }
+      if (K.y >= 0) { K.y = 0; stomp(K.x, K.pound || K.vy > 6 || K.djump); K.ljLand = K.djump && !K.pound; if (K.ljLand) { G.stop = Math.max(G.stop, 4); G.shake = Math.max(G.shake, 12); dust(K.x + K.dir * 20, GY + 2, 14, 1.8); G.fx.push({ k: "ono", s: "ズドォン！", x: K.x + K.dir * 10, y: GY - 120, t: 0, life: 32, c: [255, 220, 170], big: 1 }); } K.state = "land"; K.t = 0; K.vy = 0; if (K.djump && !K.pound) { K.dash = btn(K.dir > 0 ? "right" : "left"); } K.djump = false; }
+    } else if (K.state === "land") { if (K.firing) doFire(); if (K.ljLand && K.t < 18) { if (K.t < 8) K.x += K.dir * (8 - K.t) * 0.25; } else if (K.dash) { K.state = "walk"; K.ljLand = false; } else if (K.t > 18) { K.state = "idle"; K.ljLand = false; } }
     else if (K.state === "hurt") { if (K.t > 16) K.state = "idle"; }
     else if (K.state === "down") {
       if (K.held) release(false);
