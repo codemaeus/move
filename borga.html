@@ -179,6 +179,13 @@
   KPOSE.tw2 = { ...KB, lean: 0.36, by: 3, fb: [-18, 0], ff: [12, 0], ha: -0.1, jaw: 0.3, af: 1.2, ta: PI - 0.6, curl: -0.05, tw: 2 };
   KPOSE.djump = { ...KB, lean: 0.6, fb: [-20, 12], ff: [14, 16], by: 2, af: 1.6, ab: 1.5, fold: -0.4, neck: -0.2, ha: 0.1, jaw: 0.5, ta: PI + 0.08, curl: -0.015 };
   AIMS_PRE.forEach((a, ai) => { const up = { neck: 0.1 + a * 0.3, jaw: 0.95, ha: a, fire: 1, af: 0.5, fold: -1.3 }; KPOSE["fa" + ai] = { ...KPOSE.jump, ...up }; KPOSE["fda" + ai] = { ...KPOSE.djump, ...up, neck: -0.1 + a * 0.3 }; });
+  // long jump: drive the knee up off the board, cycle the legs through the air (hitch kick), then reach both feet forward to land
+  KPOSE.lj0 = { ...KPOSE.djump, lean: 0.38, by: -4, ff: [22, 36], fb: [-34, 0], af: -0.9, fold: -0.7, ab: 2.4, ta: PI + 0.05, jaw: 0.7, ha: -0.15 };
+  KPOSE.lj1 = { ...KPOSE.djump, lean: 0.48, by: -4, ff: [36, 30], fb: [-36, 12], af: -0.2, ab: 2.3, ta: PI + 0.1, jaw: 0.6 };
+  KPOSE.lj2 = { ...KPOSE.djump, lean: 0.52, by: -2, ff: [-6, 36], fb: [16, 38], af: 1.5, ab: 0.6, ta: PI + 0.12 };
+  KPOSE.lj3 = { ...KPOSE.djump, lean: 0.55, by: -4, ff: [-34, 18], fb: [36, 32], af: 2.3, ab: -0.3, ta: PI + 0.15 };
+  KPOSE.lj4 = { ...KPOSE.djump, lean: 0.62, by: -2, ff: [14, 38], fb: [-2, 30], af: 1.0, ab: 1.4, ta: PI + 0.2 };
+  KPOSE.ljr = { ...KPOSE.djump, lean: 0.95, by: 2, ff: [44, 22], fb: [37, 17], af: 0.9, ab: 0.7, fold: -0.2, ta: PI + 0.45, curl: 0.03, ha: 0.45, jaw: 0.45 };
   KPOSE.dfall = { ...KPOSE.djump, fb: [-14, 4], ff: [18, 6], lean: 0.45, ta: PI - 0.15 };
   const AIMS = [-0.75, -0.4, -0.05, 0.3, 0.6];
   AIMS.forEach((a, i) => { KPOSE["b" + i] = { ...KB, lean: 0.3, neck: 0.1 + a * 0.3, jaw: 0.95, af: 0.6, fold: -1.4, ha: a, fire: 1, ff: [15, 0], fb: [-14, 0] }; KPOSE["c" + i] = { ...KPOSE["b" + i], jaw: 0.8 }; });
@@ -186,6 +193,7 @@
   for (const [a, b, n] of [["s0", "s1", "s01"], ["s1", "s2", "s12"], ["u0", "u1", "u01"], ["u1", "u2", "u12"], ["tw0", "tw1", "tw01"], ["tw1", "tw2", "tw12"], ["tw2", "tw0", "tw20"], ["idle0", "idle1", "idle01"], ["roar0", "roar1", "roar01"], ["nova0", "nova1", "nova01"], ["jump", "fall", "apex"], ["pound", "idle0", "rise1"], ["kneel", "roar1", "rise2"]]) KPOSE[n] = mixPose(KPOSE[a], KPOSE[b], 0.5);
   const CLAWK = { s: ["s0", "s1", "s2"], u: ["u0", "u1", "u2"] }, CLAWMAP = { s0: 0, s01: 0, s1: 1, s12: 2, s2: 2, u0: 0, u01: 0, u1: 1, u12: 2, u2: 2 };
   for (const a in CLAWK) CLAWK[a].forEach((ak, ai) => { const A = KPOSE[ak]; for (let q = 0; q < 8; q++) for (const [c, L] of [["cw", KPOSE["w" + q * 2]], ["cd", KPOSE["d" + q * 2]]]) KPOSE[c + a + ai + q] = { ...L, af: A.af, fold: A.fold, ha: A.ha, jaw: A.jaw, lean: (L.lean + A.lean) / 2 + 0.05, neck: c === "cd" ? -0.1 : 0 }; });
+  for (const [a, b, n] of [["lj0", "lj1", "lj01"], ["lj1", "lj2", "lj12"], ["lj2", "lj3", "lj23"], ["lj3", "lj4", "lj34"], ["lj4", "ljr", "lj4r"]]) KPOSE[n] = mixPose(KPOSE[a], KPOSE[b], 0.5);
   KPOSE.tA = mixPose(KPOSE.t0, KPOSE.t1, 0.5); KPOSE.tB = mixPose(KPOSE.t1, KPOSE.t2, 0.5); KPOSE.tC = { ...KPOSE.t2, ta: KPOSE.t2.ta + 0.12, by: 9, lean: 0.55, jaw: 0.5 };
   const KF = {}, KFC = {}; for (const k in KPOSE) Object.defineProperty(KF, k, { enumerable: true, get: () => KFC[k] || (KFC[k] = kaijuFrame(KPOSE[k])) });
   for (const k of ["idle0", "idle1", "idle01", "roar0", "roar1"]) void KF[k]; for (let i = 0; i < 16; i++) void KF["w" + i];
@@ -538,12 +546,14 @@
   function kTurn() { if (K.state !== "tail") return 1; const t = K.t; if (t < 10) return 1; if (t < 15) return 1 - (t - 10) / 5 * 2; if (t < 42) return -1; if (t < 48) return -1 + (t - 42) / 6 * 2; return 1; }
   const kFace = () => kTurn() >= 0 ? K.dir : -K.dir;
   const worldF = (pt, d) => [K.x + pt[0] * d, GY + K.y + pt[1]];
+  const LJSEQ = [[0, "lj0"], [4, "lj01"], [7, "lj1"], [11, "lj12"], [13, "lj2"], [17, "lj23"], [19, "lj3"], [24, "lj34"], [26, "lj4"], [30, "lj4r"], [33, "ljr"]];
+  function ljFrame() { if (K.vy > 0 && K.y > -14) return "ljr"; let k = "lj0"; for (const [t, f] of LJSEQ) if (K.t >= t) k = f; return k; }
   function kFrame() {
     const s = K.state;
     if (K.firing) { if (s === "walk") { const q = Math.floor(K.walk / (K.dash ? 3 : 2)) % 16; return (K.dash ? "fd" : "fw") + K.aim + (q >> 1); } if (s === "air") return (K.djump ? "fda" : "fa") + K.aim; return (Math.floor(G.t / 3) % 2 ? "b" : "c") + K.aim; }
     if (ACT[s]) { let k = ACT[s].frames[0][1]; for (const [t, fk] of ACT[s].frames) if (K.t >= t) k = fk; if (K.moving && CLAWMAP[k] != null) return (K.cdash ? "cd" : "cw") + s[0] + CLAWMAP[k] + (Math.floor(K.walk / (K.cdash ? 3 : 2)) % 16 >> 1); if (s === "roar" && K.t > 10) k = Math.floor(K.t / 3) % 2 ? "roar0" : "roar1"; return k; }
     if (s === "breath") return (Math.floor(G.t / 3) % 2 ? "b" : "c") + K.aim;
-    if (s === "air") return K.pound ? "pound" : K.djump ? (K.vy < 0 ? "djump" : "dfall") : K.vy < -1.2 ? "jump" : K.vy < 1.2 ? "apex" : "fall";
+    if (s === "air") return K.pound ? "pound" : K.djump ? ljFrame() : K.vy < -1.2 ? "jump" : K.vy < 1.2 ? "apex" : "fall";
     if (s === "land") return K.t < 12 ? "pound" : "rise1";
     if (s === "hurt") return "hurt";
     if (s === "down") return "kneel";
@@ -1424,7 +1434,7 @@
   resetWorld(); G.mode = "title";
   let last = performance.now(), acc = 0, msAvg = 0;
   function loop(now) { acc += Math.min(0.1, (now - last) / 1000); last = now; while (acc >= 1 / 60) { update(); acc -= 1 / 60; } audioTick(); const t0 = performance.now(); render(); msAvg = lerp(msAvg, performance.now() - t0, 0.05); const z = G.zoom || 1; if (z > 1.002) { const sw = W / z, sh = H / z, cx = clamp((G.zoomHold > 0 && G.zoomX != null ? G.zoomX : K.x) - G.cam, sw / 2, W - sw / 2); vctx.drawImage(low, cx - sw / 2, (H - sh) * 0.75, sw, sh, 0, 0, view.width, view.height); } else vctx.drawImage(low, 0, 0, view.width, view.height); requestAnimationFrame(loop); }
-  window.Game = { G, K, KF, HF, lightning: () => lightning(), blowTank: b => blowTank(b), pylonDown: p => pylonDown(p), spawnBoss: k => spawnRival(k), get R() { return R; }, epic: (b, k) => epicCollapse(b, k), carve: (b, x, y, r) => carve(b, x, y, r), update, render, keys, resetWorld, low, ms: () => msAvg };
+  window.Game = { G, K, KF, HF, kFrame: () => kFrame(), lightning: () => lightning(), blowTank: b => blowTank(b), pylonDown: p => pylonDown(p), spawnBoss: k => spawnRival(k), get R() { return R; }, epic: (b, k) => epicCollapse(b, k), carve: (b, x, y, r) => carve(b, x, y, r), update, render, keys, resetWorld, low, ms: () => msAvg };
   view.focus(); requestAnimationFrame(loop);
 })();
 </script>
