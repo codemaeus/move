@@ -1,0 +1,772 @@
+<title>汐見坂の箱庭</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Zen+Maru+Gothic:wght@500;700&display=swap">
+<style>
+  /* layout: the diorama fills the window; a title plate floats top-left, the controls sit on a rail along the bottom, a resident card slides in at the right */
+  :root {
+    --ink: #f4ead6;
+    --dim: #b8ad9c;
+    --panel: rgba(20, 17, 28, 0.74);
+    --line: rgba(255, 226, 180, 0.2);
+    --lamp: #ffb45a;
+    --sea: #7fd0e2;
+    --night: #0c0b14;
+    --display: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
+    --dot: "DotGothic16", "MS Gothic", "Osaka-Mono", monospace;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--night); color: var(--ink); font-family: var(--display); overflow: hidden; }
+  #stage { position: fixed; inset: 0; }
+  #gl { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  #gl.drag { cursor: grabbing; }
+  #gl.pix { image-rendering: pixelated; }
+  .plate { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); top: calc(14px + env(safe-area-inset-top, 0px)); padding: 12px 16px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; backdrop-filter: blur(6px); max-width: min(320px, calc(100vw - 32px)); }
+  .plate h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 0.08em; text-wrap: balance; }
+  .plate .ruby { font-family: var(--dot); font-size: 11px; color: var(--dim); letter-spacing: 0.25em; }
+  .plate .clock { display: flex; gap: 10px; align-items: baseline; margin-top: 6px; font-family: var(--dot); }
+  .plate .clock b { font-size: 26px; font-weight: 400; color: var(--lamp); font-variant-numeric: tabular-nums; }
+  .plate .clock span { font-size: 13px; color: var(--ink); }
+  .plate .stat { margin-top: 4px; font-family: var(--dot); font-size: 12px; color: var(--dim); }
+  .rail { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; background: linear-gradient(to top, rgba(10, 9, 16, 0.86), rgba(10, 9, 16, 0.55)); border-top: 1px solid var(--line); font-family: var(--dot); font-size: 13px; }
+  .group { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .group > .lab { color: var(--dim); font-size: 11px; letter-spacing: 0.15em; margin-right: 2px; }
+  button { font: inherit; color: var(--ink); background: rgba(255, 240, 210, 0.07); border: 1px solid var(--line); border-radius: 3px; padding: 5px 9px; cursor: pointer; }
+  button:hover { background: rgba(255, 240, 210, 0.16); }
+  button[aria-pressed="true"] { background: var(--lamp); color: #1b1208; border-color: var(--lamp); }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--sea); outline-offset: 2px; }
+  #time { width: min(260px, 52vw); accent-color: var(--lamp); }
+  .card { position: fixed; right: 16px; top: calc(14px + env(safe-area-inset-top, 0px)); width: min(260px, calc(100vw - 32px)); padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; backdrop-filter: blur(6px); font-family: var(--dot); }
+  .card .who { display: flex; gap: 10px; align-items: center; }
+  .card canvas { width: 48px; height: 48px; image-rendering: pixelated; background: rgba(255, 240, 210, 0.06); border-radius: 3px; }
+  .card h2 { margin: 0; font-family: var(--display); font-size: 17px; }
+  .card .role { color: var(--dim); font-size: 12px; }
+  .card p { margin: 8px 0 10px; font-size: 13px; line-height: 1.6; }
+  .card .row { display: flex; gap: 6px; }
+  .hint { position: fixed; left: 50%; top: calc(16px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); font-family: var(--dot); font-size: 12px; color: var(--dim); background: var(--panel); padding: 5px 10px; border-radius: 3px; border: 1px solid var(--line); transition: opacity 1s; pointer-events: none; white-space: nowrap; }
+  @media (max-width: 640px) { .hint { display: none; } .plate h1 { font-size: 18px; } .plate .clock b { font-size: 21px; } .card { top: auto; bottom: 150px; } }
+  @media (prefers-reduced-motion: reduce) { .hint { transition: none; } }
+</style>
+
+<div id="stage"><canvas id="gl" aria-label="汐見坂の町の箱庭。ドラッグで回転、ホイールやピンチで拡大縮小、住人をクリックすると詳しく見られます"></canvas></div>
+<div class="plate">
+  <div class="ruby">しおみざか</div>
+  <h1>汐見坂の箱庭</h1>
+  <div class="clock"><b id="clk">17:00</b><span id="phase">夕暮れ</span></div>
+  <div class="stat" id="stat">住人 44人</div>
+</div>
+<div class="hint" id="hint">ドラッグで回す ／ ホイールで寄る ／ 住人をクリック</div>
+<div class="card" id="card" hidden>
+  <div class="who"><canvas id="face" width="16" height="16"></canvas><div><h2 id="cname">名前</h2><div class="role" id="crole">役</div></div></div>
+  <p id="cdo">…</p>
+  <div class="row"><button id="cfollow" type="button">追いかける</button><button id="cclose" type="button">閉じる</button></div>
+</div>
+<div class="rail">
+  <div class="group"><span class="lab">時刻</span><input id="time" type="range" min="0" max="24" step="0.05" value="17" aria-label="時刻"><button id="spd0" type="button" aria-pressed="false">停止</button><button id="spd1" type="button" aria-pressed="true">×1</button><button id="spd4" type="button" aria-pressed="false">×6</button></div>
+  <div class="group"><span class="lab">天気</span><button id="w-clear" type="button" aria-pressed="true">晴れ</button><button id="w-rain" type="button" aria-pressed="false">雨</button><button id="w-fog" type="button" aria-pressed="false">霧</button></div>
+  <div class="group"><span class="lab">視点</span><button id="v-all" type="button" aria-pressed="true">全景</button><button id="v-port" type="button" aria-pressed="false">港</button><button id="v-alley" type="button" aria-pressed="false">路地</button><button id="v-light" type="button" aria-pressed="false">灯台から</button><button id="v-ferry" type="button" aria-pressed="false">連絡船</button><button id="v-res" type="button" aria-pressed="false">住人を追う</button></div>
+  <div class="group"><button id="pix" type="button" aria-pressed="false">ドット風</button><button id="snd" type="button" aria-pressed="false">音</button></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<script>
+(() => {
+  "use strict";
+  const T = THREE, $ = s => document.querySelector(s);
+  const cv = $("#gl");
+  const renderer = new T.WebGLRenderer({ canvas: cv, antialias: true, powerPreference: "high-performance" });
+  let pixMode = false;
+  renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
+  const scene = new T.Scene();
+  const camera = new T.PerspectiveCamera(36, 1, 0.3, 600);
+  function resize() { const w = cv.clientWidth || innerWidth, h = cv.clientHeight || innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+  addEventListener("resize", resize);
+
+  // ---------- small helpers ----------
+  function rng(seed) { let a = seed >>> 0; return () => { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const R = rng(20261002), rr = (a, b) => a + R() * (b - a), pick = a => a[Math.floor(R() * a.length)];
+  const lerp = (a, b, t) => a + (b - a) * t, clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  const C = h => new T.Color(h);
+  const MC = new Map();
+  const mat = (c, extra) => { const k = c + (extra ? JSON.stringify(extra) : ""); if (!MC.has(k)) MC.set(k, new T.MeshLambertMaterial(Object.assign({ color: c }, extra || {}))); return MC.get(k); };
+  function put(mesh, cast = true, recv = true) { mesh.castShadow = cast; mesh.receiveShadow = recv; scene.add(mesh); return mesh; }
+  // a box whose bottom sits at y0
+  function boxB(w, h, d, m, x, y0, z, cast = true) { const b = new T.Mesh(new T.BoxGeometry(w, h, d), typeof m === "number" ? mat(m) : m); b.position.set(x, y0 + h / 2, z); return put(b, cast, true); }
+  function cyl(r0, r1, h, m, x, y0, z, seg = 10, cast = true) { const c = new T.Mesh(new T.CylinderGeometry(r0, r1, h, seg), typeof m === "number" ? mat(m) : m); c.position.set(x, y0 + h / 2, z); return put(c, cast, true); }
+  function canvasTex(w, h, draw, near = true) { const c = document.createElement("canvas"); c.width = w; c.height = h; draw(c.getContext("2d"), w, h); const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; if (near) { t.magFilter = T.NearestFilter; } return t; }
+  const texRep = (base, rx, ry) => { const t = base.clone(); t.needsUpdate = true; t.repeat.set(rx, ry); return t; };
+
+  // ---------- textures ----------
+  const STONE = canvasTex(64, 32, (g, w, h) => { const r = rng(7); g.fillStyle = "#7d776c"; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 8) { let x = (y / 8) % 2 ? -8 : 0; while (x < w) { const bw = 12 + Math.floor(r() * 10), s = 104 + Math.floor(r() * 30); g.fillStyle = `rgb(${s + 8},${s + 4},${s - 6})`; g.fillRect(x + 1, y + 1, bw - 1, 7); g.fillStyle = "rgba(255,255,255,0.08)"; g.fillRect(x + 1, y + 1, bw - 1, 1); x += bw; } } g.fillStyle = "#58693f"; for (let x = 0; x < w; x++) if (r() < 0.6) g.fillRect(x, 0, 1, 1 + Math.floor(r() * 2)); });
+  const SOIL = canvasTex(64, 64, (g, w, h) => { const r = rng(9); const bands = [["#5f8a3e", 4], ["#6a4a30", 14], ["#7a573a", 12], ["#5e4330", 16], ["#6f6458", 18]]; let y = 0; for (const [c, bh] of bands) { g.fillStyle = c; g.fillRect(0, y, w, bh); y += bh; } for (let i = 0; i < 90; i++) { g.fillStyle = r() < 0.5 ? "rgba(40,28,20,0.5)" : "rgba(170,150,120,0.5)"; g.fillRect(Math.floor(r() * w), 5 + Math.floor(r() * 58), 1 + Math.floor(r() * 3), 1 + Math.floor(r() * 2)); } });
+  const ROCK = canvasTex(64, 32, (g, w, h) => { const r = rng(11); g.fillStyle = "#4b4038"; g.fillRect(0, 0, w, h); for (let i = 0; i < 70; i++) { g.fillStyle = r() < 0.5 ? "#5c5047" : "#3b322c"; g.fillRect(Math.floor(r() * w), Math.floor(r() * h), 2 + Math.floor(r() * 5), 1 + Math.floor(r() * 3)); } });
+  const SEAWALL = canvasTex(32, 64, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, "rgba(120,200,220,0.55)"); gr.addColorStop(1, "rgba(10,40,70,0.85)"); g.fillStyle = gr; g.fillRect(0, 0, w, h); }, false);
+  const HALO = canvasTex(64, 64, (g, w, h) => { const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, "rgba(255,240,210,1)"); gr.addColorStop(0.25, "rgba(255,190,110,0.55)"); gr.addColorStop(1, "rgba(255,150,60,0)"); g.fillStyle = gr; g.fillRect(0, 0, w, h); }, false);
+  const PUFF = canvasTex(64, 64, (g, w, h) => { const gr = g.createRadialGradient(32, 32, 0, 32, 32, 30); gr.addColorStop(0, "rgba(255,255,255,0.9)"); gr.addColorStop(0.6, "rgba(255,255,255,0.35)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, w, h); }, false);
+  const STREAK = canvasTex(16, 128, (g, w, h) => { for (let y = 0; y < h; y += 3) { const a = (1 - y / h) * (0.4 + 0.6 * Math.abs(Math.sin(y * 0.7))); g.fillStyle = `rgba(255,255,255,${a.toFixed(3)})`; const ww = Math.round(w * (0.4 + 0.6 * Math.abs(Math.sin(y * 1.3)))); g.fillRect((w - ww) >> 1, y, ww, 2); } }, false);
+
+  // ---------- the box: bedrock slab, terraces climbing from the harbour, a cut-away sea ----------
+  const SEA_Z = 9, WATER_Y = 0.2;
+  boxB(40, 3, 40, [new T.MeshLambertMaterial({ map: texRep(ROCK, 6, 1) }), new T.MeshLambertMaterial({ map: texRep(ROCK, 6, 1) }), mat(0xc9b48a), mat(0x222222), new T.MeshLambertMaterial({ map: texRep(ROCK, 6, 1) }), new T.MeshLambertMaterial({ map: texRep(ROCK, 6, 1) })], 0, -6, 0, false);
+  const PAVE = 0xa79d8d, STREET = 0xbdb3a2, GRASS = 0x6f8f4c;
+  function terrace(x0, x1, z0, z1, top, front = "stone") {
+    const w = x1 - x0, d = z1 - z0, h = top + 3;
+    const side = (kind, len) => new T.MeshLambertMaterial({ map: kind === "stone" ? texRep(STONE, len / 3, h / 1.6) : texRep(SOIL, len / 7, 1) });
+    const m = new T.Mesh(new T.BoxGeometry(w, h, d), [side(x1 >= 20 ? "soil" : "stone", d), side(x0 <= -20 ? "soil" : "stone", d), mat(PAVE), mat(0x222222), side(front, w), side(z0 <= -20 ? "soil" : "stone", w)]);
+    m.position.set((x0 + x1) / 2, -3 + h / 2, (z0 + z1) / 2); put(m, false, true);
+  }
+  const TER = { T0: 0.8, T1: 2.8, T2: 4.8, T3: 6.8 };
+  terrace(-20, 20, 1.5, SEA_Z, TER.T0);
+  terrace(-20, 20, -5.5, 1.5, TER.T1);
+  terrace(-20, 20, -12.5, -5.5, TER.T2);
+  terrace(-2, 20, -20, -12.5, TER.T2);
+  terrace(-20, -2, -20, -12.5, TER.T3);
+  const strip = (x0, x1, z0, z1, y, c = STREET) => { const s = new T.Mesh(new T.BoxGeometry(x1 - x0, 0.04, z1 - z0), mat(c)); s.position.set((x0 + x1) / 2, y + 0.02, (z0 + z1) / 2); put(s, false, true); };
+  strip(-20, 20, 6.1, SEA_Z, TER.T0); strip(-20, 20, -0.05, 1.5, TER.T1); strip(-20, 20, -7.0, -5.5, TER.T2); strip(-20, -2, -14, -12.5, TER.T3);
+  strip(-1.6, 19.6, -19.6, -12.8, TER.T2, 0xc9b58f); // schoolyard
+  strip(-20, -2, -20, -14, TER.T3, GRASS);
+  // quay edge stones and bollards
+  for (let x = -19.5; x < 20; x += 1) boxB(0.98, 0.12, 0.35, 0x8f887c, x, TER.T0, SEA_Z - 0.2, false);
+  for (let x = -17; x < 18; x += 5.5) cyl(0.12, 0.15, 0.32, 0x3a3a3e, x + 1.3, TER.T0, SEA_Z - 0.45, 8);
+
+  // sea: a translucent block you can see into from the front and sides, with a moving surface
+  const seaBox = new T.Mesh(new T.BoxGeometry(40, 3 + WATER_Y, 20 - SEA_Z), [new T.MeshBasicMaterial({ map: SEAWALL, transparent: true, depthWrite: false }), new T.MeshBasicMaterial({ map: SEAWALL, transparent: true, depthWrite: false }), new T.MeshBasicMaterial({ visible: false }), new T.MeshBasicMaterial({ visible: false }), new T.MeshBasicMaterial({ map: SEAWALL, transparent: true, depthWrite: false }), new T.MeshBasicMaterial({ visible: false })]);
+  seaBox.position.set(0, (-3 + WATER_Y) / 2, (SEA_Z + 20) / 2); seaBox.renderOrder = 2; scene.add(seaBox);
+  const waterGeo = new T.PlaneGeometry(40, 20 - SEA_Z, 64, 18); waterGeo.rotateX(-Math.PI / 2);
+  const waterMat = new T.MeshPhongMaterial({ color: 0x2f7fa0, specular: 0xbfd8e8, shininess: 70, transparent: true, opacity: 0.82, depthWrite: false });
+  const water = new T.Mesh(waterGeo, waterMat); water.position.set(0, WATER_Y, (SEA_Z + 20) / 2); water.receiveShadow = true; water.renderOrder = 3; scene.add(water);
+  const wBase = waterGeo.attributes.position.array.slice();
+  // a little sand beach in the west corner, seaweed rocks on the floor
+  { const b = new T.Mesh(new T.BoxGeometry(7, 3.3, 3.5), mat(0xd9c49a)); b.position.set(-16.5, -3 + 1.65, 10.75); put(b, false, true); }
+  for (let i = 0; i < 26; i++) { const r = new T.Mesh(new T.DodecahedronGeometry(rr(0.2, 0.6)), mat(pick([0x5a5650, 0x6b6358, 0x4f5a46]))); r.position.set(rr(-19, 19), -2.9, rr(SEA_Z + 1, 19.5)); scene.add(r); }
+
+  // ---------- path graph for the residents ----------
+  const nodes = [], adj = [];
+  function node(x, y, z, tag) { nodes.push({ x, y, z, tag, i: nodes.length }); adj.push([]); return nodes.length - 1; }
+  function link(a, b) { if (a === b || adj[a].includes(b)) return; adj[a].push(b); adj[b].push(a); }
+  const streets = {};
+  function street(name, y, z, x0, x1, step = 3) { const ids = []; for (let x = x0; x <= x1 + 0.01; x += step) ids.push(node(x, y, z, name)); for (let i = 1; i < ids.length; i++) link(ids[i - 1], ids[i]); streets[name] = ids; return ids; }
+  function nearestOn(name, x) { let best = null, bd = 1e9; for (const id of streets[name]) { const d = Math.abs(nodes[id].x - x); if (d < bd) { bd = d; best = id; } } return best; }
+  street("T0", TER.T0, 7.4, -19, 19, 2);
+  street("T1", TER.T1, 0.7, -19, 19, 2);
+  street("T2", TER.T2, -6.3, -19, 19, 2);
+  street("T3", TER.T3, -13.3, -19, -3, 2);
+  street("YARD", TER.T2, -13.6, 0, 18, 3);
+
+  // stairs: a flight of stone steps up the retaining wall, through an alley in the houses below
+  const STAIRS = [[TER.T0, TER.T1, 1.5, [-12, 1, 11], "T0", "T1"], [TER.T1, TER.T2, -5.5, [-15, 3, 13], "T1", "T2"], [TER.T2, TER.T3, -12.5, [-11], "T2", "T3"]];
+  const alleys = { T0: [], T1: [], T2: [] };
+  for (const [y0, y1, zf, xs, lo, hi] of STAIRS) for (const sx of xs) {
+    const n = 8, L = 2.2;
+    for (let i = 0; i < n; i++) { const hgt = (y1 - y0) * (i + 1) / n; boxB(1.3, hgt, L / n + 0.01, 0x9a9283, sx, y0, zf + L - (i + 0.5) * L / n, false); }
+    boxB(0.1, 0.9, L, 0x6d6658, sx - 0.7, y0 + (y1 - y0) / 2, zf + L / 2, false); // handrail wall
+    const a = nearestOn(lo, sx), b = node(sx, y0, zf + L + 0.4, "stairfoot"), c = node(sx, y1, zf - 0.2, "stairtop"), d = nearestOn(hi, sx);
+    const mid = node(sx, y0, nodes[a].z - (nodes[a].z - (zf + L + 0.4)) / 2, "alley");
+    link(a, mid); link(mid, b); link(b, c); link(c, d); alleys[lo].push(sx);
+  }
+  // to the schoolyard (same height as T2) through an alley
+  { const a = nearestOn("T2", 7), m = node(7, TER.T2, -10, "alley"); link(a, m); link(m, nearestOn("YARD", 6)); alleys.T2.push(7); }
+  // piers, breakwater, beach
+  const SP = {};
+  { const q = nearestOn("T0", -6), p1 = node(-6, 0.55, 9.8, "pier"), p2 = node(-6, 0.55, 12, "pier"), p3 = node(-6, 0.55, 14.1, "pier"); link(q, p1); link(p1, p2); link(p2, p3); SP.pierA = p3; SP.pierAmid = p2; }
+  { const q = nearestOn("T0", 5), p1 = node(6, 0.6, 10, "pier"), p2 = node(6, 0.6, 13, "pier"), p3 = node(6, 0.6, 15.2, "pier"); link(q, p1); link(p1, p2); link(p2, p3); SP.ferry = p3; }
+  { const q = nearestOn("T0", 19), b1 = node(18.2, 0.95, 10.2, "break"), b2 = node(18.2, 0.95, 13.4, "break"), b3 = node(18.2, 0.95, 16.4, "break"); link(q, b1); link(b1, b2); link(b2, b3); SP.lighthouse = b3; SP.breakwater = b2; }
+  { const q = nearestOn("T0", -16), s1 = node(-16.5, 0.35, 10.4, "beach"), s2 = node(-18.5, 0.35, 11.3, "beach"), s3 = node(-14.6, 0.35, 11.6, "beach"); link(q, s1); link(s1, s2); link(s1, s3); SP.beach = s1; }
+  { const t = nearestOn("T3", -11), s = node(-11, TER.T3, -16.1, "shrine"); link(t, s); SP.shrine = s; SP.lookout = nearestOn("T3", -17); }
+  SP.school = nearestOn("YARD", 9); SP.yard = nearestOn("YARD", 15);
+  SP.quay = streets.T0.filter(id => nodes[id].x > -14 && nodes[id].x < 16);
+  SP.shotengai = streets.T0.filter(id => nodes[id].x >= -18 && nodes[id].x <= 3);
+  SP.bench1 = nearestOn("T0", -12); SP.bench2 = nearestOn("T0", 2);
+
+  // ---------- houses ----------
+  const houses = [], wins = [];
+  const WALLS = [0xe9e2d0, 0xd9cdb0, 0x9b7b5a, 0x7f6a55, 0xc9d3d6, 0xe7cfc4, 0xb7c2b0, 0xf0e6cf];
+  const ROOFS = [0x4a5568, 0x3d4a5c, 0x8a4a3a, 0x3f6f6a, 0x6b5a4a, 0x2f3a4a, 0x9a6a3e];
+  function gableGeo(w, d, rh) {
+    const hw = w / 2, hd = d / 2, v = [-hw, 0, hd, hw, 0, hd, hw, rh, 0, -hw, 0, hd, hw, rh, 0, -hw, rh, 0, hw, 0, -hd, -hw, 0, -hd, -hw, rh, 0, hw, 0, -hd, -hw, rh, 0, hw, rh, 0, -hw, 0, -hd, -hw, 0, hd, -hw, rh, 0, hw, 0, hd, hw, 0, -hd, hw, rh, 0];
+    const g = new T.BufferGeometry(); g.setAttribute("position", new T.Float32BufferAttribute(v, 3)); g.computeVertexNormals(); return g;
+  }
+  const winGlass = [];
+  function addWin(x, y, z, w, h, ry, house, shop = false) { wins.push({ x, y, z, w, h, ry, house, on: shop ? rr(16.6, 17.6) : rr(17.1, 19.6), off: shop ? rr(21, 22.8) : rr(21.5, 25.6), mOn: R() < 0.3 ? rr(4.6, 6.4) : 99, c: shop ? C(0xfff0c8) : C(pick([0xffd28a, 0xffc070, 0xffe2a8, 0xfff1d0, 0xffb060])), never: !shop && R() < 0.12 }); }
+  function house(o) {
+    const { x, z, y0, w, d } = o, st = o.st || 1, H = st * 1.1 + 0.15, wall = o.wall ?? pick(WALLS), roof = o.roof ?? pick(ROOFS);
+    const h = { x, z, y0, w, d, home: 0, door: null, kind: o.kind || "house", label: o.label };
+    boxB(w, H, d, wall, x, y0, z);
+    boxB(w + 0.04, 0.12, d + 0.04, 0x5d5348, x, y0, z, false);
+    if (o.flat) { boxB(w + 0.1, 0.16, d + 0.1, 0x8d8a84, x, y0 + H, z); boxB(w + 0.1, 0.25, 0.08, 0x8d8a84, x, y0 + H, z + d / 2); }
+    else { const rf = new T.Mesh(gableGeo(w + 0.3, d + 0.45, 0.55 + d * 0.12), mat(roof)); rf.position.set(x, y0 + H, z); put(rf); if (R() < 0.3) boxB(0.22, 0.6, 0.22, 0x6a5a50, x + rr(-w / 3, w / 3), y0 + H, z - d / 5); }
+    const fz = z + d / 2 + 0.012;
+    for (let s = 0; s < st; s++) {
+      if (o.shop && s === 0) continue;
+      const n = Math.max(1, Math.round(w / 0.95));
+      for (let i = 0; i < n; i++) addWin(x - w / 2 + (i + 0.5) * w / n, y0 + 0.62 + s * 1.1, fz, 0.36, 0.42, 0, h);
+      if (o.side !== false && R() < 0.45) addWin(x + w / 2 + 0.012, y0 + 0.62 + s * 1.1, z + rr(-d / 4, d / 4), 0.36, 0.42, Math.PI / 2, h);
+      if (R() < 0.3) addWin(x - w / 2 - 0.012, y0 + 0.62 + s * 1.1, z + rr(-d / 4, d / 4), 0.36, 0.42, -Math.PI / 2, h);
+    }
+    if (o.shop) {
+      addWin(x, y0 + 0.5, fz, w * 0.8, 0.62, 0, h, true);
+      const aw = new T.Mesh(new T.BoxGeometry(w + 0.1, 0.06, 0.6), mat(o.awning || pick([0xb8483a, 0x2f6a8a, 0x3f7a4a, 0xc49a3a, 0x7a4a7a]))); aw.position.set(x, y0 + 1.08, z + d / 2 + 0.28); aw.rotation.x = 0.28; put(aw);
+      boxB(w * 0.9, 0.28, 0.06, o.sign || 0x2d2a2a, x, y0 + 1.15, z + d / 2 + 0.03, false);
+    } else {
+      const dx = x + rr(-w / 4, w / 4), door = new T.Mesh(new T.PlaneGeometry(0.42, 0.78), mat(pick([0x5a3d2a, 0x3e2e22, 0x6a4a36]))); door.position.set(dx, y0 + 0.39, fz); scene.add(door); h.dx = dx;
+    }
+    if (o.laundry) { const by = y0 + 1.35; boxB(w * 0.8, 0.08, 0.3, 0x7a6a5a, x, by - 0.1, z + d / 2 + 0.15, false); for (let i = 0; i < 3; i++) { const cl = new T.Mesh(new T.PlaneGeometry(0.22, 0.28), new T.MeshLambertMaterial({ color: pick([0xf2f2f2, 0x7aa6d6, 0xe6a6b0, 0xf0d070]), side: T.DoubleSide })); cl.position.set(x - w * 0.3 + i * w * 0.3, by + 0.2, z + d / 2 + 0.3); scene.add(cl); laundry.push(cl); } }
+    houses.push(h); return h;
+  }
+  const laundry = [];
+  // fill a row of houses between x0 and x1, keeping alleys free
+  function row(y0, zFront, dMin, dMax, x0, x1, opts = {}) {
+    const keep = opts.keep || [], out = [];
+    let x = x0;
+    while (x < x1 - 1.2) {
+      const w = rr(opts.wMin || 1.6, opts.wMax || 2.7), cx = x + w / 2;
+      if (keep.some(k => Math.abs(k - cx) < w / 2 + 0.8) || (opts.skip && opts.skip(cx)) || (!opts.dense && R() < 0.08)) { x += 1.0; continue; }
+      if (x + w > x1) break;
+      const d = rr(dMin, dMax), h = house(Object.assign({ x: cx, z: zFront - d / 2, y0, w, d, st: opts.st ? opts.st() : (R() < 0.45 ? 2 : 1) }, opts.extra ? opts.extra() : {}));
+      out.push(h); x += w + rr(0.05, 0.35);
+    }
+    return out;
+  }
+  // T0: shopping street to the west, warehouses and the fish market to the east
+  const shopRow = row(TER.T0, 5.8, 2.4, 2.9, -19.5, 4.2, { keep: alleys.T0.concat([-6]), dense: true, st: () => R() < 0.6 ? 2 : 1, extra: () => ({ shop: true, side: false }) });
+  for (const [x, w] of [[9.6, 4.2], [14.2, 4.0]]) { const hz = house({ x, z: 3.8, y0: TER.T0, w, d: 3.6, st: 2, wall: pick([0x8a9aa0, 0x9a8a78]), roof: 0x5a6670, side: false, kind: "warehouse" }); boxB(1.6, 1.4, 0.05, 0x3a3a40, x, TER.T0, 3.8 + 1.81, false); }
+  { const y = TER.T0; for (const [px, pz] of [[16.8, 6.3], [19.3, 6.3], [16.8, 2.4], [19.3, 2.4]]) boxB(0.15, 1.6, 0.15, 0x6a5a4a, px, y, pz); const rf = new T.Mesh(gableGeo(3.2, 4.6, 0.6), mat(0x4a6670)); rf.position.set(18.05, y + 1.6, 4.35); put(rf); for (let i = 0; i < 4; i++) boxB(0.7, 0.3, 0.45, pick([0x3f6fa0, 0xc0c4c8, 0x2f8a6a]), 17.2 + (i % 2) * 1.3, y, 3.6 + Math.floor(i / 2) * 1.4); }
+  // T1: front row homes (with the bathhouse and the inn), back row roofs
+  const sentoX = -6;
+  const inn = house({ x: 6.6, z: -1.5, y0: TER.T1, w: 3.6, d: 2.8, st: 2, wall: 0xe8dcc0, roof: 0x3d4a5c, kind: "inn", label: "旅館 しおさい" });
+  const sento = house({ x: sentoX, z: -1.6, y0: TER.T1, w: 3.4, d: 3.0, st: 1, wall: 0xd8cbb0, roof: 0x3f5a6a, kind: "sento", label: "銭湯 汐の湯" });
+  cyl(0.28, 0.36, 5.2, 0x8a5a44, sentoX + 1.2, TER.T1, -2.4, 10); boxB(0.7, 0.7, 0.06, 0x2e4a7a, sentoX, TER.T1 + 0.5, -0.08, false);
+  const front1 = row(TER.T1, -0.1, 2.0, 2.4, -19.5, 19.5, { keep: alleys.T1.concat([-12, 1, 11, sentoX, 6.6]), extra: () => ({ laundry: R() < 0.25 }) });
+  row(TER.T1, -2.9, 2.0, 2.4, -19.5, 19.5, { keep: [-15, 3, 13], side: false });
+  // T2: front and back rows, the fire lookout, an alley to the school
+  const front2 = row(TER.T2, -7.0, 2.0, 2.3, -19.5, 19.5, { keep: alleys.T2.concat([-15, 3, 13, -11, 7]), extra: () => ({ laundry: R() < 0.2 }) });
+  row(TER.T2, -9.8, 2.0, 2.3, -19.5, -2.4, { keep: [-11] });
+  row(TER.T2, -9.8, 2.0, 2.3, 0, 19.5, { keep: [7, 12] });
+  // fire lookout tower
+  { const fx = 12.2, fz = -11.6, y = TER.T2; for (const [ox, oz] of [[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]]) { const leg = new T.Mesh(new T.CylinderGeometry(0.05, 0.07, 6.4, 5), mat(0x5a4a40)); leg.position.set(fx + ox * 0.75, y + 3.2, fz + oz * 0.75); leg.rotation.z = -ox * 0.06; leg.rotation.x = oz * 0.06; put(leg); } for (let k = 1; k < 6; k++) boxB(1.1 - k * 0.06, 0.05, 1.1 - k * 0.06, 0x5a4a40, fx, y + k * 1.1, fz, false); boxB(1.0, 0.08, 1.0, 0x5a4a40, fx, y + 6.1, fz); const rf = new T.Mesh(new T.ConeGeometry(0.85, 0.6, 4), mat(0x3a3a3a)); rf.position.set(fx, y + 7.2, fz); rf.rotation.y = Math.PI / 4; put(rf); const bell = new T.Mesh(new T.SphereGeometry(0.16, 8, 6), mat(0x8a6a2a)); bell.position.set(fx, y + 6.5, fz); scene.add(bell); }
+  // school on the upper flat
+  { const y = TER.T2, sx = 9, sz = -17.6; boxB(10, 2.4, 3.4, 0xece6da, sx, y, sz); boxB(10.2, 0.2, 3.6, 0x9a958c, sx, y + 2.4, sz); for (let s = 0; s < 2; s++) for (let i = 0; i < 12; i++) addWin(sx - 4.6 + i * 0.84, y + 0.62 + s * 1.1, sz + 1.712, 0.6, 0.5, 0, { home: 0, kind: "school" }); const clock = new T.Mesh(new T.CircleGeometry(0.32, 16), mat(0xffffff)); clock.position.set(sx, y + 2.25, sz + 1.72); scene.add(clock); cyl(0.04, 0.04, 4, 0xcccccc, 2.5, y, -15.5, 6); const flag = new T.Mesh(new T.PlaneGeometry(0.8, 0.5), new T.MeshLambertMaterial({ color: 0xf5f0e8, side: T.DoubleSide })); flag.position.set(2.9, y + 3.7, -15.5); scene.add(flag); laundry.push(flag); }
+  // shrine on the hilltop
+  const VERM = 0xc8452e;
+  { const y = TER.T3, sx = -11, sz = -17.6; boxB(4.2, 0.3, 3.2, 0x9a9283, sx, y, sz); boxB(3.0, 1.5, 2.2, 0x8a3e2c, sx, y + 0.3, sz); for (const ox of [-1.4, 1.4]) cyl(0.09, 0.09, 1.5, VERM, sx + ox, y + 0.3, sz + 1.15, 8); const rf = new T.Mesh(gableGeo(4.0, 3.4, 1.0), mat(0x3f6a5e)); rf.position.set(sx, y + 1.8, sz); put(rf); boxB(0.5, 0.3, 0.3, 0x6a5a40, sx, y + 0.3, sz + 1.4);
+    const tz = -13.9; for (const ox of [-0.9, 0.9]) cyl(0.1, 0.12, 2.0, VERM, sx + ox, y, tz, 10); boxB(2.6, 0.16, 0.24, 0x222222, sx, y + 2.05, tz); boxB(2.4, 0.12, 0.2, VERM, sx, y + 1.9, tz); boxB(2.0, 0.1, 0.14, VERM, sx, y + 1.55, tz);
+    for (const ox of [-1.8, 1.8]) { boxB(0.3, 0.5, 0.3, 0x9a968c, sx + ox, y, -15.4); boxB(0.45, 0.18, 0.45, 0x8a867c, sx + ox, y + 0.5, -15.4); } }
+  // trees
+  function tree(x, y, z, s = 1) { cyl(0.1 * s, 0.14 * s, 0.9 * s, 0x5a4232, x, y, z, 6); const cols = [0x4f7a3a, 0x5d8a44, 0x446c34]; for (let i = 0; i < 3; i++) { const b = new T.Mesh(new T.IcosahedronGeometry((0.55 + R() * 0.35) * s, 0), mat(pick(cols), { flatShading: true })); b.position.set(x + rr(-0.35, 0.35) * s, y + (1.0 + i * 0.35) * s, z + rr(-0.3, 0.3) * s); put(b); } }
+  tree(-15.5, TER.T3, -17.5, 1.9); tree(-6, TER.T3, -18, 1.4); tree(-4, TER.T3, -15.2, 1.1); tree(-18.6, TER.T3, -15.8, 1.2);
+  for (const x of [0.5, 4, 15, 18.6]) tree(x, TER.T2, -19, 1.1); tree(-18.6, 0.35, 9.6, 0.9); tree(-9.5, TER.T0, 8.4, 0.8); tree(15.2, TER.T0, 8.3, 0.8);
+  // benches
+  for (const [x, y, z] of [[-12, TER.T0, 8.5], [2, TER.T0, 8.5], [-17, TER.T3, -12.9]]) { boxB(1.1, 0.06, 0.35, 0x8a6a4a, x, y + 0.32, z, false); for (const o of [-0.45, 0.45]) boxB(0.06, 0.32, 0.3, 0x4a4a4a, x + o, y, z, false); }
+
+  // piers and the breakwater with its lighthouse
+  function pier(x, w, z0, z1, top) { boxB(w, 0.16, z1 - z0, 0x8a6a4c, x, top - 0.16, (z0 + z1) / 2); for (let z = z0 + 0.5; z < z1; z += 1.4) for (const o of [-w / 2 + 0.1, w / 2 - 0.1]) cyl(0.08, 0.08, top + 3, 0x5a4636, x + o, -3, z, 6, false); }
+  pier(-6, 1.3, SEA_Z, 14.6, 0.55); pier(6, 1.9, SEA_Z, 15.8, 0.6);
+  boxB(3, 3.95, 11, new T.MeshLambertMaterial({ map: texRep(STONE, 3, 2) }), 18.3, -3, 14.4);
+  const LH = new T.Vector3(18.3, 0.95, 18.5);
+  cyl(0.75, 0.9, 5, 0xf2efe8, LH.x, LH.y, LH.z, 14); cyl(0.78, 0.78, 0.6, 0xc8402e, LH.x, LH.y + 1.4, LH.z, 14); cyl(0.78, 0.78, 0.6, 0xc8402e, LH.x, LH.y + 3.0, LH.z, 14);
+  boxB(1.9, 0.12, 1.9, 0x3a3a3a, LH.x, LH.y + 5, LH.z, false);
+  const lampRoom = cyl(0.5, 0.5, 0.75, new T.MeshBasicMaterial({ color: 0xfff2c0 }), LH.x, LH.y + 5.12, LH.z, 12, false);
+  { const cap = new T.Mesh(new T.ConeGeometry(0.62, 0.55, 12), mat(0xc8402e)); cap.position.set(LH.x, LH.y + 6.15, LH.z); put(cap); }
+  const beamPivot = new T.Object3D(); beamPivot.position.set(LH.x, LH.y + 5.5, LH.z); scene.add(beamPivot);
+  const beamMat = new T.MeshBasicMaterial({ color: 0xfff0c0, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide });
+  for (const s of [1, -1]) { const g = new T.ConeGeometry(1.6, 16, 16, 1, true); g.translate(0, -8, 0); const b = new T.Mesh(g, beamMat); b.rotation.z = s * Math.PI / 2; beamPivot.add(b); }
+
+  // ---------- lamps, lanterns, glows and reflections ----------
+  const glows = [], streaks = [];
+  function glowSprite(x, y, z, s, color = 0xffc890) { const m = new T.SpriteMaterial({ map: HALO, color, transparent: true, blending: T.AdditiveBlending, depthWrite: false, opacity: 0 }); const sp = new T.Sprite(m); sp.position.set(x, y, z); sp.scale.set(s, s, 1); scene.add(sp); glows.push(sp); return sp; }
+  function streak(x, z, len, color = 0xffc070) { const m = new T.MeshBasicMaterial({ map: STREAK, color, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false }); const s = new T.Mesh(new T.PlaneGeometry(0.5, len), m); s.rotation.x = -Math.PI / 2; s.position.set(x, WATER_Y + 0.06, z + len / 2); s.renderOrder = 4; scene.add(s); streaks.push(s); return s; }
+  const bulbMat = new T.MeshBasicMaterial({ color: 0xfff0d0 });
+  function lamp(x, y, z, reflect) { cyl(0.04, 0.05, 1.7, 0x2e2e34, x, y, z, 6); const b = new T.Mesh(new T.SphereGeometry(0.11, 8, 6), bulbMat); b.position.set(x, y + 1.75, z); scene.add(b); glowSprite(x, y + 1.75, z, 1.6); const pool = new T.Mesh(new T.CircleGeometry(1.3, 20), new T.MeshBasicMaterial({ map: HALO, color: 0xffb060, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false })); pool.rotation.x = -Math.PI / 2; pool.position.set(x, y + 0.05, z); scene.add(pool); glows.push(pool); pool.userData.pool = 1; if (reflect) streak(x, SEA_Z + 0.2, rr(4, 6.5)); }
+  for (let x = -17; x <= 17; x += 4.25) lamp(x, TER.T0, 8.6, true);
+  for (let x = -17; x <= 17; x += 6.5) lamp(x, TER.T1, 1.2, false);
+  for (let x = -16; x <= 16; x += 7) lamp(x, TER.T2, -5.9, false);
+  lamp(-13, TER.T3, -12.9, false);
+  // paper lanterns strung over the shopping street
+  const lanterns = [];
+  { const y = TER.T0 + 1.85; const pts = []; for (let x = -19; x <= 3.5; x += 0.6) { const ph = ((x + 19) % 3) / 3, sag = 0.28 * Math.sin(ph * Math.PI); pts.push(new T.Vector3(x, y - sag, 6.3)); const c = (Math.round((x + 19) / 0.6) % 2) ? 0xd84a3a : 0xf2ead8; const l = new T.Mesh(new T.SphereGeometry(0.1, 8, 6), new T.MeshBasicMaterial({ color: c })); l.scale.y = 1.25; l.position.set(x, y - sag - 0.14, 6.3); scene.add(l); lanterns.push({ m: l, base: C(c) }); } scene.add(new T.Line(new T.BufferGeometry().setFromPoints(pts), new T.LineBasicMaterial({ color: 0x2a2420 }))); for (let x = -19; x <= 3.5; x += 3) cyl(0.035, 0.035, 2.0, 0x3a3430, x, TER.T0, 6.3, 5, false); }
+  // the izakaya's big red lantern
+  const izakaya = shopRow.reduce((b, h) => Math.abs(h.x + 2) < Math.abs(b.x + 2) ? h : b, shopRow[0]); izakaya.label = "居酒屋 うみねこ";
+  { const l = new T.Mesh(new T.CylinderGeometry(0.22, 0.22, 0.5, 10), new T.MeshBasicMaterial({ color: 0xff5a3a })); l.position.set(izakaya.x + izakaya.w / 2 - 0.3, TER.T0 + 0.9, 5.8 + 0.45); scene.add(l); lanterns.push({ m: l, base: C(0xff5a3a) }); glowSprite(l.position.x, l.position.y, l.position.z + 0.1, 1.4, 0xff7050); }
+
+  // windows: one instanced mesh, coloured by the hour
+  const winMesh = new T.InstancedMesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({ color: 0xffffff }), wins.length);
+  { const m = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler(); wins.forEach((w, i) => { q.setFromEuler(e.set(0, w.ry, 0)); m.compose(new T.Vector3(w.x, w.y, w.z), q, new T.Vector3(w.w, w.h, 1)); winMesh.setMatrixAt(i, m); winMesh.setColorAt(i, C(0x334455)); }); }
+  scene.add(winMesh);
+  // some windows near the water throw a faint reflection
+  shopRow.forEach(h => { if (R() < 0.5) streak(h.x, SEA_Z + 0.2, rr(2.2, 3.5), 0xffd090); });
+
+  // ---------- boats ----------
+  function makeBoat(len, wid, hull, cabin, opts = {}) {
+    const g = new T.Group(); const shape = new T.Shape(); shape.moveTo(-len / 2, -wid / 2); shape.lineTo(len / 2 - wid * 0.5, -wid / 2); shape.quadraticCurveTo(len / 2 + 0.1, 0, len / 2 - wid * 0.5, wid / 2); shape.lineTo(-len / 2, wid / 2); shape.lineTo(-len / 2, -wid / 2);
+    const hg = new T.ExtrudeGeometry(shape, { depth: 0.45, bevelEnabled: false }); hg.rotateX(Math.PI / 2); hg.translate(0, 0.35, 0);
+    const hm = new T.Mesh(hg, mat(hull)); hm.castShadow = true; g.add(hm);
+    const deck = new T.Mesh(new T.BoxGeometry(len * 0.92, 0.05, wid * 0.85), mat(0xb08a60)); deck.position.y = 0.3; g.add(deck);
+    if (cabin) { const cb = new T.Mesh(new T.BoxGeometry(len * 0.3, opts.tall || 0.5, wid * 0.7), mat(cabin)); cb.position.set(-len * 0.12, 0.3 + (opts.tall || 0.5) / 2, 0); cb.castShadow = true; g.add(cb); const lt = new T.Mesh(new T.SphereGeometry(0.06, 6, 4), new T.MeshBasicMaterial({ color: 0xffe0a0 })); lt.position.set(-len * 0.12, 0.35 + (opts.tall || 0.5), 0); g.add(lt); g.userData.light = lt; }
+    if (opts.mast) { const ms = new T.Mesh(new T.CylinderGeometry(0.03, 0.03, 1.4, 5), mat(0xdddddd)); ms.position.set(len * 0.15, 1.0, 0); g.add(ms); }
+    scene.add(g); return g;
+  }
+  const ferry = makeBoat(3.4, 1.15, 0xf2f2ee, 0x3c6f9a, { tall: 0.62 });
+  const ferryGlow = glowSprite(0, 0, 0, 1.6, 0xffe0a0), ferryStreak = streak(0, 0, 3, 0xffe0a0);
+  const ferryPath = new T.CatmullRomCurve3([[7.7, 16.0], [12, 18.7], [4, 19.2], [-6, 18.9], [-15, 17.6], [-13, 15.6], [-4, 16.4], [3.5, 17.0], [7.7, 16.0]].map(([x, z]) => new T.Vector3(x, 0, z)), false, "catmullrom", 0.3);
+  const fishing = [];
+  for (const [mx, mz, ox, oz] of [[-7.3, 11.3, -9, 17.5], [-4.7, 12.2, 1, 18.6], [-7.3, 13.6, 11, 17.8]]) { const b = makeBoat(2.2, 0.85, pick([0xe8e4da, 0x4a7aa8, 0xd9d2c0]), 0xe6e0d0, { mast: true }); fishing.push({ g: b, moor: new T.Vector3(mx, 0, mz), sea: new T.Vector3(ox, 0, oz), ph: R() * 6 }); }
+  const rowboat = makeBoat(1.3, 0.55, 0x8a5a3a, null); rowboat.position.set(-16.2, 0.12, 13.2);
+
+  // ---------- gulls ----------
+  const gulls = [];
+  for (let i = 0; i < 8; i++) { const g = new T.Group(); const body = new T.Mesh(new T.ConeGeometry(0.06, 0.4, 5), mat(0xf4f4f0)); body.rotation.z = -Math.PI / 2; g.add(body); const wm = new T.MeshLambertMaterial({ color: 0xe8e8e4, side: T.DoubleSide }); const wl = new T.Mesh(new T.PlaneGeometry(0.42, 0.14), wm), wr2 = wl.clone(); wl.geometry = wl.geometry.clone(); wl.geometry.translate(0, 0, 0); const pl = new T.Object3D(), pr = new T.Object3D(); wl.rotation.x = Math.PI / 2; wr2.rotation.x = Math.PI / 2; wl.position.z = -0.21; wr2.position.z = 0.21; pl.add(wl); pr.add(wr2); g.add(pl); g.add(pr); scene.add(g); gulls.push({ g, pl, pr, cx: rr(-12, 12), cz: rr(9, 17), r: rr(3, 7), h: rr(4, 9), sp: rr(0.25, 0.5) * (R() < 0.5 ? 1 : -1), a: R() * 6 }); }
+
+  // ---------- smoke ----------
+  const smokeSrc = [{ x: sentoX + 1.2, y: TER.T1 + 5.3, z: -2.4, rate: 0.35, from: 15, to: 23.5 }], puffs = [];
+  for (const h of houses) if (R() < 0.05 && h.kind === "house") smokeSrc.push({ x: h.x, y: h.y0 + 2.6, z: h.z, rate: 1.6, from: 5.5, to: 8.5 });
+  for (let i = 0; i < 70; i++) { const s = new T.Sprite(new T.SpriteMaterial({ map: PUFF, color: 0xdddddd, transparent: true, opacity: 0, depthWrite: false })); s.visible = false; scene.add(s); puffs.push({ s, life: 0 }); }
+
+  // ---------- rain ----------
+  const RN = 1400, rainGeo = new T.BufferGeometry(), rainPos = new Float32Array(RN * 6);
+  for (let i = 0; i < RN; i++) { const x = rr(-24, 24), y = rr(-2, 34), z = rr(-24, 24); rainPos.set([x, y, z, x - 0.05, y - 0.55, z], i * 6); }
+  rainGeo.setAttribute("position", new T.BufferAttribute(rainPos, 3));
+  const rain = new T.LineSegments(rainGeo, new T.LineBasicMaterial({ color: 0xa8bad6, transparent: true, opacity: 0.45 })); rain.visible = false; scene.add(rain);
+
+  // ---------- fireworks ----------
+  const FN = 5000, fPos = new Float32Array(FN * 3), fCol = new Float32Array(FN * 3), fSize = new Float32Array(FN), fAlpha = new Float32Array(FN);
+  const fVel = new Float32Array(FN * 3), fLife = new Float32Array(FN), fMax = new Float32Array(FN), fDrag = new Float32Array(FN), fGrav = new Float32Array(FN), fC0 = new Float32Array(FN * 3), fC1 = new Float32Array(FN * 3);
+  const fGeo = new T.BufferGeometry(); fGeo.setAttribute("position", new T.BufferAttribute(fPos, 3)); fGeo.setAttribute("color", new T.BufferAttribute(fCol, 3)); fGeo.setAttribute("size", new T.BufferAttribute(fSize, 1)); fGeo.setAttribute("alpha", new T.BufferAttribute(fAlpha, 1));
+  const fMat = new T.ShaderMaterial({ transparent: true, depthWrite: false, blending: T.AdditiveBlending, vertexColors: true,
+    uniforms: { scale: { value: 300 } },
+    vertexShader: "attribute float size; attribute float alpha; varying vec3 vC; varying float vA; uniform float scale; void main(){ vC = color; vA = alpha; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = size * scale / -mv.z; gl_Position = projectionMatrix * mv; }",
+    fragmentShader: "varying vec3 vC; varying float vA; void main(){ vec2 p = gl_PointCoord - 0.5; float d = length(p); if (d > 0.5) discard; float a = smoothstep(0.5, 0.0, d); gl_FragColor = vec4(vC * (0.6 + a), a * vA); }" });
+  const fireworks = new T.Points(fGeo, fMat); fireworks.frustumCulled = false; scene.add(fireworks);
+  let fNext = 0; const shells = [], flashes = [];
+  const flash = new T.PointLight(0xffffff, 0, 60, 1.6); scene.add(flash);
+  function fAlloc() { for (let k = 0; k < FN; k++) { const i = (fNext + k) % FN; if (fLife[i] <= 0) { fNext = (i + 1) % FN; return i; } } return -1; }
+  function fSpawn(x, y, z, vx, vy, vz, c0, c1, life, size, drag = 0.985, grav = 2.2) { const i = fAlloc(); if (i < 0) return; fPos.set([x, y, z], i * 3); fVel.set([vx, vy, vz], i * 3); fC0.set([c0.r, c0.g, c0.b], i * 3); fC1.set([c1.r, c1.g, c1.b], i * 3); fLife[i] = fMax[i] = life; fSize[i] = size; fDrag[i] = drag; fGrav[i] = grav; }
+  const FW = [
+    { name: "菊", n: 150, sp: 6.5, life: 1.9, size: 0.38, drag: 0.975, grav: 1.6, cols: [[0xff6a7a, 0xffd0a0], [0x8ad8ff, 0xffffff], [0xfff07a, 0xff8a3a], [0xc89aff, 0xff9ad0]] },
+    { name: "牡丹", n: 130, sp: 5.5, life: 1.5, size: 0.45, drag: 0.97, grav: 1.4, cols: [[0x6aff9a, 0xffe07a], [0xff5a5a, 0x8ad8ff], [0xffaa3a, 0xff5aa0]] },
+    { name: "柳", n: 90, sp: 4.2, life: 3.4, size: 0.32, drag: 0.985, grav: 3.2, cols: [[0xffd27a, 0x8a5a2a]] },
+    { name: "千輪", n: 0, sub: 7, sp: 4, life: 0.4, size: 0.3, cols: [[0xffffff, 0xffe07a], [0xff8ad0, 0xffffff]] },
+  ];
+  function launch() { const x = rr(-12, 12), z = rr(17.5, 19.5), type = FW[Math.floor(R() * FW.length)], top = rr(12, 18); shells.push({ x, y: 0.3, z, vy: rr(13, 15.5), top, type }); sfx("whistle"); }
+  function burst(s) {
+    const tp = s.type, cp = pick(tp.cols), c0 = C(cp[0]), c1 = C(cp[1]);
+    if (tp.sub) { for (let k = 0; k < tp.sub; k++) { const ox = s.x + rr(-3, 3), oy = s.y + rr(-2.5, 2.5), oz = s.z + rr(-1.5, 1.5); flashes.push({ t: -k * 0.08 - 0.25, x: ox, y: oy, z: oz, c0, c1, small: 1 }); } }
+    else for (let k = 0; k < tp.n; k++) { const u = R() * 2 - 1, a = R() * Math.PI * 2, r = Math.sqrt(1 - u * u), sp = tp.sp * (0.85 + R() * 0.25); fSpawn(s.x, s.y, s.z, r * Math.cos(a) * sp, u * sp, r * Math.sin(a) * sp, c0, c1, tp.life * (0.8 + R() * 0.35), tp.size, tp.drag, tp.grav); }
+    flash.position.set(s.x, s.y, s.z); flash.color.copy(c0); flash.intensity = 3.5;
+    const st = streak(s.x, SEA_Z + 1, 9, cp[0]); st.userData.fade = 1; st.userData.die = true;
+    sfx(tp.name === "千輪" ? "crackle" : "boom", Math.hypot(s.x - camera.position.x, s.y - camera.position.y, s.z - camera.position.z));
+  }
+  function updateFireworks(dt, hour, night) {
+    const season = hour > 19.4 && hour < 21.2 && weather !== "rain";
+    if (season && R() < dt * 0.9) launch();
+    for (const s of shells) { s.vy -= 9.8 * dt * 0.6; s.y += s.vy * dt; fSpawn(s.x + rr(-0.05, 0.05), s.y, s.z, 0, -0.5, 0, C(0xffd8a0), C(0x803010), 0.5, 0.18, 0.95, 0.5); if (s.y >= s.top || s.vy < 2) { s.done = true; burst(s); } }
+    for (let k = shells.length - 1; k >= 0; k--) if (shells[k].done) shells.splice(k, 1);
+    for (const f of flashes) { f.t += dt; if (f.t >= 0 && !f.done) { f.done = true; for (let k = 0; k < 26; k++) { const u = R() * 2 - 1, a = R() * Math.PI * 2, r = Math.sqrt(1 - u * u), sp = 2.2; fSpawn(f.x, f.y, f.z, r * Math.cos(a) * sp, u * sp, r * Math.sin(a) * sp, f.c0, f.c1, 0.8, 0.26, 0.96, 1.2); } } }
+    for (let k = flashes.length - 1; k >= 0; k--) if (flashes[k].done) flashes.splice(k, 1);
+    flash.intensity *= Math.pow(0.02, dt);
+    for (let i = 0; i < FN; i++) {
+      if (fLife[i] <= 0) { if (fAlpha[i]) fAlpha[i] = 0; continue; }
+      fLife[i] -= dt; const k = 1 - fLife[i] / fMax[i], j = i * 3;
+      fVel[j] *= fDrag[i]; fVel[j + 1] = fVel[j + 1] * fDrag[i] - fGrav[i] * dt; fVel[j + 2] *= fDrag[i];
+      fPos[j] += fVel[j] * dt; fPos[j + 1] += fVel[j + 1] * dt; fPos[j + 2] += fVel[j + 2] * dt;
+      for (let c = 0; c < 3; c++) fCol[j + c] = lerp(fC0[j + c], fC1[j + c], k);
+      fAlpha[i] = fLife[i] <= 0 ? 0 : (1 - k * k) * (0.75 + 0.25 * Math.sin(i + k * 40));
+    }
+    fGeo.attributes.position.needsUpdate = fGeo.attributes.color.needsUpdate = fGeo.attributes.alpha.needsUpdate = fGeo.attributes.size.needsUpdate = true;
+  }
+
+  // ---------- pixel residents ----------
+  const CELL = 16, COLS = 12;
+  const SKINS = [[246, 214, 184], [236, 196, 160], [214, 170, 130], [188, 140, 104]];
+  const HAIRS = [[40, 32, 30], [70, 50, 36], [24, 22, 30], [120, 90, 60], [200, 200, 205], [150, 60, 40]];
+  const OUT = [26, 20, 30];
+  function drawPerson(P, Rt, col, L) {
+    const child = L.kind === "child", old = L.kind === "elder", th = child ? 3 : 4, ll = child ? 2 : 3;
+    const pose = col < 3 ? "f" : col < 6 ? "b" : col < 9 ? "s" : "f", step = col < 9 ? col % 3 : 0, sit = col === 9 || (col >= 10 && L.actSit);
+    const sk = L.skin, hr = L.hair, tp = L.top, bt = L.bottom, sh = [44, 34, 32];
+    const hy = sit ? 15 - (5 + th + 2) : 15 - (5 + th + ll), ty = hy + 5, ly = ty + th;
+    if (pose === "f" || pose === "b") {
+      Rt(5, hy, 6, 5, pose === "b" ? hr : sk);
+      Rt(5, hy, 6, 1, hr); Rt(5, hy + 1, 1, L.long ? 5 : 2, hr); Rt(10, hy + 1, 1, L.long ? 5 : 2, hr);
+      if (pose === "b") { Rt(5, hy, 6, 4, hr); if (!L.long) Rt(6, hy + 4, 4, 1, sk); }
+      else { if (L.bangs) Rt(6, hy + 1, 4, 1, hr); P(6, hy + 2, [36, 28, 36]); P(9, hy + 2, [36, 28, 36]); if (L.blush) { P(5, hy + 3, [240, 150, 150]); P(10, hy + 3, [240, 150, 150]); } }
+      Rt(5, ty, 6, th, tp); if (L.kind === "elder" && L.skirt) Rt(4, ty + th - 1, 8, 1, tp);
+      if (L.apron && pose === "f") { Rt(6, ty + 1, 4, th - 1, L.apron); Rt(6, ly, 4, 1, L.apron); }
+      if (L.tie && pose === "f") { Rt(7, ty, 2, 1, [240, 240, 240]); P(7, ty + 1, L.tie); P(8, ty + 1, L.tie); P(7, ty + 2, L.tie); }
+      if (L.sailor && pose === "f") { Rt(5, ty, 6, 1, [40, 50, 90]); P(7, ty + 1, [210, 50, 50]); P(8, ty + 1, [210, 50, 50]); }
+      if (L.pack && pose === "b") Rt(6, ty, 4, 3, L.pack);
+      // arms
+      const aL = step === 1 ? 2 : 3, aR = step === 2 ? 2 : 3;
+      if (!sit || col === 9) { Rt(4, ty, 1, aL, tp); P(4, ty + aL, sk); Rt(11, ty, 1, aR, tp); P(11, ty + aR, sk); }
+      if (sit) { Rt(6, ly, 4, 1, bt); Rt(5, ly + 1, 2, 1, sh); Rt(9, ly + 1, 2, 1, sh); }
+      else { const upL = step === 2 ? 1 : 0, upR = step === 1 ? 1 : 0; Rt(6, ly, 2, ll - upL, bt); Rt(6, ly + ll - upL, 2, 1, sh); Rt(8, ly, 2, ll - upR, bt); Rt(8, ly + ll - upR, 2, 1, sh); }
+      if (L.hat === "straw") { Rt(3, hy, 10, 1, [222, 196, 120]); Rt(5, hy - 2, 6, 2, [222, 196, 120]); Rt(5, hy - 1, 6, 1, [180, 60, 50]); }
+      if (L.hat === "cap") { Rt(5, hy - 1, 6, 2, L.capC); if (pose === "f") Rt(5, hy + 1, 6, 1, L.capC.map(v => v * 0.7)); }
+      if (L.hat === "band") Rt(5, hy + 1, 6, 1, [245, 245, 245]);
+      if (L.hat === "bun") Rt(7, hy - 2, 2, 2, hr);
+      if (old && L.cane && pose === "f") Rt(12, ty + 1, 1, 15 - ty - 1, [120, 84, 50]);
+    } else {
+      Rt(6, hy, 5, 5, sk); Rt(6, hy, 4, 1, hr); Rt(6, hy + 1, 2, L.long ? 5 : 3, hr); P(9, hy + 2, [36, 28, 36]); P(11, hy + 3, sk);
+      if (L.hat === "straw") { Rt(4, hy, 9, 1, [222, 196, 120]); Rt(6, hy - 2, 5, 2, [222, 196, 120]); Rt(6, hy - 1, 5, 1, [180, 60, 50]); }
+      if (L.hat === "cap") { Rt(6, hy - 1, 5, 2, L.capC); Rt(11, hy + 1, 2, 1, L.capC.map(v => v * 0.7)); }
+      if (L.hat === "band") Rt(6, hy + 1, 5, 1, [245, 245, 245]);
+      if (L.hat === "bun") Rt(5, hy, 2, 2, hr);
+      Rt(6, ty, 4, th, tp); if (L.pack) Rt(4, ty, 2, 3, L.pack); if (L.apron) Rt(9, ty + 1, 1, th, L.apron);
+      const dark = tp.map(v => v * 0.75);
+      if (step === 0) { Rt(7, ty, 2, 3, dark); P(8, ty + 3, sk); } else if (step === 1) { Rt(9, ty + 1, 2, 2, dark); P(11, ty + 2, sk); } else { Rt(5, ty + 1, 2, 2, dark); P(4, ty + 2, sk); }
+      if (step === 0) { Rt(7, ly, 2, ll, bt); Rt(7, ly + ll, 3, 1, sh); } else { Rt(9, ly, 2, ll, bt); Rt(10, ly + ll, 2, 1, sh); Rt(5, ly, 2, ll, bt); Rt(5, ly + ll, 2, 1, sh); }
+      if (old && L.cane) Rt(12, ty + 1, 1, 15 - ty - 1, [120, 84, 50]);
+    }
+    if (col >= 10) { // activity frames
+      const a = col === 11;
+      if (L.prop === "rod") { const tipY = a ? 5 : 3; for (let i = 0; i <= 4; i++) P(11 + i, ty + 1 - Math.round(i * (ty + 1 - tipY) / 4), [120, 84, 50]); Rt(15, tipY + 1, 1, a ? 7 : 6, [210, 210, 220]); P(11, ty + 1, sk); }
+      if (L.prop === "broom") { const bx = a ? 12 : 11; for (let y = ty; y <= 13; y++) P(bx + (a ? -(y - ty) * 0.25 : (y - ty) * 0.2) | 0, y, [140, 100, 60]); Rt(a ? 9 : 12, 14, 3, 2, [220, 190, 90]); }
+      if (L.prop === "camera") { Rt(6, hy + 2, 4, 2, [40, 40, 46]); P(7, hy + 2, [120, 140, 160]); if (a) { P(9, hy, [255, 255, 255]); P(10, hy - 1, [255, 255, 210]); } }
+      if (L.prop === "wave") { Rt(11, ty - 3, 1, 3, tp); P(11, ty - 4, sk); if (a) { Rt(4, ty - 3, 1, 3, tp); P(4, ty - 4, sk); } }
+      if (L.prop === "pray") { Rt(7, ty + 1, 2, 2, sk); }
+      if (L.prop === "drink") { Rt(10, ty + (a ? 0 : 1), 2, 2, [240, 220, 160]); P(10, ty + (a ? 0 : 1), [255, 255, 240]); }
+    }
+  }
+  function drawAnimal(P, Rt, col, L) {
+    const c = L.coat, d = L.coat.map(v => v * 0.72), p2 = L.patch, dog = L.kind === "dog", eye = dog ? [30, 24, 20] : [120, 200, 90];
+    const pose = col < 3 ? "f" : col < 6 ? "b" : col < 9 ? "s" : "x", step = col < 9 ? col % 3 : 0;
+    const hb = dog ? 5 : 7;
+    if (pose === "f" || pose === "b") {
+      Rt(5, hb, 6, dog ? 5 : 4, c); P(5, hb - 1, c); P(10, hb - 1, c); if (dog) { P(5, hb - 2, c); P(10, hb - 2, c); }
+      if (pose === "f") { P(6, hb + 1, eye); P(9, hb + 1, eye); Rt(7, hb + 2, 2, 1, dog ? [40, 30, 28] : [230, 140, 150]); if (dog) Rt(6, hb + 3, 4, 1, [245, 236, 220]); }
+      Rt(6, hb + (dog ? 5 : 4), 4, dog ? 4 : 3, pose === "b" ? d : c); if (p2) Rt(6, hb + (dog ? 5 : 4), 2, 2, p2);
+      const fy = 15; Rt(6, fy - (step === 1 ? 1 : 0), 1, 1, d); Rt(9, fy - (step === 2 ? 1 : 0), 1, 1, d);
+      if (pose === "b") { Rt(7, hb - (dog ? 2 : 3), 2, dog ? 3 : 4, c); } else { Rt(11, hb + 2, 1, 4, c); }
+    } else if (pose === "s") {
+      const by = dog ? 10 : 11; Rt(3, by, 8, dog ? 4 : 3, c); if (p2) Rt(5, by, 3, 2, p2); if (!dog) { Rt(4, by, 1, 3, d); Rt(7, by, 1, 3, d); }
+      Rt(10, by - 3, 4, 3, c); P(10, by - 4, c); P(13, by - 4, c); P(12, by - 2, eye); P(14, by - 1, dog ? [40, 30, 28] : [230, 140, 150]); if (dog) Rt(11, by - 1, 3, 1, [245, 236, 220]);
+      if (dog) { Rt(1, by - 3, 2, 3, c); P(3, by - 1, c); } else { Rt(1, by - 3, 1, 3, c); P(2, by - 1, c); P(2, by, c); }
+      const lx = step === 0 ? [4, 9] : step === 1 ? [3, 10] : [5, 8]; for (const x of lx) Rt(x, by + (dog ? 4 : 3), 1, 15 - by - (dog ? 3 : 2), d);
+    } else {
+      Rt(4, 12, 8, 3, c); Rt(5, 11, 6, 1, c); Rt(9, 9, 3, 3, c); P(9, 8, c); P(11, 8, c); Rt(10, 10, 2, 1, [40, 30, 30]); Rt(3, 14, 7, 1, d); if (p2) Rt(5, 12, 3, 2, p2);
+      if (col === 11) { P(12, 13, c); P(13, 12, c); }
+    }
+  }
+  function outlineCell(d, W, ox, oy) {
+    const at = (x, y) => x >= 0 && y >= 0 && x < CELL && y < CELL ? d[((oy + y) * W + ox + x) * 4 + 3] : 0, set = [];
+    for (let y = 0; y < CELL; y++) for (let x = 0; x < CELL; x++) if (!at(x, y) && (at(x - 1, y) || at(x + 1, y) || at(x, y - 1) || at(x, y + 1))) set.push([x, y]);
+    for (const [x, y] of set) { const i = ((oy + y) * W + ox + x) * 4; d[i] = OUT[0]; d[i + 1] = OUT[1]; d[i + 2] = OUT[2]; d[i + 3] = 255; }
+  }
+  function buildAtlas(looks) {
+    const c = document.createElement("canvas"); c.width = CELL * COLS; c.height = CELL * looks.length; const g = c.getContext("2d"), img = g.createImageData(c.width, c.height), d = img.data;
+    looks.forEach((L, row) => { for (let col = 0; col < COLS; col++) { const ox = col * CELL, oy = row * CELL; const P = (x, y, cl) => { x = Math.round(x); y = Math.round(y); if (x < 0 || y < 0 || x >= CELL || y >= CELL || !cl) return; const i = ((oy + y) * c.width + ox + x) * 4; d[i] = cl[0]; d[i + 1] = cl[1]; d[i + 2] = cl[2]; d[i + 3] = 255; }; const Rt = (x, y, w, h, cl) => { for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) P(xx, yy, cl); }; (L.kind === "cat" || L.kind === "dog" ? drawAnimal : drawPerson)(P, Rt, col, L); outlineCell(d, c.width, ox, oy); } });
+    g.putImageData(img, 0, 0); return c;
+  }
+  // emote bubbles and the umbrella
+  function bubble(bits, color) { return canvasTex(12, 12, (g) => { g.fillStyle = "#1a141e"; g.fillRect(1, 0, 10, 10); g.fillRect(0, 1, 12, 8); g.fillRect(4, 10, 3, 1); g.fillStyle = "#fffaf0"; g.fillRect(2, 1, 8, 8); g.fillRect(1, 2, 10, 6); g.fillRect(5, 9, 1, 1); g.fillStyle = color; bits.forEach((r, y) => [...r].forEach((ch, x) => { if (ch === "1") g.fillRect(3 + x, 2 + y, 1, 1); })); }); }
+  const EMO = { "♪": bubble(["00110", "00101", "00100", "11100", "11000", ""], "#e0507a"), "!": bubble(["00100", "00100", "00100", "00000", "00100"], "#d8402a"), "…": bubble(["", "", "", "10101", ""], "#404040"), "Z": bubble(["11111", "00010", "00100", "01000", "11111"], "#4a6ab0"), "♥": bubble(["01010", "11111", "11111", "01110", "00100"], "#e04a6a") };
+  const UMB = canvasTex(16, 16, (g) => { g.fillStyle = "#1a141e"; g.fillRect(2, 3, 12, 1); g.fillRect(1, 4, 14, 3); g.fillRect(7, 7, 1, 7); g.fillStyle = "#ffffff"; g.fillRect(3, 4, 10, 2); g.fillRect(2, 5, 12, 1); g.fillStyle = "rgba(0,0,0,0.25)"; g.fillRect(5, 5, 1, 1); g.fillRect(10, 5, 1, 1); });
+  [UMB, ...Object.values(EMO)].forEach(t => { t.magFilter = T.NearestFilter; t.minFilter = T.NearestFilter; t.generateMipmaps = false; });
+
+  // ---------- who lives here ----------
+  const ROLES = {
+    fisher: { label: "漁師", names: ["ゲンさん", "タツさん", "サブさん", "イサオさん", "マサさん"], look: () => ({ kind: "adult", hat: R() < 0.7 ? "straw" : "band", top: pick([[70, 90, 120], [110, 80, 60], [60, 100, 90]]), bottom: [60, 60, 70], prop: "rod", actSit: true }) },
+    shop: { label: "商店街の店主", names: ["魚屋のトメさん", "八百屋のケンさん", "駄菓子屋のハルさん", "居酒屋のミツさん", "本屋のシゲさん", "写真館のノブさん"], look: () => ({ kind: "adult", hat: "band", apron: pick([[60, 90, 140], [200, 200, 200], [140, 60, 50]]), top: pick([[230, 230, 225], [180, 150, 120]]), bottom: [70, 60, 60], prop: "broom" }) },
+    child: { label: "子ども", names: ["ハナちゃん", "ソウタくん", "ミクちゃん", "リクくん", "ユイちゃん", "ケンタくん", "アオイちゃん", "コウくん"], look: () => ({ kind: "child", hat: R() < 0.4 ? "cap" : null, capC: pick([[220, 60, 50], [60, 120, 220], [240, 200, 60]]), top: pick([[240, 120, 120], [120, 180, 240], [250, 220, 100], [140, 210, 140], [250, 250, 250]]), bottom: pick([[60, 70, 120], [180, 90, 60], [80, 80, 90]]), long: R() < 0.4, bangs: true, blush: true, prop: "wave" }) },
+    worker: { label: "勤め人", names: ["会社員のヤマダさん", "看護師のマキさん", "役場のタナカさん", "郵便局のイトウさん", "設計士のモリさん", "銀行員のサトウさん"], look: () => ({ kind: "adult", top: pick([[50, 60, 90], [70, 70, 80], [240, 240, 240]]), bottom: [40, 44, 60], tie: [180, 50, 60], long: R() < 0.35, prop: "drink" }) },
+    student: { label: "高校生", names: ["アカネさん", "シンジくん", "ナツさん", "ユウキくん"], look: () => { const g = R() < 0.5; return { kind: "adult", top: g ? [240, 240, 240] : [36, 40, 60], bottom: g ? [40, 50, 90] : [36, 40, 60], sailor: g, long: g, bangs: true, prop: "wave" }; } },
+    elder: { label: "お年寄り", names: ["キヨばあちゃん", "フミばあちゃん", "ウメばあちゃん", "喜作じいさん", "茂じいさん"], look: () => ({ kind: "elder", hat: R() < 0.5 ? "bun" : null, top: pick([[150, 110, 140], [110, 120, 100], [160, 140, 110]]), bottom: [90, 80, 80], skirt: R() < 0.6, cane: R() < 0.5, prop: "pray" }) },
+    tourist: { label: "旅の人", names: ["旅人のレンさん", "写真好きのカオリさん", "バックパッカーのジョーさん", "スケッチ旅のアヤさん"], look: () => ({ kind: "adult", hat: R() < 0.5 ? "cap" : null, capC: [90, 130, 90], top: pick([[220, 160, 60], [90, 150, 200], [200, 90, 90]]), bottom: [80, 90, 110], pack: [160, 120, 70], prop: "camera" }) },
+    cat: { label: "猫", names: ["タマ", "クロ", "ミケ", "シロ"], look: n => ({ kind: "cat", coat: [[230, 150, 70], [40, 38, 46], [240, 236, 226], [236, 230, 220]][n], patch: n === 2 ? [230, 150, 70] : n === 3 ? [60, 50, 50] : null }) },
+    dog: { label: "犬", names: ["ポチ", "コタロウ"], look: () => ({ kind: "dog", coat: [214, 150, 80] }) },
+  };
+  const SCHED = {
+    fisher: [[4.4, "pierA", "boat"], [12.8, "pierAmid", "mend"], [15.5, "home", "home"], [18.2, "izakaya", "drink"], [21.6, "home", "sleep"]],
+    shop: [[7.2, "shop", "sweep"], [19.4, "quay", "wander"], [20.6, "home", "sleep"]],
+    child: [[7.6, "school", "play"], [15, "beach|yard|shrine|quay", "play"], [18.1, "home", "home"], [19.3, "quay", "watch"], [20.8, "home", "sleep"]],
+    worker: [[7.1, "ferry", "away"], [18.1, "ferry", "wander"], [18.8, "izakaya|quay", "drink"], [21.3, "home", "sleep"]],
+    student: [[7.4, "ferry", "away"], [16.4, "ferry", "wander"], [16.9, "shotengai", "wander"], [19.2, "quay", "watch"], [20.7, "home", "sleep"]],
+    elder: [[5.8, "shrine", "pray"], [8, "bench", "sit"], [11.5, "home", "home"], [14.5, "shotengai", "wander"], [17.8, "sento", "bath"], [19.4, "quay", "watch"], [20.4, "home", "sleep"]],
+    tourist: [[8.5, "lookout", "photo"], [10.5, "lighthouse", "photo"], [12.5, "shotengai", "wander"], [16.2, "quay", "photo"], [19.2, "quay", "watch"], [21, "home", "sleep"]],
+    cat: [[0, "town", "roam"]], dog: [[0, "town", "roam"]],
+  };
+  const COUNTS = { fisher: 5, shop: 6, child: 8, worker: 6, student: 4, elder: 5, tourist: 4, cat: 4, dog: 2 };
+  const looks = [], residents = [];
+  for (const role in COUNTS) for (let n = 0; n < COUNTS[role]; n++) {
+    const RD = ROLES[role], L = RD.look(n);
+    if (L.kind !== "cat" && L.kind !== "dog") { L.skin = pick(SKINS); L.hair = L.kind === "elder" ? pick([[210, 210, 214], [180, 180, 186]]) : pick(HAIRS.slice(0, 4).concat(HAIRS[5])); }
+    looks.push(L); residents.push({ role, name: RD.names[n % RD.names.length], label: RD.label, L, row: looks.length - 1 });
+  }
+  const ATLAS = buildAtlas(looks), atlasTex = new T.CanvasTexture(ATLAS); atlasTex.magFilter = atlasTex.minFilter = T.NearestFilter; atlasTex.generateMipmaps = false;
+  const ROWS = looks.length;
+  // homes: shopkeepers live above their shops, tourists at the inn, everyone else in households on the hillside rows
+  const homeRows = front1.concat(front2).filter(h => h.kind === "house");
+  const shopsUsed = shopRow.slice().sort((a, b) => Math.abs(a.x + 2) - Math.abs(b.x + 2));
+  function doorNode(h, streetName) { if (h.door != null) return h.door; const st = streets[streetName], s = nearestOn(streetName, h.dx ?? h.x); const zFront = h.z + h.d / 2 + 0.25, id = node(h.dx ?? h.x, h.y0, zFront, "door"); link(id, s); h.door = id; return id; }
+  const terOf = h => h.y0 === TER.T0 ? "T0" : h.y0 === TER.T1 ? "T1" : "T2";
+  let hi = 0; const families = homeRows.filter(() => R() < 0.75);
+  const sentoNode = doorNode(Object.assign(sento, { dx: sentoX }), "T1"), innNode = doorNode(Object.assign(inn, { dx: inn.x }), "T1");
+  residents.forEach((r, k) => {
+    if (r.role === "shop") { r.house = shopsUsed[k % shopsUsed.length]; r.shop = r.house; r.house.dx = r.house.x; r.homeNode = doorNode(r.house, "T0"); if (r.name.startsWith("居酒屋")) { r.house = izakaya; izakaya.dx = izakaya.x; r.homeNode = doorNode(izakaya, "T0"); } }
+    else if (r.role === "tourist") { r.house = inn; r.homeNode = innNode; }
+    else if (r.role === "cat" || r.role === "dog") { r.homeNode = pick(streets.T1.concat(streets.T0)); }
+    else { const h = families[(hi++ >> (R() < 0.5 ? 0 : 1)) % families.length]; r.house = h; r.homeNode = doorNode(h, terOf(h)); }
+  });
+  SP.izakaya = doorNode(Object.assign(izakaya, { dx: izakaya.x }), "T0"); SP.sento = sentoNode; SP.bench = [SP.bench1, SP.bench2];
+
+  // sprites
+  const sprites = [];
+  residents.forEach((r, i) => {
+    const t = atlasTex.clone(); t.needsUpdate = true; t.repeat.set(1 / COLS, 1 / ROWS);
+    const m = new T.SpriteMaterial({ map: t, transparent: true, alphaTest: 0.5 });
+    const s = new T.Sprite(m); s.center.set(0.5, 0); const sz = r.L.kind === "child" ? 0.95 : r.L.kind === "cat" ? 0.62 : r.L.kind === "dog" ? 0.78 : 1.0; s.scale.set(sz, sz, 1); s.userData.r = r; scene.add(s); sprites.push(s);
+    const um = new T.Sprite(new T.SpriteMaterial({ map: UMB, color: pick([0xe06a5a, 0x5a8ae0, 0xf0d060, 0x70c08a, 0xf2f2f2, 0xd07ab0]), transparent: true, alphaTest: 0.5 })); um.center.set(0.5, 0); um.scale.set(0.9, 0.9, 1); um.visible = false; scene.add(um);
+    const em = new T.Sprite(new T.SpriteMaterial({ map: EMO["♪"], transparent: true, alphaTest: 0.5, depthTest: false })); em.center.set(0.5, 0); em.scale.set(0.5, 0.5, 1); em.visible = false; em.renderOrder = 10; scene.add(em);
+    Object.assign(r, { s, um, em, tex: t, node: r.homeNode, pos: new T.Vector3(nodes[r.homeNode].x, nodes[r.homeNode].y, nodes[r.homeNode].z), path: [], state: "idle", act: "idle", t: 0, emoT: 0, phase: R() * 4, off: [rr(-0.28, 0.28), rr(-0.18, 0.18)], jit: rr(-0.35, 0.35), slot: -1, hidden: false, face: [0, 1], speed: r.role === "child" ? 1.35 : r.role === "elder" ? 0.7 : r.role === "cat" ? 0.9 : 1.05, boat: r.role === "fisher" && i < 3 ? fishing[i] : null });
+  });
+  function setFrame(r, col, flip) { const t = r.tex; if (flip) { t.repeat.x = -1 / COLS; t.offset.x = (col + 1) / COLS; } else { t.repeat.x = 1 / COLS; t.offset.x = col / COLS; } t.offset.y = 1 - (r.row + 1) / ROWS; }
+
+  // path finding (breadth first is enough on this small graph)
+  function route(a, b) { if (a === b) return [b]; const prev = new Int32Array(nodes.length).fill(-1), q = [a]; prev[a] = a; while (q.length) { const n = q.shift(); if (n === b) break; for (const m of adj[n]) if (prev[m] < 0) { prev[m] = n; q.push(m); } } if (prev[b] < 0) return [b]; const p = []; for (let n = b; n !== a; n = prev[n]) p.push(n); return p.reverse(); }
+  function near(n, hops) { let set = [n], seen = new Set(set); for (let h = 0; h < hops; h++) { const nx = []; for (const a of set) for (const b of adj[a]) if (!seen.has(b) && nodes[b].tag !== "door") { seen.add(b); nx.push(b); } set = nx.length ? nx : set; } return pick([...seen]); }
+  function resolve(r, spot) { const opts = spot.split("|"), s = opts[Math.floor(R() * opts.length)]; if (s === "home") return r.homeNode; if (s === "shop") return r.homeNode; if (s === "town") return pick(nodes.filter(n => n.tag !== "door" && n.tag !== "pier")).i; const v = SP[s]; return Array.isArray(v) ? pick(v) : v ?? r.homeNode; }
+  const ACT = { boat: "漁船で沖に出て、網を引いている", mend: "桟橋で網をつくろっている", home: "家でひと休みしている", sleep: "家でぐっすり眠っている", drink: "居酒屋の前で一杯やっている", sweep: "店先をほうきで掃いている", wander: "ぶらぶら歩いている", play: "走り回って遊んでいる", watch: "海のほうを眺めている", away: "連絡船で町の外へ出かけている", pray: "神社でお参りしている", sit: "ベンチに座ってのんびりしている", bath: "銭湯 汐の湯で湯につかっている", photo: "写真を撮っている", roam: "町をうろうろしている", nap: "日だまりで昼寝している" };
+  const PLACE = n => { const tag = nodes[n].tag; return tag === "pier" ? "桟橋" : tag === "beach" ? "浜辺" : tag === "break" ? "防波堤" : tag === "shrine" ? "神社" : tag === "door" ? "家" : n === SP.lookout ? "見晴らし台" : nodes[n].tag === "YARD" ? "学校" : nodes[n].tag === "T0" ? "港の通り" : nodes[n].tag === "T3" ? "丘の上" : "坂の通り"; };
+  function slotFor(r, hour) { const S = SCHED[r.role]; let k = S.length - 1; for (let i = 0; i < S.length; i++) if (hour >= S[i][0] + r.jit) k = i; return k; }
+  function goTo(r, target, act) { r.goal = target; r.act = act; r.path = route(r.node, target); r.state = "walk"; if (r.hidden) unhide(r); }
+  function hide(r) { r.hidden = true; r.s.visible = r.um.visible = r.em.visible = false; if (r.house && (r.act === "home" || r.act === "sleep")) r.house.home++; }
+  function unhide(r) { if (!r.hidden) return; r.hidden = false; r.s.visible = true; if (r.house && r.house.home > 0 && (r.act !== "bath")) r.house.home = Math.max(0, r.house.home - 1); }
+  function emote(r, ch, dur = 2.2) { r.em.material.map = EMO[ch]; r.em.material.needsUpdate = true; r.emoT = dur; }
+  function arrive(r) {
+    r.state = "idle"; r.t = 0;
+    const a = r.act;
+    if (a === "home" || a === "sleep" || a === "away" || a === "bath") { hide(r); return; }
+    if (a === "wander" || a === "play" || a === "roam") r.t = -rr(1.5, a === "play" ? 2 : 6);
+  }
+  function updateResident(r, dt, hour, night) {
+    // the schedule decides where to be
+    const k = slotFor(r, hour);
+    if (k !== r.slot) { r.slot = k; const [, spot, act] = SCHED[r.role][k]; const tgt = resolve(r, spot); r.anchor = tgt; goTo(r, tgt, act); }
+    // fishermen ride their boats while the boats are out
+    if (r.boat && r.boat.out) { if (r.hidden) unhide(r); r.riding = true; r.state = "ride"; const bp = r.boat.g.position; r.pos.set(bp.x, bp.y + 0.3, bp.z); r.face = [0, 1]; }
+    else if (r.riding) { r.riding = false; r.node = SP.pierA; r.pos.set(nodes[SP.pierA].x, nodes[SP.pierA].y, nodes[SP.pierA].z); r.slot = -1; }
+    if (r.state === "walk") {
+      if (!r.path.length) { arrive(r); }
+      else {
+        const n = nodes[r.path[0]], tx = n.x + (n.tag === "door" || n.tag === "pier" || n.tag.startsWith("stair") ? 0 : r.off[0]), tz = n.z + (n.tag === "door" ? 0 : r.off[1]);
+        const dx = tx - r.pos.x, dz = tz - r.pos.z, dy = n.y - r.pos.y, dist = Math.hypot(dx, dz), sp = r.speed * (r.act === "play" ? 1.6 : 1) * dt;
+        if (dist <= sp || dist < 0.02) { r.pos.set(tx, n.y, tz); r.node = r.path.shift(); }
+        else { r.pos.x += dx / dist * sp; r.pos.z += dz / dist * sp; r.pos.y += dy * Math.min(1, sp / dist); r.face = [dx / dist, dz / dist]; }
+        r.phase += dt * r.speed * 7;
+      }
+    } else if (r.state === "idle") {
+      r.t += dt;
+      const a = r.act;
+      if ((a === "wander" || a === "play" || a === "roam") && r.t > 0) { const nx = near(r.anchor ?? r.node, a === "play" ? 3 : 4); r.path = route(r.node, nx); r.state = "walk"; if (a === "play" && R() < 0.35) emote(r, "!"); if (a === "wander" && R() < 0.15) emote(r, "♪"); if (a === "roam" && R() < 0.2) { r.act = "nap"; r.state = "idle"; r.t = -rr(6, 14); } }
+      if (a === "nap" && r.t > 0) r.act = "roam";
+      if (a === "watch") { r.face = [0, 1]; if (fireworksOn && R() < dt * 0.25) emote(r, R() < 0.5 ? "!" : "♥", 1.6); }
+      if (a === "pray") r.face = [0, -1];
+      if (a === "photo" && R() < dt * 0.15) emote(r, "♪");
+      if (a === "drink" && R() < dt * 0.08) emote(r, "♪");
+    }
+    if (r.role === "cat" && r.act === "nap" && R() < dt * 0.15) emote(r, "Z");
+    // place the sprite and pick its frame from the walking direction as seen from the camera
+    if (r.hidden) return;
+    r.s.position.copy(r.pos);
+    const fx = camFwd.x, fz = camFwd.z, rx = -fz, rz = fx, side = r.face[0] * rx + r.face[1] * rz, away = r.face[0] * fx + r.face[1] * fz;
+    const moving = r.state === "walk" && r.path.length;
+    const stepF = moving ? [0, 1, 0, 2][Math.floor(r.phase) % 4] : 0;
+    let col, flip = false;
+    const a = r.act, still = !moving;
+    if (still && (a === "sit" || a === "drink" || a === "mend" || r.state === "ride" || a === "nap")) col = r.state === "ride" ? 10 + (Math.floor(clockT * 1.2) % 2) : a === "drink" ? 10 + (Math.floor(clockT * 0.7) % 2) : a === "mend" ? 10 : 9;
+    else if (still && (a === "sweep" || a === "photo" || (a === "play" && r.role === "child" && r.t > -0.8) || (a === "watch" && fireworksOn && r.role === "child"))) col = 10 + (Math.floor(clockT * (a === "sweep" ? 2.5 : 1)) % 2);
+    else if (still && a === "pray") col = 3;
+    else if (Math.abs(side) > Math.abs(away) * 0.8) { col = 6 + stepF; flip = side < 0; }
+    else col = (away > 0 ? 3 : 0) + stepF;
+    if (r.L.kind === "cat" || r.L.kind === "dog") { if (a === "nap" && still) col = 9; else if (still) col = 0; }
+    setFrame(r, col, flip);
+    r.um.visible = weather === "rain" && r.L.kind !== "cat" && r.L.kind !== "dog" && r.state !== "ride";
+    if (r.um.visible) r.um.position.set(r.pos.x, r.pos.y + (r.L.kind === "child" ? 0.55 : 0.68), r.pos.z);
+    if (r.emoT > 0) { r.emoT -= dt; r.em.visible = true; r.em.position.set(r.pos.x, r.pos.y + (r.L.kind === "cat" ? 0.7 : 1.08), r.pos.z); } else r.em.visible = false;
+  }
+
+  // ---------- sky, sun and the hour ----------
+  const skyGeo = new T.SphereGeometry(300, 24, 12), skyCols = new Float32Array(skyGeo.attributes.position.count * 3);
+  skyGeo.setAttribute("color", new T.BufferAttribute(skyCols, 3));
+  const sky = new T.Mesh(skyGeo, new T.MeshBasicMaterial({ vertexColors: true, side: T.BackSide, fog: false, depthWrite: false })); scene.add(sky);
+  const stars = (() => { const g = new T.BufferGeometry(), p = []; for (let i = 0; i < 700; i++) { const u = R(), v = R() * 0.9 + 0.08, th = u * Math.PI * 2, ph = Math.acos(v); p.push(Math.sin(ph) * Math.cos(th) * 280, Math.cos(ph) * 280, Math.sin(ph) * Math.sin(th) * 280); } g.setAttribute("position", new T.Float32BufferAttribute(p, 3)); return new T.Points(g, new T.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false })); })(); scene.add(stars);
+  const moon = new T.Mesh(new T.SphereGeometry(6, 16, 12), new T.MeshBasicMaterial({ color: 0xf6f0dc, fog: false })); scene.add(moon);
+  const sunDisc = new T.Mesh(new T.SphereGeometry(9, 16, 12), new T.MeshBasicMaterial({ color: 0xffd090, fog: false })); scene.add(sunDisc);
+  const hemi = new T.HemisphereLight(0xbfd8ff, 0x6a5a48, 0.6); scene.add(hemi);
+  const sun = new T.DirectionalLight(0xffffff, 1); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, near: 1, far: 140 }); sun.shadow.bias = -0.0008; scene.add(sun); scene.add(sun.target);
+  const KEYS = [
+    [0, 0x060a1c, 0x1a2244, 0x7f8fc8, 0.18, 0.22], [4.4, 0x0d1230, 0x2c2a52, 0x8a90c0, 0.2, 0.25], [5.4, 0x253a78, 0xe08a76, 0xffa880, 0.55, 0.42], [6.6, 0x4c86cc, 0xf4d6b4, 0xffe2c4, 0.95, 0.58],
+    [12, 0x3a84d6, 0xcfe4f4, 0xfff6e8, 1.15, 0.7], [15.8, 0x4a7ec0, 0xf0d2a4, 0xffd9a0, 1.0, 0.62], [17.4, 0x3a3f80, 0xff8a3e, 0xff7a2a, 1.15, 0.5], [18.4, 0x232552, 0xd05a50, 0xff6a50, 0.55, 0.38], [19.4, 0x0d1030, 0x3a2a52, 0x9a88c0, 0.25, 0.26], [24, 0x060a1c, 0x1a2244, 0x7f8fc8, 0.18, 0.22],
+  ];
+  function skyAt(h) { let i = 0; while (i < KEYS.length - 2 && h >= KEYS[i + 1][0]) i++; const a = KEYS[i], b = KEYS[i + 1], t = smooth(0, 1, (h - a[0]) / (b[0] - a[0])); return { top: C(a[1]).lerp(C(b[1]), t), hor: C(a[2]).lerp(C(b[2]), t), sun: C(a[3]).lerp(C(b[3]), t), si: lerp(a[4], b[4], t), amb: lerp(a[5], b[5], t) }; }
+  const nightOf = h => 1 - smooth(4.6, 6.4, h) + smooth(17.4, 19.4, h) - (h < 12 ? 0 : 0) > 1 ? 1 : clamp(h < 12 ? 1 - smooth(4.6, 6.4, h) : smooth(17.4, 19.4, h), 0, 1);
+  const tmpC = new T.Color();
+  let hour = 17, speed = 1, weather = "clear", fireworksOn = false, clockT = 0;
+  function applyHour(h, dt) {
+    const S = skyAt(h), N = nightOf(h), wet = weather === "rain" ? 1 : 0, fog = weather === "fog" ? 1 : 0;
+    const grey = C(0x7a808c);
+    const top = S.top.clone().lerp(grey.clone().multiplyScalar(0.25 + 0.6 * (1 - N)), wet * 0.6 + fog * 0.3), hor = S.hor.clone().lerp(C(0x9aa2ae).multiplyScalar(0.3 + 0.7 * (1 - N)), wet * 0.55 + fog * 0.55);
+    const pos = skyGeo.attributes.position; for (let i = 0; i < pos.count; i++) { const y = pos.getY(i) / 300, t = clamp(y * 1.6, 0, 1); tmpC.copy(hor).lerp(top, Math.pow(t, 0.7)); if (y < 0) tmpC.multiplyScalar(0.55); skyCols.set([tmpC.r, tmpC.g, tmpC.b], i * 3); } skyGeo.attributes.color.needsUpdate = true;
+    // sun travels east to west, the moon opposite
+    const a = (h - 6) / 12 * Math.PI, el = Math.sin(a), sx = Math.cos(a);
+    const sunDir = new T.Vector3(-sx * 0.8, Math.max(0.12, el), -0.55).normalize(), moonDir = new T.Vector3(sx * 0.7, Math.max(0.25, -el), -0.6).normalize();
+    const dir = N > 0.6 ? moonDir : sunDir;
+    sun.position.copy(dir).multiplyScalar(70); sun.target.position.set(0, 0, 0);
+    sun.color.copy(S.sun); sun.intensity = S.si * (1 - wet * 0.55 - fog * 0.4);
+    hemi.color.copy(top).lerp(C(0xffffff), 0.35); hemi.groundColor.copy(C(0x5a4a3a)).lerp(hor, 0.3); hemi.intensity = S.amb * (1 - wet * 0.2) + 0.08;
+    sunDisc.position.copy(sunDir).multiplyScalar(260); sunDisc.visible = el > -0.08 && !wet && !fog; sunDisc.material.color.copy(S.sun).lerp(C(0xffffff), 0.3);
+    moon.position.copy(moonDir).multiplyScalar(250); moon.visible = N > 0.3 && !wet;
+    stars.material.opacity = N * (1 - wet) * (1 - fog * 0.8);
+    scene.fog = fog ? new T.Fog(hor.clone().lerp(C(0xc8ccd4), 0.3 * (1 - N)), 18, 80) : new T.Fog(hor, 120, 360);
+    if (wet) scene.fog = new T.Fog(hor, 60, 220);
+    renderer.setClearColor(hor);
+    // the sea takes the sky's colour
+    waterMat.color.copy(C(0x1f6a8a)).lerp(hor, 0.35).multiplyScalar(0.45 + 0.55 * (1 - N) + 0.1);
+    waterMat.specular.copy(S.sun).multiplyScalar(0.8);
+    // lights of the town
+    const lampOn = clamp((N - 0.25) / 0.5, 0, 1);
+    for (const g of glows) g.material.opacity = (g.userData.pool ? 0.45 : 0.85) * lampOn * (fog ? 1.3 : 1);
+    for (const s of streaks) if (!s.userData.die) s.material.opacity = lampOn * (0.35 + 0.15 * Math.sin(clockT * 3 + s.position.x));
+    bulbMat.color.copy(C(0x8a8a88)).lerp(C(0xfff0d0), lampOn);
+    for (const l of lanterns) l.m.material.color.copy(l.base).multiplyScalar(0.45 + 0.75 * lampOn);
+    lampRoom.material.color.copy(C(0x9a9a90)).lerp(C(0xfff2c0), lampOn); beamMat.opacity = 0.11 * lampOn * (fog ? 1.8 : 1);
+    if (ferry.userData.light) ferry.userData.light.material.color.copy(C(0x777766)).lerp(C(0xffe0a0), lampOn);
+    ferryGlow.material.opacity = 0.8 * lampOn;
+    // windows
+    const glass = C(0x2c3a48).lerp(hor, 0.25).multiplyScalar(0.35 + 0.65 * (1 - N));
+    const H2 = h < 12 ? h + 24 : h;
+    wins.forEach((w, i) => {
+      const occ = w.house && w.house.home > 0 && H2 >= 17 && H2 < 23.6;
+      let lit = !w.never && ((H2 >= w.on && H2 < w.off) || (h >= w.mOn && h < 7.2) || (occ && N > 0.25));
+      if (w.house && w.house.kind === "school") lit = h > 7.5 && h < 18 && weather !== "clear" ? true : h > 17.5 && h < 19 && w.x > 8;
+      if (w.house && (w.house.kind === "sento" || w.house.kind === "inn")) lit = N > 0.2 && H2 < 24.5;
+      const c = lit ? tmpC.copy(w.c).multiplyScalar(lerp(0.75, 1, N) * (0.96 + 0.04 * Math.sin(clockT * 2 + i))) : glass;
+      winMesh.setColorAt(i, c);
+    });
+    winMesh.instanceColor.needsUpdate = true;
+    return N;
+  }
+
+  // ---------- camera: orbit around the box, presets, following ----------
+  const cam = { target: new T.Vector3(0, 2, -1), r: 62, th: 0.38, ph: 0.98 }, want = { target: cam.target.clone(), r: cam.r, th: cam.th, ph: cam.ph };
+  let view = "all", follow = null, idleT = 0;
+  const camFwd = new T.Vector3();
+  const VIEWS = {
+    all: () => ({ target: new T.Vector3(0, 2, -1), r: 62, th: 0.38, ph: 0.98 }),
+    port: () => ({ target: new T.Vector3(-1, 1.2, 9), r: 21, th: 0.12, ph: 1.18 }),
+    alley: () => ({ target: new T.Vector3(-3.5, TER.T1 + 0.8, 0.6), r: 8, th: -0.95, ph: 1.32 }),
+    light: () => ({ target: new T.Vector3(0, 4, -4), r: 29, th: 0.69, ph: 1.47 }),
+  };
+  function setView(v) {
+    view = v; follow = null; document.querySelectorAll("[id^='v-']").forEach(b => b.setAttribute("aria-pressed", String(b.id === "v-" + v)));
+    if (VIEWS[v]) Object.assign(want, VIEWS[v]());
+    if (v === "ferry") { follow = { kind: "ferry" }; Object.assign(want, { r: 13, ph: 1.12 }); }
+    if (v === "res") { const vis = residents.filter(r => !r.hidden && r.L.kind !== "cat"); followRes(pick(vis.length ? vis : residents)); }
+  }
+  function followRes(r) { follow = { kind: "res", r }; view = "res"; Object.assign(want, { r: 7.5, ph: 1.18 }); document.querySelectorAll("[id^='v-']").forEach(b => b.setAttribute("aria-pressed", String(b.id === "v-res"))); showCard(r); }
+  // pointer input
+  const ptrs = new Map(); let dragMoved = 0, pinch0 = 0;
+  cv.addEventListener("pointerdown", e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); dragMoved = 0; cv.classList.add("drag"); if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); } hideHint(); });
+  cv.addEventListener("pointermove", e => { const p = ptrs.get(e.pointerId); if (!p) return; const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY; dragMoved += Math.abs(dx) + Math.abs(dy); idleT = 0;
+    if (ptrs.size === 1) { want.th -= dx * 0.006; want.ph = clamp(want.ph - dy * 0.005, 0.28, 1.5); }
+    else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch0) want.r = clamp(want.r * pinch0 / d, 5, 110); pinch0 = d; } });
+  const up = e => { const was = ptrs.has(e.pointerId); ptrs.delete(e.pointerId); cv.classList.remove("drag"); if (was && dragMoved < 6 && e.type === "pointerup") pickAt(e.clientX, e.clientY); pinch0 = 0; };
+  cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
+  cv.addEventListener("wheel", e => { e.preventDefault(); want.r = clamp(want.r * Math.exp(e.deltaY * 0.0012), 5, 110); idleT = 0; hideHint(); }, { passive: false });
+  const ray = new T.Raycaster(), ndc = new T.Vector2();
+  function pickAt(x, y) { const rc = cv.getBoundingClientRect(); ndc.set((x - rc.left) / rc.width * 2 - 1, -(y - rc.top) / rc.height * 2 + 1); ray.setFromCamera(ndc, camera); const hits = ray.intersectObjects(sprites.filter(s => s.visible)); if (hits.length) followRes(hits[0].object.userData.r); }
+  function updateCamera(dt) {
+    if (follow && follow.kind === "res") { const r = follow.r; want.target.set(r.pos.x, r.pos.y + 0.6, r.pos.z); if (r.hidden && r.house) want.target.set(r.house.x, r.house.y0 + 1, r.house.z + r.house.d / 2); }
+    if (follow && follow.kind === "ferry") want.target.copy(ferry.position).add(new T.Vector3(0, 0.8, 0));
+    if (view === "all" && !ptrs.size) { idleT += dt; if (idleT > 4) want.th += dt * 0.025; }
+    const k = 1 - Math.pow(0.0015, dt);
+    cam.target.lerp(want.target, k); cam.r = lerp(cam.r, want.r, k); cam.th = lerp(cam.th, want.th, k); cam.ph = lerp(cam.ph, want.ph, k);
+    const sp = Math.sin(cam.ph); camera.position.set(cam.target.x + cam.r * sp * Math.sin(cam.th), cam.target.y + cam.r * Math.cos(cam.ph), cam.target.z + cam.r * sp * Math.cos(cam.th));
+    if (camera.position.y < 0.7) camera.position.y = 0.7;
+    camera.lookAt(cam.target); camera.getWorldDirection(camFwd); camFwd.y = 0; camFwd.normalize();
+  }
+
+  // ---------- resident card ----------
+  const card = $("#card"), faceCtx = $("#face").getContext("2d");
+  let cardR = null;
+  function showCard(r) { cardR = r; card.hidden = false; $("#cname").textContent = r.name; $("#crole").textContent = r.label + (r.house && r.house.label ? `・${r.house.label}` : ""); faceCtx.clearRect(0, 0, 16, 16); faceCtx.drawImage(ATLAS, 0, r.row * CELL, CELL, CELL, 0, 0, 16, 16); updateCard(); }
+  function updateCard() { if (!cardR || card.hidden) return; const r = cardR; let s; if (r.state === "walk" && r.path.length) s = `${PLACE(r.goal)}へ向かっている`; else s = ACT[r.act] || "のんびりしている"; if (r.state === "ride") s = ACT.boat; $("#cdo").textContent = s + "。"; }
+  $("#cclose").addEventListener("click", () => { card.hidden = true; cardR = null; if (view === "res") setView("all"); });
+  $("#cfollow").addEventListener("click", () => cardR && followRes(cardR));
+
+  // ---------- controls ----------
+  const timeEl = $("#time");
+  timeEl.addEventListener("input", () => { hour = +timeEl.value; residents.forEach(r => r.slot = -1); });
+  for (const [id, v] of [["spd0", 0], ["spd1", 1], ["spd4", 6]]) $("#" + id).addEventListener("click", () => { speed = v; ["spd0", "spd1", "spd4"].forEach(b => $("#" + b).setAttribute("aria-pressed", String(b === id))); });
+  for (const w of ["clear", "rain", "fog"]) $("#w-" + w).addEventListener("click", () => { weather = w; ["clear", "rain", "fog"].forEach(b => $("#w-" + b).setAttribute("aria-pressed", String(b === w))); rain.visible = w === "rain"; });
+  for (const v of ["all", "port", "alley", "light", "ferry", "res"]) $("#v-" + v).addEventListener("click", () => setView(v));
+  $("#pix").addEventListener("click", () => { pixMode = !pixMode; $("#pix").setAttribute("aria-pressed", String(pixMode)); cv.classList.toggle("pix", pixMode); renderer.setPixelRatio(pixMode ? 0.34 : Math.min(2, devicePixelRatio || 1)); resize(); });
+  const hint = $("#hint"); let hintGone = false; function hideHint() { if (hintGone) return; hintGone = true; hint.style.opacity = "0"; }
+  setTimeout(hideHint, 9000);
+
+  // ---------- sound: waves, gulls, evening cicadas, rain, fireworks ----------
+  const A = { ac: null, on: false };
+  function initAudio() {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false; const ac = new AC(); A.ac = ac; A.master = ac.createGain(); A.master.gain.value = 0.5; A.master.connect(ac.destination);
+    const nb = ac.createBuffer(1, ac.sampleRate * 3, ac.sampleRate), d = nb.getChannelData(0); let last = 0; for (let i = 0; i < d.length; i++) { const w = Math.random() * 2 - 1; last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; } A.brown = nb;
+    const wb = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate), wd = wb.getChannelData(0); for (let i = 0; i < wd.length; i++) wd[i] = Math.random() * 2 - 1; A.white = wb;
+    const loop = (buf, type, f, vol) => { const s = ac.createBufferSource(); s.buffer = buf; s.loop = true; const fl = ac.createBiquadFilter(); fl.type = type; fl.frequency.value = f; const g = ac.createGain(); g.gain.value = vol; s.connect(fl); fl.connect(g); g.connect(A.master); s.start(); return g; };
+    A.waves = loop(nb, "lowpass", 600, 0.25); A.rain = loop(wb, "highpass", 1800, 0); return true;
+  }
+  function tone(type, f0, f1, t0, dur, vol) { const ac = A.ac, o = ac.createOscillator(), g = ac.createGain(); o.type = type; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(f1, t0 + dur); g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(vol, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); o.connect(g); g.connect(A.master); o.start(t0); o.stop(t0 + dur + 0.05); }
+  function noise(t0, dur, vol, type, f) { const ac = A.ac, s = ac.createBufferSource(); s.buffer = A.white; const fl = ac.createBiquadFilter(); fl.type = type; fl.frequency.value = f; const g = ac.createGain(); g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); s.connect(fl); fl.connect(g); g.connect(A.master); s.start(t0, Math.random()); s.stop(t0 + dur + 0.05); }
+  function sfx(k, dist = 40) {
+    if (!A.on) return; const t = A.ac.currentTime, delay = Math.min(0.6, dist / 340), v = clamp(30 / Math.max(dist, 10), 0.15, 1);
+    if (k === "boom") { noise(t + delay, 1.4, 0.5 * v, "lowpass", 260); tone("sine", 70, 32, t + delay, 1.2, 0.5 * v); }
+    if (k === "crackle") for (let i = 0; i < 18; i++) noise(t + delay + 0.25 + i * 0.035 + Math.random() * 0.03, 0.05, 0.12 * v, "highpass", 2500);
+    if (k === "whistle") tone("sine", 900, 1700, t, 0.9, 0.025);
+    if (k === "gull") { for (let i = 0; i < 2; i++) tone("triangle", 1500, 1050, t + i * 0.22, 0.18, 0.04); }
+    if (k === "kana") { for (let i = 0; i < 14; i++) tone("sine", 4300, 4000, t + i * 0.085, 0.06, 0.012 * (1 - i / 16)); }
+  }
+  $("#snd").addEventListener("click", async () => { if (!A.ac && !initAudio()) return; A.on = !A.on; $("#snd").setAttribute("aria-pressed", String(A.on)); if (A.on) await A.ac.resume(); else await A.ac.suspend(); });
+
+  // ---------- the loop ----------
+  let last = performance.now(), statT = 0;
+  const PHASES = h => h < 4.5 ? "深夜" : h < 6.5 ? "夜明け" : h < 10 ? "朝" : h < 15.5 ? "昼" : h < 17.2 ? "午後" : h < 19.3 ? "夕暮れ" : h < 23 ? "夜" : "深夜";
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now; clockT += dt;
+    hour = (hour + dt * speed / 15) % 24; if (document.activeElement !== timeEl) timeEl.value = hour.toFixed(2);
+    const N = applyHour(hour, dt);
+    fireworksOn = hour > 19.4 && hour < 21.2 && weather !== "rain";
+    // water surface
+    const p = waterGeo.attributes.position.array; for (let i = 0; i < p.length; i += 3) { const x = wBase[i], z = wBase[i + 2]; p[i + 1] = 0.06 * Math.sin(x * 0.7 + clockT * 1.3) + 0.045 * Math.sin(z * 1.4 - clockT * 1.7) + 0.02 * Math.sin((x + z) * 2.2 + clockT * 2.6); } waterGeo.attributes.position.needsUpdate = true; if (Math.floor(clockT * 30) % 2 === 0) waterGeo.computeVertexNormals();
+    // boats
+    const bob = (g, ph, x, z) => { g.position.set(x, WATER_Y + 0.02 * Math.sin(clockT * 1.5 + ph) - 0.12, z); g.rotation.z = 0.04 * Math.sin(clockT * 1.1 + ph); g.rotation.x = 0.03 * Math.sin(clockT * 0.9 + ph * 2); };
+    { const m = (hour % 1) * 60, inService = hour >= 6 && hour < 22; let fx = 7.7, fz = 16.0, heading = 0; if (inService && m >= 10 && m < 55) { const u = (m - 10) / 45, pt = ferryPath.getPointAt(u), tg = ferryPath.getTangentAt(u); fx = pt.x; fz = pt.z; heading = Math.atan2(-tg.z, tg.x); } else heading = Math.PI * 0.15; bob(ferry, 0, fx, fz); ferry.rotation.y = heading; ferryGlow.position.set(fx, 1.3, fz); ferryStreak.position.set(fx, WATER_Y + 0.06, fz + 1.8); }
+    for (const b of fishing) { const out = hour > 5 && hour < 12.6, u = hour < 5.5 ? (hour - 5) / 0.5 : hour > 12.1 ? (12.6 - hour) / 0.5 : 1, k = out ? smooth(0, 1, clamp(u, 0, 1)) : 0; b.out = out && k > 0.02; const x = lerp(b.moor.x, b.sea.x, k), z = lerp(b.moor.z, b.sea.z, k); bob(b.g, b.ph, x, z); b.g.rotation.y = out && k < 0.98 ? Math.atan2(-(b.sea.z - b.moor.z) * (hour > 12 ? -1 : 1), (b.sea.x - b.moor.x) * (hour > 12 ? -1 : 1)) : Math.PI / 2; }
+    bob(rowboat, 2, rowboat.position.x, rowboat.position.z);
+    // lighthouse beam
+    beamPivot.rotation.y += dt * 0.9;
+    // gulls by day
+    for (const gl of gulls) { gl.g.visible = hour > 5.3 && hour < 18.6 && weather !== "rain"; if (!gl.g.visible) continue; gl.a += dt * gl.sp; const x = gl.cx + Math.cos(gl.a) * gl.r, z = gl.cz + Math.sin(gl.a) * gl.r * 0.6; gl.g.position.set(x, gl.h + Math.sin(gl.a * 3) * 0.4, z); gl.g.rotation.y = -gl.a - (gl.sp > 0 ? Math.PI / 2 : -Math.PI / 2); const f = Math.sin(clockT * 9 + gl.a * 5) * 0.6; gl.pl.rotation.x = f; gl.pr.rotation.x = -f; }
+    // laundry and the school flag sway
+    laundry.forEach((l, i) => l.rotation.y = 0.25 * Math.sin(clockT * 2 + i));
+    // smoke
+    for (const s of smokeSrc) { const on = hour >= s.from && hour < s.to; s.acc = (s.acc || 0) + dt; if (on && s.acc > s.rate) { s.acc = 0; const p2 = puffs.find(q => q.life <= 0); if (p2) { p2.life = 1; p2.s.visible = true; p2.s.position.set(s.x, s.y, s.z); p2.vx = 0.35 + R() * 0.15; p2.sz = 0.5; } } }
+    for (const q of puffs) { if (q.life <= 0) continue; q.life -= dt * 0.16; q.s.position.x += q.vx * dt; q.s.position.y += 0.55 * dt; q.sz += dt * 0.5; q.s.scale.set(q.sz, q.sz, 1); q.s.material.opacity = 0.55 * q.life; q.s.material.color.copy(C(0xd8d4cc)).multiplyScalar(0.35 + 0.65 * (1 - N)); if (q.life <= 0) q.s.visible = false; }
+    // rain
+    if (rain.visible) { for (let i = 0; i < RN; i++) { const j = i * 6 + 1; rainPos[j] -= dt * 26; rainPos[j + 3] -= dt * 26; if (rainPos[j] < -2) { rainPos[j] += 36; rainPos[j + 3] += 36; } } rainGeo.attributes.position.needsUpdate = true; }
+    if (A.on) { A.waves.gain.value = 0.18 + 0.08 * Math.sin(clockT * 0.45); A.rain.gain.value = weather === "rain" ? 0.08 : 0; if (hour > 5.5 && hour < 18 && weather !== "rain" && R() < dt * 0.08) sfx("gull"); if (hour > 16.8 && hour < 19 && weather === "clear" && R() < dt * 0.06) sfx("kana"); }
+    // fireworks and their passing reflections
+    updateFireworks(dt, hour, N);
+    for (let k = streaks.length - 1; k >= 0; k--) { const s = streaks[k]; if (!s.userData.die) continue; s.userData.fade -= dt * 0.9; s.material.opacity = Math.max(0, s.userData.fade) * 0.7; if (s.userData.fade <= 0) { scene.remove(s); streaks.splice(k, 1); } }
+    // residents
+    const sdt = dt * Math.min(Math.max(speed, 0.0001), 3.5);
+    for (const r of residents) updateResident(r, speed ? sdt : 0, hour, N);
+    updateCamera(dt);
+    statT -= dt; if (statT <= 0) { statT = 0.5; const h = Math.floor(hour), m = Math.floor((hour % 1) * 60); $("#clk").textContent = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`; $("#phase").textContent = PHASES(hour) + (fireworksOn ? "・花火" : "") + (weather === "rain" ? "・雨" : weather === "fog" ? "・霧" : ""); const out = residents.filter(r => !r.hidden).length; $("#stat").textContent = `住人 ${residents.length}人（猫と犬をふくむ）・外にいる ${out}人`; updateCard(); }
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  resize(); applyHour(hour, 0); setView("all"); Object.assign(cam, VIEWS.all()); cam.target = cam.target.clone();
+  window.Hako = { set hour(v) { hour = v; residents.forEach(r => r.slot = -1); }, get hour() { return hour; }, residents, setView, followRes, setWeather: w => $("#w-" + w).click(), launch, step: (n, dt = 1 / 30) => { for (let i = 0; i < n; i++) { last -= dt * 1000; } } };
+  requestAnimationFrame(frame);
+})();
+</script>
