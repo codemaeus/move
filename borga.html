@@ -194,6 +194,7 @@
   const CLAWK = { s: ["s0", "s1", "s2"], u: ["u0", "u1", "u2"] }, CLAWMAP = { s0: 0, s01: 0, s1: 1, s12: 2, s2: 2, u0: 0, u01: 0, u1: 1, u12: 2, u2: 2 };
   for (const a in CLAWK) CLAWK[a].forEach((ak, ai) => { const A = KPOSE[ak]; for (let q = 0; q < 8; q++) for (const [c, L] of [["cw", KPOSE["w" + q * 2]], ["cd", KPOSE["d" + q * 2]]]) KPOSE[c + a + ai + q] = { ...L, af: A.af, fold: A.fold, ha: A.ha, jaw: A.jaw, lean: (L.lean + A.lean) / 2 + 0.05, neck: c === "cd" ? -0.1 : 0 }; });
   for (const [a, b, n] of [["lj0", "lj1", "lj01"], ["lj1", "lj2", "lj12"], ["lj2", "lj3", "lj23"], ["lj3", "lj4", "lj34"], ["lj4", "ljr", "lj4r"]]) KPOSE[n] = mixPose(KPOSE[a], KPOSE[b], 0.5);
+  KPOSE.lj1ra = mixPose(KPOSE.lj1, KPOSE.ljr, 0.35); KPOSE.lj1rb = mixPose(KPOSE.lj1, KPOSE.ljr, 0.7);
   KPOSE.tA = mixPose(KPOSE.t0, KPOSE.t1, 0.5); KPOSE.tB = mixPose(KPOSE.t1, KPOSE.t2, 0.5); KPOSE.tC = { ...KPOSE.t2, ta: KPOSE.t2.ta + 0.12, by: 9, lean: 0.55, jaw: 0.5 };
   const KF = {}, KFC = {}; for (const k in KPOSE) Object.defineProperty(KF, k, { enumerable: true, get: () => KFC[k] || (KFC[k] = kaijuFrame(KPOSE[k])) });
   for (const k of ["idle0", "idle1", "idle01", "roar0", "roar1"]) void KF[k]; for (let i = 0; i < 16; i++) void KF["w" + i];
@@ -546,7 +547,7 @@
   function kTurn() { if (K.state !== "tail") return 1; const t = K.t; if (t < 10) return 1; if (t < 15) return 1 - (t - 10) / 5 * 2; if (t < 42) return -1; if (t < 48) return -1 + (t - 42) / 6 * 2; return 1; }
   const kFace = () => kTurn() >= 0 ? K.dir : -K.dir;
   const worldF = (pt, d) => [K.x + pt[0] * d, GY + K.y + pt[1]];
-  const LJSEQ = [[0, "lj0"], [4, "lj01"], [7, "lj1"], [11, "lj12"], [13, "lj2"], [17, "lj23"], [19, "lj3"], [24, "lj34"], [26, "lj4"], [30, "lj4r"], [33, "ljr"]];
+  const LJSEQ = [[0, "lj0"], [4, "lj01"], [7, "lj1"], [15, "lj1ra"], [19, "lj1rb"], [23, "ljr"]];
   function ljFrame() { if (K.vy > 0 && K.y > -14) return "ljr"; let k = "lj0"; for (const [t, f] of LJSEQ) if (K.t >= t) k = f; return k; }
   function kFrame() {
     const s = K.state;
