@@ -1,0 +1,468 @@
+<title>浮き島カフェ しおだまり</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Zen+Maru+Gothic:wght@500;700&display=swap">
+<style>
+  /* layout: the sea fills the window; a name plate floats top-left, the controls ride along the bottom, a guest card slides in at the right */
+  :root {
+    --ink: #1c1a24;
+    --paper: #fffaf0;
+    --sea: #2a7fb8;
+    --deep: #0e2f57;
+    --sun: #ffb44a;
+    --panel: rgba(14, 47, 87, 0.82);
+    --dim: #cfe3ef;
+    --dot: "DotGothic16", "MS Gothic", "Osaka-Mono", monospace;
+    --round: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--deep); color: var(--paper); font-family: var(--dot); overflow: hidden; }
+  #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+  .plate { position: fixed; left: 16px; top: calc(14px + env(safe-area-inset-top, 0px)); padding: 10px 16px 9px; background: var(--panel); border: 2px solid var(--ink); border-radius: 8px; box-shadow: 3px 3px 0 var(--ink); max-width: calc(100vw - 32px); }
+  .plate small { display: block; font-size: 12px; letter-spacing: 0.25em; color: var(--dim); }
+  .plate h1 { margin: 2px 0 0; font-family: var(--round); font-weight: 700; font-size: 25px; letter-spacing: 0.1em; color: var(--paper); text-wrap: balance; }
+  .plate h1 span { color: var(--sun); }
+  .plate .now { margin-top: 3px; font-size: 14px; display: flex; gap: 10px; align-items: baseline; }
+  .plate .now b { font-weight: 400; font-size: 22px; color: var(--sun); font-variant-numeric: tabular-nums; }
+  .rail { position: fixed; left: 0; right: 0; bottom: 0; padding: 9px 16px calc(9px + env(safe-area-inset-bottom, 0px)); display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; background: rgba(9, 30, 60, 0.86); border-top: 2px solid var(--ink); font-size: 14px; }
+  .group { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+  .lab { font-size: 11px; color: var(--dim); letter-spacing: 0.2em; margin-right: 2px; }
+  button { font: inherit; color: var(--ink); background: var(--paper); border: 2px solid var(--ink); border-radius: 6px; padding: 3px 9px; cursor: pointer; box-shadow: 2px 2px 0 var(--ink); }
+  button:hover { background: #ffe9c8; }
+  button:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
+  button[aria-pressed="true"] { background: var(--sun); }
+  button:focus-visible, input:focus-visible { outline: 3px solid #9fe0ff; outline-offset: 2px; }
+  #time { width: min(220px, 46vw); accent-color: var(--sun); }
+  .card { position: fixed; right: 16px; top: calc(14px + env(safe-area-inset-top, 0px)); width: min(270px, calc(100vw - 32px)); padding: 12px 14px; background: var(--paper); color: var(--ink); border: 2px solid var(--ink); border-radius: 8px; box-shadow: 3px 3px 0 var(--ink); }
+  .card .who { display: flex; gap: 10px; align-items: center; }
+  .card canvas { width: 36px; height: 60px; image-rendering: pixelated; background: #e8f2f8; border: 2px solid var(--ink); border-radius: 4px; }
+  .card h2 { margin: 0; font-family: var(--round); font-size: 18px; }
+  .card .role { font-size: 12px; color: #4a5a6a; }
+  .card p { margin: 8px 0 10px; font-size: 14px; line-height: 1.6; }
+  .card .row { display: flex; gap: 6px; }
+  .hint { position: fixed; left: 50%; top: calc(16px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); background: var(--panel); border: 2px solid var(--ink); border-radius: 6px; padding: 3px 12px; font-size: 13px; transition: opacity 1.2s; pointer-events: none; white-space: nowrap; }
+  @media (max-width: 680px) { .hint { display: none; } .plate h1 { font-size: 20px; } .card { top: auto; bottom: 150px; } }
+  @media (prefers-reduced-motion: reduce) { .hint { transition: none; } }
+</style>
+
+<canvas id="gl" aria-label="海に浮かぶカフェしおだまりの風景。ドラッグでまわりを一周でき、ホイールやピンチで近づけます。お客さんをクリックすると話が聞けます"></canvas>
+<div class="plate"><small>うきしま カフェ</small><h1><span>しおだまり</span></h1><div class="now"><b id="clk">17:00</b><span id="phase">夕なぎ</span></div></div>
+<div class="hint" id="hint">ドラッグでぐるりと見る ／ ホイールで近づく ／ お客さんをクリック</div>
+<div class="card" id="card" hidden><div class="who"><canvas id="face" width="24" height="40"></canvas><div><h2 id="cname">名前</h2><div class="role" id="crole">役</div></div></div><p id="ctext">…</p><div class="row"><button id="cnear" type="button">そばで見る</button><button id="cclose" type="button">閉じる</button></div></div>
+<div class="rail">
+  <div class="group"><span class="lab">時刻</span><input id="time" type="range" min="0" max="24" step="0.05" value="17" aria-label="時刻"><button id="sp0" type="button" aria-pressed="false">止める</button><button id="sp1" type="button" aria-pressed="true">ふつう</button><button id="sp6" type="button" aria-pressed="false">はやい</button></div>
+  <div class="group"><span class="lab">みる</span><button id="v-all" type="button" aria-pressed="true">ぜんたい</button><button id="v-terrace" type="button" aria-pressed="false">テラス</button><button id="v-counter" type="button" aria-pressed="false">カウンター</button><button id="v-pier" type="button" aria-pressed="false">桟橋</button><button id="v-sea" type="button" aria-pressed="false">海から</button></div>
+  <div class="group"><button id="music" type="button" aria-pressed="false">音と音楽</button></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+<script>
+(async () => {
+  "use strict";
+  try { await document.fonts.load('32px "DotGothic16"'); } catch (e) { /* fallback */ }
+  const T = THREE, $ = s => document.querySelector(s), PI = Math.PI;
+  const cv = $("#gl"), renderer = new T.WebGLRenderer({ canvas: cv, antialias: true });
+  renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+  const scene = new T.Scene(), camera = new T.PerspectiveCamera(36, 1, 0.1, 900);
+  function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+  addEventListener("resize", resize);
+  let seed = 11; const R = () => (seed = (seed * 16807) % 2147483647) / 2147483647, rr = (a, b) => a + R() * (b - a), pick = a => a[Math.floor(R() * a.length)];
+  const lerp = (a, b, t) => a + (b - a) * t, clamp = (v, a, b) => v < a ? a : v > b ? b : v, smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  const C = h => new T.Color(h);
+
+  // ---------- inked toon look (shared with the bar) ----------
+  const GRAD = (() => { const t = new T.DataTexture(new Uint8Array([120, 200, 255]), 3, 1, T.RedFormat); t.minFilter = t.magFilter = T.NearestFilter; t.needsUpdate = true; return t; })();
+  const TC = new Map(), toon = (c, extra) => { const k = c + (extra ? JSON.stringify(extra) : ""); if (!TC.has(k)) TC.set(k, new T.MeshToonMaterial(Object.assign({ color: c, gradientMap: GRAD }, extra || {}))); return TC.get(k); };
+  const INK = new T.LineBasicMaterial({ color: 0x1c1a24 });
+  const HULL = new T.ShaderMaterial({ side: T.BackSide, uniforms: { th: { value: 0.012 } }, vertexShader: "uniform float th; void main(){ vec3 p = position + normalize(normal) * th; gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }", fragmentShader: "void main(){ gl_FragColor = vec4(0.11, 0.10, 0.14, 1.0); }" });
+  const FLAT = new Set(["BoxGeometry", "PlaneGeometry", "ShapeGeometry", "ExtrudeGeometry", "CircleGeometry", "RingGeometry"]);
+  function M(geo, color, x = 0, y = 0, z = 0, parent, o = {}) {
+    const m = new T.Mesh(geo, o.mat || toon(color, o.em ? { emissive: o.em } : undefined)); m.position.set(x, y, z); if (o.r) m.rotation.set(o.r[0], o.r[1], o.r[2]); if (o.s) m.scale.set(o.s[0], o.s[1], o.s[2]);
+    if (o.edges !== false) m.add(new T.LineSegments(new T.EdgesGeometry(geo, o.angle || 32), INK));
+    if (o.hull ?? !FLAT.has(geo.type)) m.add(new T.Mesh(geo, HULL));
+    (parent || raft).add(m); return m;
+  }
+  const box = (w, h, d) => new T.BoxGeometry(w, h, d), cylG = (a, b, h, s = 18, open = false, t0, tl) => new T.CylinderGeometry(a, b, h, s, 1, open, t0, tl), sph = (r, a = 16, b = 12) => new T.SphereGeometry(r, a, b);
+  function tex(w, h, draw, near) { const c = document.createElement("canvas"); c.width = w; c.height = h; draw(c.getContext("2d"), w, h); const t = new T.CanvasTexture(c); if (near) { t.magFilter = t.minFilter = T.NearestFilter; t.generateMipmaps = false; } else t.anisotropy = 4; return t; }
+  const pmat = (t, extra) => new T.MeshToonMaterial(Object.assign({ map: t, gradientMap: GRAD }, extra || {}));
+  const ink = (g, lw = 3) => { g.strokeStyle = "#1c1a24"; g.lineWidth = lw; g.lineJoin = g.lineCap = "round"; };
+
+  // ---------- the raft everything stands on: it rocks gently on the swell ----------
+  const raft = new T.Group(); scene.add(raft);
+  const portholes = [], BENCH = new T.Vector3(), TELE = new T.Vector3(); let espresso = null;
+  const RP = 5.2, DY = 0.62, WOOD = 0xb07a48, WOOD_D = 0x6e4426, WOOD_L = 0xd09a5e, WHITE = 0xf6f1e6, TEAL = 0x2f8a9a, NAVY = 0x22406a, CORAL = 0xe8674a;
+  const PLANKS = tex(512, 512, (g, w, h) => { g.fillStyle = "#c8915a"; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 32) { g.fillStyle = (y / 32) % 2 ? "#c08852" : "#cf9a62"; g.fillRect(0, y, w, 32); ink(g, 2); g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); let x = (y * 3) % 160; while (x < w) { g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + 32); g.stroke(); x += 180; } g.fillStyle = "#3a2a20"; for (let x2 = 20; x2 < w; x2 += 90) { g.fillRect(x2, y + 6, 2, 2); g.fillRect(x2, y + 24, 2, 2); } } });
+  PLANKS.wrapS = PLANKS.wrapT = T.RepeatWrapping; PLANKS.repeat.set(2, 2);
+  M(cylG(RP, RP, 0.12, 48), 0, 0, DY - 0.06, 0, raft, { mat: [toon(WOOD_D), pmat(PLANKS), toon(WOOD_D)], hull: false });
+  M(cylG(RP + 0.05, RP - 0.1, 0.36, 48, true), WOOD_D, 0, DY - 0.3, 0, raft, { mat: toon(WOOD_D, { side: T.DoubleSide }), hull: false });
+  for (let i = 0; i < 12; i++) { const a = i / 12 * PI * 2; M(cylG(0.32, 0.32, 1.1, 16), i % 2 ? 0xe8e2d4 : CORAL, Math.cos(a) * (RP - 0.6), 0.05, Math.sin(a) * (RP - 0.6), raft, { r: [PI / 2, 0, -a + PI / 2] }); }
+  // railing around the edge with a gap for the pier
+  const PIER_A = PI / 4;
+  for (let i = 0; i < 40; i++) { const a = i / 40 * PI * 2, d = Math.abs(((a - PIER_A + PI) % (2 * PI)) - PI); if (d < 0.17 || (a > PI * 1.08 && a < PI * 1.92)) continue; M(cylG(0.035, 0.035, 0.8, 6), WHITE, Math.cos(a) * (RP - 0.15), DY + 0.4, Math.sin(a) * (RP - 0.15)); }
+  for (const [a0, a1] of [[PIER_A + 0.17, PI * 1.08], [PI * 1.92, 2 * PI + PIER_A - 0.17]]) { const g = new T.TorusGeometry(RP - 0.15, 0.035, 6, 60, a1 - a0); g.rotateZ(a0); g.rotateX(PI / 2); M(g, WHITE, 0, DY + 0.8, 0, raft, { hull: false }); const g2 = new T.TorusGeometry(RP - 0.15, 0.02, 6, 60, a1 - a0); g2.rotateZ(a0); g2.rotateX(PI / 2); M(g2, WHITE, 0, DY + 0.45, 0, raft, { hull: false }); }
+  // life ring and lantern posts
+  { const a = PI * 0.62, x = Math.cos(a) * (RP - 0.1), z = Math.sin(a) * (RP - 0.1); const ring = M(new T.TorusGeometry(0.28, 0.08, 10, 24), CORAL, x, DY + 0.55, z); ring.rotation.y = -a + PI / 2; for (let k = 0; k < 4; k++) M(box(0.06, 0.18, 0.18), WHITE, x + Math.cos(k * PI / 2) * 0.05, DY + 0.55 + Math.sin(k * PI / 2) * 0.28, z, raft, { hull: false }); }
+
+  // ---------- the café: white walls, blue trim, an open front ----------
+  const BX0 = -2.6, BX1 = 2.6, BZ0 = -4.3, BZ1 = -1.4, BH = 2.5;
+  const WALLT = tex(256, 256, (g, w, h) => { g.fillStyle = "#f6f1e6"; g.fillRect(0, 0, w, h); g.strokeStyle = "rgba(120,110,100,0.18)"; for (let y = 0; y < h; y += 16) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); } });
+  WALLT.wrapS = WALLT.wrapT = T.RepeatWrapping;
+  const wall = (w, h, x, y, z, ry) => { const t = WALLT.clone(); t.needsUpdate = true; t.repeat.set(w / 2, h / 2); M(box(w, h, 0.14), 0, x, y, z, raft, { mat: pmat(t), r: [0, ry, 0] }); };
+  wall(BX1 - BX0, BH, 0, DY + BH / 2, BZ0, 0);
+  for (const x of [BX0, BX1]) { wall(BZ1 - BZ0, BH, x, DY + BH / 2, (BZ0 + BZ1) / 2, PI / 2); const pz = (BZ0 + BZ1) / 2; M(new T.TorusGeometry(0.3, 0.06, 8, 20), TEAL, x + Math.sign(x) * 0.08, DY + 1.55, pz, raft, { r: [0, PI / 2, 0] }); const gl = new T.Mesh(new T.CircleGeometry(0.27, 20), new T.MeshBasicMaterial({ color: 0x9fd8f0 })); gl.position.set(x + Math.sign(x) * 0.075, DY + 1.55, pz); gl.rotation.y = Math.sign(x) * PI / 2; raft.add(gl); portholes.push(gl); }
+  M(box(BX1 - BX0 + 0.1, 0.14, 0.16), TEAL, 0, DY + BH - 0.07, BZ1, raft); for (const x of [BX0, BX1]) M(box(0.16, BH, 0.16), TEAL, x, DY + BH / 2, BZ1);
+  // gable roof with tiles
+  { const w = BX1 - BX0 + 0.6, d = BZ1 - BZ0 + 0.9, rh = 1.1, hw = w / 2, hd = d / 2; const v = [-hw, 0, hd, hw, 0, hd, hw, rh, 0, -hw, 0, hd, hw, rh, 0, -hw, rh, 0, hw, 0, -hd, -hw, 0, -hd, -hw, rh, 0, hw, 0, -hd, -hw, rh, 0, hw, rh, 0, -hw, 0, -hd, -hw, 0, hd, -hw, rh, 0, hw, 0, hd, hw, 0, -hd, hw, rh, 0]; const g = new T.BufferGeometry(); g.setAttribute("position", new T.Float32BufferAttribute(v, 3)); g.computeVertexNormals(); M(g, 0x2f6f9a, 0, DY + BH, (BZ0 + BZ1) / 2, raft, { hull: false, angle: 20 }); for (let k = 1; k < 6; k++) { const y = DY + BH + rh * k / 6, z = (BZ0 + BZ1) / 2 + hd * (1 - k / 6); M(box(w, 0.04, 0.05), 0x24587a, 0, y, z, raft, { hull: false, edges: false }); M(box(w, 0.04, 0.05), 0x24587a, 0, y, (BZ0 + BZ1) / 2 - hd * (1 - k / 6), raft, { hull: false, edges: false }); } M(cylG(0.18, 0.2, 0.9, 12), 0xd8d2c4, 1.4, DY + BH + 0.7, (BZ0 + BZ1) / 2 - 0.5); M(box(0.06, 0.6, 0.06), 0x777777, -1.6, DY + BH + 1.1, (BZ0 + BZ1) / 2); }
+  // sign on the roof
+  { const S = tex(512, 128, (g, w, h) => { g.fillStyle = "#fffaf0"; g.fillRect(0, 0, w, h); ink(g, 8); g.strokeRect(6, 6, w - 12, h - 12); g.fillStyle = "#2f6f9a"; g.font = "64px 'DotGothic16', monospace"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("しおだまり", w / 2 - 30, h / 2 + 2); g.fillStyle = "#e8674a"; g.font = "40px 'DotGothic16'"; g.fillText("CAFE", w - 80, h / 2 + 4); });
+    const s = new T.Mesh(box(2.3, 0.56, 0.06), [toon(WHITE), toon(WHITE), toon(WHITE), toon(WHITE), pmat(S), toon(WHITE)]); s.position.set(0, DY + BH + 0.38, BZ1 + 0.42); s.rotation.x = -0.12; s.add(new T.LineSegments(new T.EdgesGeometry(s.geometry), INK)); raft.add(s); }
+  // striped awning over the open front
+  { const A = tex(256, 64, (g, w, h) => { for (let x = 0; x < w; x += 32) { g.fillStyle = (x / 32) % 2 ? "#f6f1e6" : "#2f8a9a"; g.fillRect(x, 0, 32, h); } g.fillStyle = "#1c1a24"; for (let x = 0; x < w; x += 32) { g.beginPath(); g.arc(x + 16, h, 16, PI, 0); g.fill(); } });
+    const aw = new T.Mesh(new T.PlaneGeometry(BX1 - BX0 + 0.3, 0.9), pmat(A, { side: T.DoubleSide })); aw.position.set(0, DY + BH - 0.2, BZ1 + 0.38); aw.rotation.x = -PI / 2 + 0.55; raft.add(aw); aw.add(new T.LineSegments(new T.EdgesGeometry(aw.geometry), INK)); }
+  // inside: counter, espresso machine, cake case, shelves, menu, lamps
+  M(box(3.2, 1.0, 0.55), 0x4f8aa8, -0.4, DY + 0.5, -3.35); M(box(3.3, 0.06, 0.65), WOOD_L, -0.4, DY + 1.02, -3.35);
+  { const em = new T.Group(); em.position.set(-1.35, DY + 1.05, -3.45); raft.add(em); M(box(0.55, 0.42, 0.36), 0xc8ccd4, 0, 0.21, 0, em); M(box(0.6, 0.06, 0.4), 0x8a8f9a, 0, 0.45, 0, em); for (const x of [-0.12, 0.12]) { M(cylG(0.03, 0.03, 0.1, 8), 0x333333, x, 0.1, 0.2, em); } M(cylG(0.08, 0.08, 0.04, 14), 0x333333, 0, 0.32, 0.19, em, { r: [PI / 2, 0, 0] }); for (let i = 0; i < 4; i++) M(cylG(0.04, 0.035, 0.06, 10), WHITE, -0.2 + i * 0.13, 0.48, 0, em); espresso = em; }
+  { const cc = new T.Group(); cc.position.set(0.45, DY + 1.05, -3.35); raft.add(cc); M(box(0.9, 0.42, 0.45), 0xdff2ff, 0, 0.21, 0, cc, { mat: toon(0xdff2ff, { transparent: true, opacity: 0.35 }) }); for (let i = 0; i < 6; i++) { const c = pick([0xffb0c0, 0xfff0c0, 0x8a5a3a, 0xffd27a, 0xa8e0a0]); M(cylG(0.07, 0.07, 0.08, 12, false, 0, PI * 1.6), c, -0.3 + (i % 3) * 0.3, 0.06 + Math.floor(i / 3) * 0.2, (i % 2) * 0.08 - 0.04, cc, { r: [0, i, 0] }); M(sph(0.018, 6, 4), 0xe8302a, -0.3 + (i % 3) * 0.3, 0.12 + Math.floor(i / 3) * 0.2, (i % 2) * 0.08 - 0.04, cc, { hull: false, edges: false }); } }
+  M(box(0.3, 0.2, 0.28), 0xe8674a, 1.0, DY + 1.15, -3.4);
+  for (const y of [1.55, 2.05]) { M(box(3.4, 0.05, 0.28), WOOD, -0.2, DY + y, BZ0 + 0.18); for (let x = -1.7; x < 1.4; x += rr(0.22, 0.32)) { const c = pick([0xe8c070, 0xa8d8a0, 0xf0a0a0, 0xffffff, 0x9fd0f0]); if (R() < 0.6) { M(cylG(0.07, 0.07, 0.2, 12), c, x, DY + y + 0.125, BZ0 + 0.18, raft, { mat: toon(c, { transparent: true, opacity: 0.85 }) }); M(cylG(0.075, 0.075, 0.04, 12), WOOD_D, x, DY + y + 0.245, BZ0 + 0.18); } else { M(cylG(0.08, 0.06, 0.14, 10), 0xd0764a, x, DY + y + 0.07, BZ0 + 0.18); M(sph(0.1, 8, 6), 0x4f9a46, x, DY + y + 0.22, BZ0 + 0.18, raft, { s: [1, 0.8, 1] }); } } }
+  { const MENU = tex(256, 320, (g, w, h) => { g.fillStyle = "#2a3a34"; g.fillRect(0, 0, w, h); g.fillStyle = "#fffaf0"; g.font = "28px 'DotGothic16'"; g.textAlign = "center"; g.fillText("MENU", w / 2, 40); g.textAlign = "left"; g.font = "22px 'DotGothic16'"; [["しおだまりブレンド", "#ffe08a"], ["波のカフェラテ", "#ffffff"], ["夕焼けソーダ", "#ffb08a"], ["灯台プリン", "#ffd27a"], ["潮風ホットドッグ", "#a8e8ff"]].forEach(([s, c], i) => { g.fillStyle = c; g.fillText(s, 16, 90 + i * 44); }); });
+    const m = new T.Mesh(box(0.8, 1.0, 0.04), [toon(WOOD_D), toon(WOOD_D), toon(WOOD_D), toon(WOOD_D), pmat(MENU), toon(WOOD_D)]); m.position.set(1.9, DY + 1.7, BZ0 + 0.1); m.add(new T.LineSegments(new T.EdgesGeometry(m.geometry), INK)); raft.add(m); }
+  // inside table and two stools at the counter
+  function table(x, z, r = 0.42, top = WOOD_L) { M(cylG(r, r, 0.04, 22), top, x, DY + 0.74, z); M(cylG(0.04, 0.04, 0.72, 8), WOOD_D, x, DY + 0.37, z); M(cylG(0.22, 0.25, 0.04, 16), WOOD_D, x, DY + 0.02, z); }
+  function chair(x, z, ry) { const g = new T.Group(); g.position.set(x, DY, z); g.rotation.y = ry; raft.add(g); M(cylG(0.18, 0.18, 0.04, 16), WHITE, 0, 0.46, 0, g); for (const [a, b] of [[-0.12, -0.12], [0.12, -0.12], [-0.12, 0.12], [0.12, 0.12]]) M(cylG(0.016, 0.016, 0.46, 6), 0x555a66, a, 0.23, b, g); M(box(0.34, 0.3, 0.03), WHITE, 0, 0.66, -0.17, g); for (let k = 0; k < 3; k++) M(box(0.34, 0.03, 0.035), TEAL, 0, 0.56 + k * 0.1, -0.17, g, { hull: false }); return g; }
+  table(1.75, -2.45, 0.38); chair(2.35, -2.45, -PI / 2); chair(1.15, -2.45, PI / 2);
+  for (const x of [-1.6, -0.6]) { M(cylG(0.17, 0.17, 0.06, 16), CORAL, x, DY + 0.72, -2.78); M(cylG(0.025, 0.025, 0.7, 8), 0x8a8f9a, x, DY + 0.36, -2.78); M(cylG(0.15, 0.17, 0.03, 14), 0x6a6f7a, x, DY + 0.015, -2.78); }
+  // terrace tables with parasols
+  const TT = [new T.Vector3(-2.6, 0, 1.2), new T.Vector3(0.5, 0, 2.5), new T.Vector3(2.9, 0, 0.6)];
+  TT.forEach((p, i) => { table(p.x, p.z, 0.48, WHITE); if (i < 2) { M(cylG(0.025, 0.025, 2.1, 6), WHITE, p.x, DY + 1.05, p.z); const um = M(new T.ConeGeometry(1.2, 0.5, 12, 1, true), i ? CORAL : TEAL, p.x, DY + 2.25, p.z, raft, { mat: toon(i ? CORAL : TEAL, { side: T.DoubleSide }), hull: false }); for (let k = 0; k < 12; k += 2) { const a = k / 12 * PI * 2; M(box(0.04, 0.02, 1.3), WHITE, p.x + Math.cos(a) * 0.6, DY + 2.25, p.z + Math.sin(a) * 0.6, raft, { r: [0.38, -a + PI / 2, 0], hull: false, edges: false }); } } });
+  chair(TT[0].x - 0.7, TT[0].z, PI / 2); chair(TT[0].x + 0.7, TT[0].z, -PI / 2);
+  chair(TT[1].x - 0.7, TT[1].z, PI / 2); chair(TT[1].x + 0.7, TT[1].z, -PI / 2);
+  chair(TT[2].x, TT[2].z + 0.7, PI); chair(TT[2].x, TT[2].z - 0.7, 0);
+  // a bench along the railing, a telescope, potted plants
+  { const a = PI * 0.78, x = Math.cos(a) * (RP - 0.55), z = Math.sin(a) * (RP - 0.55); const b = new T.Group(); b.position.set(x, DY, z); b.rotation.y = -a - PI / 2; raft.add(b); M(box(1.4, 0.06, 0.4), WOOD_L, 0, 0.44, 0, b); for (const o of [-0.6, 0.6]) M(box(0.06, 0.44, 0.36), WOOD_D, o, 0.22, 0, b); BENCH.set(x, 0, z); BENCH.a = a; }
+  { const a = PI * 0.05, x = Math.cos(a) * (RP - 0.55), z = Math.sin(a) * (RP - 0.55); const g = new T.Group(); g.position.set(x, DY, z); raft.add(g); for (let k = 0; k < 3; k++) { const kk = k / 3 * PI * 2; M(cylG(0.015, 0.015, 1.0, 5), 0x555a66, Math.cos(kk) * 0.15, 0.48, Math.sin(kk) * 0.15, g, { r: [Math.sin(kk) * 0.3, 0, -Math.cos(kk) * 0.3] }); } const tube = M(cylG(0.05, 0.07, 0.7, 12), 0xd0a040, 0, 1.0, 0, g, { r: [0, 0, PI / 2 - 0.2] }); g.rotation.y = -a; TELE.set(x, 0, z); TELE.a = a; }
+  for (const [a, s] of [[PI * 0.3, 1], [PI * 0.95, 0.8], [PI * 0.52, 0.9]]) { const x = Math.cos(a) * (RP - 0.6), z = Math.sin(a) * (RP - 0.6); M(cylG(0.2 * s, 0.15 * s, 0.32 * s, 14), 0xd0764a, x, DY + 0.16 * s, z); for (let k = 0; k < 5; k++) M(sph(0.16 * s, 8, 6), pick([0x4f9a46, 0x3f8a3a, 0x5aaa50]), x + rr(-0.12, 0.12) * s, DY + (0.4 + rr(0, 0.3)) * s, z + rr(-0.12, 0.12) * s, raft, { hull: true }); if (R() < 0.7) M(sph(0.05, 6, 4), pick([0xff7aa0, 0xffe07a, 0xffffff]), x, DY + 0.75 * s, z, raft, { hull: false }); }
+  // string lights across the terrace on four poles
+  const bulbs = [], POLES = [[-4.3, 2.4], [-1.2, 4.6], [2.4, 4.2], [4.4, 1.2]];
+  for (const [x, z] of POLES) M(cylG(0.035, 0.04, 2.5, 6), WOOD_D, x, DY + 1.25, z);
+  M(cylG(0.035, 0.04, 2.5, 6), WOOD_D, BX0, DY + 1.25, BZ1 + 0.1);
+  { const pts = [[BX0, BZ1 + 0.1], ...POLES, [BX1, BZ1 + 0.1]]; for (let i = 0; i + 1 < pts.length; i++) { const [x0, z0] = pts[i], [x1, z1] = pts[i + 1], line = []; for (let k = 0; k <= 10; k++) { const t = k / 10, y = DY + 2.45 - Math.sin(t * PI) * 0.35; line.push(new T.Vector3(lerp(x0, x1, t), y, lerp(z0, z1, t))); if (k % 2 === 1) { const b = new T.Mesh(sph(0.042, 8, 6), new T.MeshBasicMaterial({ color: 0xfff0c0 })); b.position.set(lerp(x0, x1, t), y - 0.07, lerp(z0, z1, t)); raft.add(b); bulbs.push({ b, c: C(pick([0xfff0b0, 0xffc0a0, 0xa0e0ff, 0xffe080])) }); } } raft.add(new T.Line(new T.BufferGeometry().setFromPoints(line), INK)); } }
+  // the pier with a ladder, and a mooring post
+  const PIER0 = new T.Vector3(Math.cos(PIER_A) * (RP - 0.2), 0, Math.sin(PIER_A) * (RP - 0.2)), PIER1 = new T.Vector3(Math.cos(PIER_A) * (RP + 2.6), 0, Math.sin(PIER_A) * (RP + 2.6));
+  { const g = new T.Group(); g.position.copy(PIER0).lerp(PIER1, 0.5); g.rotation.y = -PIER_A; raft.add(g); const L = PIER0.distanceTo(PIER1); M(box(L, 0.08, 1.1), 0, 0, DY - 0.08, 0, g, { mat: pmat(PLANKS) }); for (let x = -L / 2 + 0.3; x < L / 2; x += 0.9) for (const z of [-0.5, 0.5]) M(cylG(0.06, 0.06, 1.2, 8), WOOD_D, x, DY - 0.68, z, g); for (let k = 0; k < 4; k++) M(box(0.04, 0.03, 0.4), 0x8a8f9a, L / 2 + 0.05, DY - 0.2 - k * 0.2, 0.3, g, { hull: false }); M(cylG(0.08, 0.1, 0.4, 10), WOOD_D, L / 2 - 0.2, DY + 0.1, -0.45, g); }
+
+  // ---------- the sea, sky, distant islands ----------
+  const SEAN = 96, seaGeo = new T.PlaneGeometry(400, 400, SEAN, SEAN); seaGeo.rotateX(-PI / 2);
+  const seaBase = seaGeo.attributes.position.array.slice();
+  const seaMat = new T.MeshPhongMaterial({ color: 0x2a7fb8, specular: 0xffffff, shininess: 40, flatShading: true });
+  const sea = new T.Mesh(seaGeo, seaMat); scene.add(sea);
+  const foam = new T.Mesh(new T.RingGeometry(RP - 0.1, RP + 0.35, 64), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false })); foam.rotation.x = -PI / 2; foam.position.y = 0.04; scene.add(foam);
+  const GLIT = tex(64, 256, (g, w, h) => { for (let y = 0; y < h; y += 4) { const a = Math.pow(y / h, 0.8) * (0.3 + 0.7 * Math.random()); const ww = w * (0.3 + 0.7 * Math.random()) * (0.4 + y / h * 0.6); g.fillStyle = `rgba(255,255,255,${a.toFixed(3)})`; g.fillRect((w - ww) / 2, y, ww, 2); } });
+  const glitter = new T.Mesh(new T.PlaneGeometry(14, 150), new T.MeshBasicMaterial({ map: GLIT, color: 0xffd090, transparent: true, depthWrite: false, blending: T.AdditiveBlending, opacity: 0.8 })); glitter.rotation.x = -PI / 2; glitter.position.y = 0.08; scene.add(glitter);
+  const skyGeo = new T.SphereGeometry(600, 32, 16), skyCol = new Float32Array(skyGeo.attributes.position.count * 3); skyGeo.setAttribute("color", new T.BufferAttribute(skyCol, 3));
+  scene.add(new T.Mesh(skyGeo, new T.MeshBasicMaterial({ vertexColors: true, side: T.BackSide, depthWrite: false, fog: false })));
+  const stars = (() => { const g = new T.BufferGeometry(), p = []; for (let i = 0; i < 900; i++) { const th = R() * PI * 2, v = 0.06 + R() * 0.9, ph = Math.acos(v); p.push(Math.sin(ph) * Math.cos(th) * 560, Math.cos(ph) * 560, Math.sin(ph) * Math.sin(th) * 560); } g.setAttribute("position", new T.Float32BufferAttribute(p, 3)); return new T.Points(g, new T.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false })); })(); scene.add(stars);
+  const sunDisc = new T.Mesh(new T.CircleGeometry(22, 32), new T.MeshBasicMaterial({ color: 0xffe0a0, fog: false })); scene.add(sunDisc);
+  const moonDisc = new T.Mesh(new T.CircleGeometry(14, 32), new T.MeshBasicMaterial({ color: 0xfff6d8, fog: false })); scene.add(moonDisc);
+  const islands = new T.Group(); scene.add(islands);
+  for (const [x, z, s, c] of [[-90, -150, 1.4, 0x3f7a5a], [70, -170, 1, 0x4a8a6a], [150, -60, 0.8, 0x4a8a6a], [-160, 40, 0.9, 0x3f7a5a]]) { M(new T.ConeGeometry(18 * s, 10 * s, 8, 1), c, x, 4 * s, z, islands, { s: [1.6, 1, 1], hull: false }); M(new T.ConeGeometry(9 * s, 9 * s, 7, 1), c, x + 8 * s, 6 * s, z + 3, islands, { hull: false }); }
+  const lighthouse = new T.Group(); lighthouse.position.set(70 - 10, 9, -165); islands.add(lighthouse); M(cylG(0.9, 1.2, 7, 10), WHITE, 0, 3.5, 0, lighthouse, { hull: false }); M(cylG(1.25, 1.25, 1.2, 10), CORAL, 0, 2.5, 0, lighthouse, { hull: false }); const lhLamp = new T.Mesh(sph(0.9), new T.MeshBasicMaterial({ color: 0xfff2c0 })); lhLamp.position.y = 7.6; lighthouse.add(lhLamp);
+  const lhBeam = new T.Mesh(new T.ConeGeometry(4, 60, 16, 1, true), new T.MeshBasicMaterial({ color: 0xfff0c0, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide })); lhBeam.geometry.translate(0, -30, 0); lhBeam.position.y = 7.6; lighthouse.add(lhBeam); lhBeam.rotation.z = PI / 2;
+  // a sailboat on the horizon and dolphins that sometimes leap
+  const sail = new T.Group(); scene.add(sail); M(box(5, 1, 1.6), WHITE, 0, 0.3, 0, sail, { hull: false }); M(cylG(0.08, 0.08, 7, 6), WOOD_D, 0, 3.8, 0, sail); { const s = new T.Shape(); s.moveTo(0, 0); s.lineTo(0, 6); s.lineTo(3.2, 0.3); s.lineTo(0, 0); M(new T.ShapeGeometry(s), WHITE, 0.1, 0.8, 0, sail, { mat: toon(0xfffaf0, { side: T.DoubleSide }), hull: false }); }
+  const dolphin = new T.Group(); scene.add(dolphin); { M(sph(0.5, 14, 10), 0x6a8aa8, 0, 0, 0, dolphin, { s: [0.6, 0.6, 2] }); M(new T.ConeGeometry(0.18, 0.5, 8), 0x6a8aa8, 0, 0.35, -0.1, dolphin, { r: [-0.5, 0, 0] }); M(new T.ConeGeometry(0.25, 0.4, 8), 0x6a8aa8, 0, 0, -1.05, dolphin, { r: [-PI / 2, 0, 0], s: [1.6, 1, 0.4] }); } dolphin.visible = false;
+  const splash = []; for (let i = 0; i < 30; i++) { const s = new T.Mesh(sph(0.08, 6, 4), new T.MeshBasicMaterial({ color: 0xffffff })); s.visible = false; scene.add(s); splash.push({ s, v: new T.Vector3(), life: 0 }); }
+  function doSplash(p, n = 14, sp = 3) { for (let i = 0; i < n; i++) { const q = splash.find(q => q.life <= 0); if (!q) return; q.life = 1; q.s.visible = true; q.s.position.copy(p); q.v.set(rr(-1, 1) * sp * 0.4, rr(1.5, 3) * sp * 0.5, rr(-1, 1) * sp * 0.4); } }
+  // gulls
+  const gulls = []; for (let i = 0; i < 6; i++) { const g = new T.Group(); scene.add(g); M(new T.ConeGeometry(0.08, 0.5, 5), 0xf4f4f0, 0, 0, 0, g, { r: [0, 0, -PI / 2] }); const wm = toon(0xeeeeea, { side: T.DoubleSide }); const L = new T.Object3D(), Rr = new T.Object3D(); g.add(L); g.add(Rr); M(new T.PlaneGeometry(0.55, 0.16), 0, 0, 0, -0.28, L, { mat: wm, r: [PI / 2, 0, 0], hull: false }); M(new T.PlaneGeometry(0.55, 0.16), 0, 0, 0, 0.28, Rr, { mat: wm, r: [PI / 2, 0, 0], hull: false }); gulls.push({ g, L, Rr, a: R() * 6, r: rr(7, 14), h: rr(4, 8), sp: rr(0.2, 0.4) * (R() < 0.5 ? 1 : -1), cx: rr(-3, 3), cz: rr(-3, 3) }); }
+
+  // ---------- light ----------
+  const hemi = new T.HemisphereLight(0xffffff, 0x406080, 0.7); scene.add(hemi);
+  const sun = new T.DirectionalLight(0xffffff, 0.8); scene.add(sun); scene.add(sun.target);
+  const cafeLights = []; for (const [x, z] of [[-1.0, -2.8], [1.2, -2.4], [0.4, 1.5]]) { const pl = new T.PointLight(0xffc878, 0, 6, 1.6); pl.position.set(x, DY + 2.1, z); raft.add(pl); cafeLights.push(pl); }
+  for (const x of [-1.0, 1.2]) { M(cylG(0.006, 0.006, 0.5, 4), 0x222222, x, DY + 2.25, -2.8, raft, { hull: false }); M(new T.ConeGeometry(0.2, 0.2, 14, 1, true), TEAL, x, DY + 1.95, -2.8, raft, { mat: toon(TEAL, { side: T.DoubleSide }) }); const b = new T.Mesh(sph(0.06), new T.MeshBasicMaterial({ color: 0xfff0c0 })); b.position.set(x, DY + 1.86, -2.8); raft.add(b); bulbs.push({ b, c: C(0xfff0c0) }); }
+
+  // ---------- pixel residents: 24×40 sprites, outlined, about six heads tall ----------
+  const CW = 24, CHH = 40, COLS = 14, OUT = [28, 26, 36];
+  function drawPerson(P, Rt, col, L) {
+    const pose = col < 3 ? "f" : col < 6 ? "b" : col < 9 ? "s" : col === 12 ? "b" : col === 13 ? "s" : "f", step = col < 9 ? col % 3 : 0;
+    const sit = col >= 9 && col !== 10 && col !== 11 ? true : (col >= 10 && L.actSit) || col === 9;
+    const child = L.kind === "child", sk = L.skin, hr = L.hair, tp = L.top, bt = L.bottom, sh = L.shoes || [56, 44, 40], eye = [30, 28, 40], dk = c => c.map(v => v * 0.74);
+    const legLen = child ? 9 : 14, torsoLen = child ? 8 : 10, headH = 7, arm = child ? 6 : 8;
+    const hip = sit ? (child ? 32 : 31) : 38 - legLen, tTop = hip - torsoLen, neck = tTop - 1, hT = neck - headH;
+    const hair = () => { if (pose === "f") { Rt(9, hT - 1, 6, 2, hr); Rt(8, hT, 1, L.long ? headH + 3 : 3, hr); Rt(15, hT, 1, L.long ? headH + 3 : 3, hr); if (L.bangs) Rt(10, hT + 1, 4, 1, hr); } else if (pose === "b") { Rt(8, hT - 1, 8, L.long ? headH + 3 : headH - 1, hr); } else { Rt(10, hT - 1, 5, 2, hr); Rt(9, hT, 3, L.long ? headH + 3 : headH - 2, hr); } };
+    const hat = () => { const H = L.hat; if (!H) return; if (H === "straw") { Rt(6, hT - 1, 12, 1, [226, 196, 120]); Rt(9, hT - 3, 6, 2, [226, 196, 120]); Rt(9, hT - 2, 6, 1, [190, 70, 60]); } if (H === "captain") { Rt(9, hT - 3, 6, 3, [246, 246, 240]); Rt(8, hT - 1, 8, 1, [40, 40, 60]); if (pose === "f") P(11, hT - 2, [230, 190, 60]); } if (H === "beret") { Rt(8, hT - 2, 8, 2, L.hatC); P(12, hT - 3, L.hatC); } if (H === "bandana") { Rt(9, hT - 1, 6, 2, L.hatC); if (pose !== "f") Rt(pose === "s" ? 8 : 11, hT, 2, 2, L.hatC); } if (H === "cap") { Rt(9, hT - 2, 6, 2, L.hatC); if (pose === "f") Rt(9, hT, 6, 1, dk(L.hatC)); if (pose === "s") Rt(15, hT, 3, 1, dk(L.hatC)); } };
+    // head
+    if (pose === "s") { Rt(10, hT, 6, headH, sk); P(16, hT + 4, sk); Rt(14, hT + 3, 1, 2, eye); } else { Rt(9, hT, 6, headH, sk); if (pose === "f") { Rt(10, hT + 3, 1, 2, eye); Rt(13, hT + 3, 1, 2, eye); if (L.blush) { P(9, hT + 5, [240, 150, 150]); P(14, hT + 5, [240, 150, 150]); } if (L.glasses) { Rt(9, hT + 3, 6, 1, [50, 50, 60]); } } }
+    hair(); if (L.beard) { if (pose === "f") Rt(9, hT + 5, 6, 3, L.beard); if (pose === "s") Rt(13, hT + 5, 3, 3, L.beard); }
+    Rt(11, neck, 2, 1, sk);
+    // torso
+    const tx = pose === "s" ? 10 : 9, tw = pose === "s" ? 5 : 6;
+    if (pose !== "s") Rt(8, tTop, 8, 2, tp); Rt(tx, tTop + (pose === "s" ? 0 : 2), tw, torsoLen - (pose === "s" ? 0 : 2), tp);
+    if (L.stripes) for (let y = tTop + 1; y < hip; y += 2) Rt(pose === "s" ? 10 : 8, y, pose === "s" ? 5 : 8, 1, L.stripes);
+    if (L.apron && pose !== "b") { if (pose === "f") { Rt(10, tTop + 2, 4, torsoLen - 2 + (sit ? 1 : 5), L.apron); P(10, tTop, L.apron); P(13, tTop, L.apron); } else Rt(14, tTop + 2, 1, torsoLen - 2 + (sit ? 0 : 5), L.apron); }
+    if (L.skirt) { if (sit) Rt(pose === "s" ? 10 : 8, hip - 1, pose === "s" ? 6 : 8, 2, L.skirt); else Rt(pose === "s" ? 9 : 8, hip - 2, pose === "s" ? 7 : 8, 6, L.skirt); }
+    if (L.pack && pose === "b") Rt(9, tTop + 1, 6, 5, L.pack); if (L.pack && pose === "s") Rt(8, tTop + 1, 2, 5, L.pack);
+    // arms
+    if (pose !== "s") { const a1 = step === 1 ? arm - 2 : arm, a2 = step === 2 ? arm - 2 : arm; Rt(7, tTop + 1, 1, a1, tp); P(7, tTop + 1 + a1, sk); Rt(16, tTop + 1, 1, a2, tp); P(16, tTop + 1 + a2, sk); }
+    else { if (step === 0 || sit) { Rt(11, tTop + 1, 2, arm, dk(tp)); Rt(11, tTop + 1 + arm, 2, 1, sk); } else if (step === 1) { Rt(13, tTop + 2, 2, arm - 2, dk(tp)); Rt(14, tTop + arm, 2, 1, sk); } else { Rt(9, tTop + 2, 2, arm - 2, dk(tp)); Rt(8, tTop + arm, 2, 1, sk); } }
+    // legs
+    if (sit) {
+      if (pose === "f") { Rt(9, hip, 6, 2, L.skirt && !L.pants ? sk : bt); Rt(9, hip + 2, 2, 37 - hip - 1, L.skirt ? sk : bt); Rt(13, hip + 2, 2, 37 - hip - 1, L.skirt ? sk : bt); Rt(8, 38, 3, 2, sh); Rt(13, 38, 3, 2, sh); }
+      else if (pose === "b") { Rt(9, hip, 6, 2, bt); }
+      else { Rt(11, hip, 6, 2, bt); Rt(16, hip + 2, 2, 37 - hip - 1, L.skirt ? sk : bt); Rt(16, 38, 4, 2, sh); }
+    } else if (pose !== "s") {
+      const upL = step === 1 ? 2 : 0, upR = step === 2 ? 2 : 0, lc = L.skirt ? sk : bt;
+      Rt(9, hip, 6, 2, bt); Rt(9, hip, 2, 38 - hip - upL, lc); Rt(13, hip, 2, 38 - hip - upR, lc); Rt(8, 38 - upL, 3, 2, sh); Rt(13, 38 - upR, 3, 2, sh);
+    } else {
+      const lc = L.skirt ? sk : bt;
+      if (step === 0) { Rt(11, hip, 3, 38 - hip, lc); Rt(11, 38, 4, 2, sh); } else { Rt(13, hip + 1, 2, 37 - hip, lc); Rt(14, 38, 3, 2, sh); Rt(9, hip + 1, 2, 36 - hip, lc); Rt(8, 37, 3, 2, sh); }
+    }
+    hat();
+    // action frames
+    if (col === 10 || col === 11) {
+      const a = col === 11, A = L.act;
+      if (A === "cup") { if (a) { Rt(15, tTop + 1, 1, 4, tp); Rt(13, hT + 5, 2, 2, [255, 255, 250]); P(15, hT + 6, sk); } else { Rt(15, tTop + 7, 2, 2, [255, 255, 250]); } }
+      if (A === "pour") { Rt(16, tTop + 1, 2, 5, tp); Rt(17, tTop + 4, 4, 3, [200, 200, 210]); P(21, tTop + 3, [200, 200, 210]); if (a) { P(21, tTop + 4, [200, 200, 210]); for (let y = tTop + 5; y < tTop + 11; y++) P(21, y, [140, 90, 60]); } }
+      if (A === "tray") { Rt(7, tTop + 4, 1, 3, tp); Rt(16, tTop + 4, 1, 3, tp); Rt(5, tTop + 6, 14, 1, [200, 205, 215]); Rt(a ? 7 : 12, tTop + 4, 2, 2, [255, 255, 250]); Rt(a ? 13 : 8, tTop + 4, 2, 2, [255, 200, 120]); }
+      if (A === "sketch") { Rt(9, tTop + 5, 7, 4, [250, 250, 240]); Rt(10, tTop + 6, 3, 1, [120, 160, 220]); P(a ? 14 : 12, tTop + 7, [60, 60, 70]); P(a ? 15 : 13, tTop + 6, [200, 120, 60]); }
+      if (A === "read") { Rt(8, tTop + 5, 8, 4, [240, 228, 200]); Rt(12, tTop + 5, 1, 4, [160, 120, 80]); if (a) Rt(13, tTop + 5, 3, 1, [200, 190, 170]); }
+      if (A === "ice") { const y = a ? hT + 5 : tTop + 3; Rt(15, y + 2, 2, 3, [210, 160, 90]); Rt(15, y, 2, 2, [255, 180, 200]); }
+      if (A === "cake") { Rt(15, a ? hT + 6 : tTop + 6, 1, 3, [200, 200, 210]); if (a) P(15, hT + 5, [255, 230, 200]); }
+      if (A === "row") { const yy = tTop + (a ? 5 : 3); Rt(2, yy, 20, 1, [150, 100, 60]); Rt(7, tTop + 1, 1, yy - tTop - 1, tp); Rt(16, tTop + 1, 1, yy - tTop - 1, tp); }
+      if (A === "wave") { Rt(16, tTop - 4, 1, 5, tp); P(16, tTop - 5, sk); if (a) { Rt(7, tTop - 4, 1, 5, tp); P(7, tTop - 5, sk); } }
+    }
+  }
+  function drawCat(P, Rt, col, L) { const c = L.coat, d = c.map(v => v * 0.72), w = [250, 248, 240], eye = [120, 200, 90], step = col < 9 ? col % 3 : 0;
+    if (col === 9 || col === 12 || col === 13) { Rt(6, 34, 12, 5, c); Rt(7, 33, 10, 1, c); Rt(14, 30, 5, 4, c); P(14, 29, c); P(18, 29, c); Rt(15, 32, 3, 1, [40, 30, 30]); Rt(5, 38, 10, 1, d); Rt(8, 35, 4, 2, w); return; }
+    if (col < 6) { Rt(8, 26, 8, 6, c); P(8, 25, c); P(15, 25, c); if (col < 3) { P(10, 28, eye); P(13, 28, eye); Rt(11, 30, 2, 1, [230, 140, 150]); Rt(10, 32, 4, 4, w); } Rt(9, 32, 6, 6, col < 3 ? c : d); Rt(9, 38 - (step === 1 ? 1 : 0), 2, 2, w); Rt(13, 38 - (step === 2 ? 1 : 0), 2, 2, w); if (col >= 3) Rt(11, 21, 2, 6, c); else Rt(16, 30, 2, 6, c); return; }
+    Rt(5, 31, 12, 5, c); Rt(7, 33, 6, 3, w); Rt(15, 26, 6, 6, c); P(15, 25, c); P(20, 25, c); P(19, 28, eye); P(21, 29, [230, 140, 150]); Rt(2, 25, 2, 7, c); P(3, 24, c);
+    const lx = step === 0 ? [7, 15] : step === 1 ? [6, 16] : [8, 14]; for (const x of lx) Rt(x, 36, 2, 4, w);
+    if (col === 11) Rt(1, 24, 2, 3, c);
+  }
+  function outlineCell(d, W, ox, oy) { const at = (x, y) => x >= 0 && y >= 0 && x < CW && y < CHH ? d[((oy + y) * W + ox + x) * 4 + 3] : 0, set = []; for (let y = 0; y < CHH; y++) for (let x = 0; x < CW; x++) if (!at(x, y) && (at(x - 1, y) || at(x + 1, y) || at(x, y - 1) || at(x, y + 1))) set.push([x, y]); for (const [x, y] of set) { const i = ((oy + y) * W + ox + x) * 4; d[i] = OUT[0]; d[i + 1] = OUT[1]; d[i + 2] = OUT[2]; d[i + 3] = 255; } }
+  function buildAtlas(looks) { const c = document.createElement("canvas"); c.width = CW * COLS; c.height = CHH * looks.length; const g = c.getContext("2d"), img = g.createImageData(c.width, c.height), d = img.data; looks.forEach((L, row) => { for (let col = 0; col < COLS; col++) { const ox = col * CW, oy = row * CHH; const P = (x, y, cl) => { x = Math.round(x); y = Math.round(y); if (x < 0 || y < 0 || x >= CW || y >= CHH || !cl) return; const i = ((oy + y) * c.width + ox + x) * 4; d[i] = cl[0]; d[i + 1] = cl[1]; d[i + 2] = cl[2]; d[i + 3] = 255; }; const Rt = (x, y, w, h, cl) => { for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) P(xx, yy, cl); }; (L.kind === "cat" ? drawCat : drawPerson)(P, Rt, col, L); outlineCell(d, c.width, ox, oy); } }); g.putImageData(img, 0, 0); return c; }
+
+  // ---------- the cast ----------
+  const SK = [[248, 216, 186], [236, 196, 160], [214, 168, 128], [190, 140, 104]];
+  const CAST = [
+    { id: "minato", name: "ミナト", role: "店主・バリスタ", L: { kind: "adult", skin: SK[0], hair: [60, 40, 34], top: [240, 240, 236], bottom: [60, 70, 90], apron: [150, 100, 60], hat: "bandana", hatC: [47, 138, 154], bangs: 1, blush: 1, skirt: null, act: "pour" }, lines: ["ネルドリップで、一杯ずつていねいに淹れている。", "「波の音がいちばんのBGMなの」"] },
+    { id: "sora", name: "ソラ", role: "給仕・見習い", L: { kind: "child", skin: SK[1], hair: [30, 28, 34], top: [240, 240, 236], stripes: [40, 70, 130], bottom: [240, 236, 220], hat: "cap", hatC: [232, 103, 74], act: "tray" }, lines: ["お盆をかかえて、テーブルからテーブルへ走りまわる。", "「ラテ、おまちどおさま！」"] },
+    { id: "toku", name: "トクさん", role: "引退した漁師", L: { kind: "adult", skin: SK[2], hair: [200, 200, 204], beard: [236, 236, 236], top: [70, 100, 130], bottom: [80, 70, 60], hat: "straw", act: "cup", actSit: 1 }, lines: ["毎日おなじ席で、潮の流れを読みながらブレンドを飲む。", "「今夜は凪だ。いい夜になるぞ」"] },
+    { id: "aoi", name: "アオイ", role: "週末のふたり連れ", L: { kind: "adult", skin: SK[0], hair: [90, 60, 40], long: 1, bangs: 1, blush: 1, top: [250, 210, 120], skirt: [240, 240, 236], bottom: [240, 240, 236], act: "cake", actSit: 1 }, lines: ["灯台プリンを半分こしている。", "「夕焼け、写真じゃ伝わらないね」"] },
+    { id: "haru", name: "ハル", role: "週末のふたり連れ", L: { kind: "adult", skin: SK[1], hair: [40, 34, 30], top: [90, 140, 110], bottom: [60, 60, 80], act: "cup", actSit: 1 }, lines: ["アオイの話にうなずきながら、ソーダを飲んでいる。", "「また来よう、来月も」"] },
+    { id: "momo", name: "モモ", role: "絵かき", L: { kind: "adult", skin: SK[0], hair: [200, 110, 70], long: 1, blush: 1, top: [230, 120, 120], bottom: [60, 80, 120], hat: "beret", hatC: [60, 60, 90], act: "sketch", actSit: 1 }, lines: ["スケッチブックに、海と空の色をさがしている。", "「あの雲、もう少しだけ待って」"] },
+    { id: "kiri", name: "キリさん", role: "本の虫", L: { kind: "adult", skin: SK[1], hair: [50, 50, 56], glasses: 1, top: [120, 110, 150], bottom: [70, 70, 80], act: "read", actSit: 1 }, lines: ["店の奥で、古い航海日誌を読みふけっている。", "「……あと一章だけ」"] },
+    { id: "nagi", name: "ナギ", role: "近くの島の子", L: { kind: "child", skin: SK[2], hair: [40, 30, 26], bangs: 1, blush: 1, top: [255, 220, 90], bottom: [70, 120, 200], act: "ice" }, lines: ["ベンチで足をぶらぶらさせて、アイスをなめている。", "「イルカ、また来るかな」"] },
+    { id: "goro", name: "ゴロウ", role: "渡し舟の船頭", L: { kind: "adult", skin: SK[3], hair: [40, 34, 30], beard: [60, 50, 44], top: [40, 60, 100], bottom: [60, 60, 70], hat: "captain", act: "row", actSit: 1 }, lines: ["島と島のあいだを、手こぎの舟でお客を運ぶ。", "「足もと、気をつけてな」"] },
+    { id: "sae", name: "サエ", role: "旅の人", L: { kind: "adult", skin: SK[0], hair: [30, 28, 34], long: 1, top: [90, 150, 200], bottom: [80, 70, 60], pack: [170, 120, 70], hat: "cap", hatC: [90, 140, 90], act: "cup", actSit: 1 }, lines: ["渡し舟でやって来た。カウンターで潮風ホットドッグを待つ。", "「ここ、地図に載ってなかったんです」"] },
+    { id: "taku", name: "タク", role: "写真家", L: { kind: "adult", skin: SK[1], hair: [60, 44, 36], top: [200, 90, 80], bottom: [60, 64, 80], pack: [60, 60, 70], act: "cup", actSit: 1 }, lines: ["一日中、海の光を撮っている。", "「いまの光、もう二度と来ないんだ」"] },
+    { id: "kai", name: "カイ", role: "店の猫", L: { kind: "cat", coat: [236, 160, 80] }, lines: ["手すりの上で、カモメを見張っている。", "「……にゃ」"] },
+  ];
+  const ATLAS = buildAtlas(CAST.map(c => c.L)), atlasTex = new T.CanvasTexture(ATLAS); atlasTex.magFilter = atlasTex.minFilter = T.NearestFilter; atlasTex.generateMipmaps = false;
+  const ROWS = CAST.length, PX = 0.042;
+  const sprites = [];
+  CAST.forEach((c, i) => { const t = atlasTex.clone(); t.needsUpdate = true; t.repeat.set(1 / COLS, 1 / ROWS); const s = new T.Sprite(new T.SpriteMaterial({ map: t, transparent: true, alphaTest: 0.5 })); s.center.set(0.5, 0); s.scale.set(CW * PX, CHH * PX, 1); s.userData.c = c; raft.add(s); sprites.push(s); Object.assign(c, { s, t, row: i, pos: new T.Vector3(), face: new T.Vector3(0, 0, 1), state: "idle", walk: 0, emoT: 0 }); const sh = new T.Mesh(new T.CircleGeometry(0.24, 16), new T.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false })); sh.rotation.x = -PI / 2; raft.add(sh); c.shadow = sh; });
+  const byId = Object.fromEntries(CAST.map(c => [c.id, c]));
+  function setFrame(c, col, flip) { const t = c.t; if (flip) { t.repeat.x = -1 / COLS; t.offset.x = (col + 1) / COLS; } else { t.repeat.x = 1 / COLS; t.offset.x = col / COLS; } t.offset.y = 1 - (c.row + 1) / ROWS; }
+
+  // seats and paths on the raft (raft-local coordinates)
+  const V = (x, a, b) => b === undefined ? new T.Vector3(x, 0, a) : new T.Vector3(x, a, b);
+  const SEAT = {
+    toku: { p: V(TT[0].x - 0.7, TT[0].z), f: V(1, 0), h: 0.46 }, aoi: { p: V(TT[1].x - 0.7, TT[1].z), f: V(1, 0), h: 0.46 }, haru: { p: V(TT[1].x + 0.7, TT[1].z), f: V(-1, 0), h: 0.46 },
+    momo: { p: V(TT[2].x, TT[2].z + 0.7), f: V(0, -1), h: 0.46 }, kiri: { p: V(2.35, -2.45), f: V(-1, 0), h: 0.46 }, nagi: { p: BENCH.clone(), f: V(-Math.cos(BENCH.a), -Math.sin(BENCH.a)).multiplyScalar(-1), h: 0.44 },
+    s1: { p: V(-1.6, -2.78), f: V(0, -1), h: 0.72 }, s2: { p: V(-0.6, -2.78), f: V(0, -1), h: 0.72 },
+  };
+  const BARISTA = V(-0.6, -3.85);
+  const WP = { counter: V(-0.2, -2.2), t0: V(TT[0].x + 0.1, TT[0].z + 0.75), t1: V(TT[1].x, TT[1].z - 0.75), t2: V(TT[2].x - 0.75, TT[2].z), kiri: V(1.75, -1.9), mid: V(0.8, 0.5), pier0: PIER0.clone().multiplyScalar(0.92), pier1: PIER1.clone().multiplyScalar(0.97) };
+  const say = (c, text, dur = 2.6) => bubbles.push(makeBubble(c, text, dur));
+
+  // ---------- the rowboat that ferries guests ----------
+  const boat = new T.Group(); scene.add(boat);
+  { const sh = new T.Shape(); sh.moveTo(-1.1, -0.38); sh.lineTo(0.7, -0.38); sh.quadraticCurveTo(1.25, 0, 0.7, 0.38); sh.lineTo(-1.1, 0.38); sh.lineTo(-1.1, -0.38); const g = new T.ExtrudeGeometry(sh, { depth: 0.32, bevelEnabled: false }); g.rotateX(PI / 2); g.translate(0, 0.26, 0); M(g, 0x8a5a3a, 0, 0, 0, boat); M(box(1.9, 0.04, 0.66), 0xb08050, -0.15, 0.05, 0, boat); M(box(0.1, 0.05, 0.7), 0x6e4426, -0.2, 0.22, 0, boat); }
+  const oars = []; for (const s of [-1, 1]) { const p = new T.Group(); p.position.set(-0.25, 0.3, s * 0.36); boat.add(p); M(cylG(0.02, 0.02, 1.4, 6), 0xc8a070, 0, 0, s * 0.6, p, { r: [PI / 2, 0, 0] }); M(box(0.08, 0.02, 0.3), 0xc8a070, 0, 0, s * 1.25, p); oars.push({ p, s }); }
+  const BOAT_FAR = new T.Vector3(-34, 0, 34), BOAT_DOCK = PIER1.clone().add(V(0.6, -0.9));
+  let bState = "dock", bT = 0, guestsAboard = [];
+  function boatPos(k) { const p = new T.Vector3().lerpVectors(BOAT_FAR, BOAT_DOCK, k); p.x += Math.sin(k * PI) * 6; return p; }
+
+  // ---------- behaviour ----------
+  const bubbles = [];
+  function makeBubble(c, text, dur) { const cv2 = document.createElement("canvas"), g = cv2.getContext("2d"); g.font = "30px 'DotGothic16', monospace"; const tw = Math.ceil(g.measureText(text).width); cv2.width = tw + 34; cv2.height = 70; const g2 = cv2.getContext("2d"), w = cv2.width, h = 52; g2.fillStyle = "#fffaf0"; g2.fillRect(4, 4, w - 8, h - 8); g2.fillStyle = "#1c1a24"; g2.fillRect(4, 0, w - 8, 4); g2.fillRect(4, h - 4, w - 8, 4); g2.fillRect(0, 4, 4, h - 8); g2.fillRect(w - 4, 4, 4, h - 8); for (let i = 0; i < 4; i++) { g2.fillRect(w / 2 - 8 + i * 2, h + i * 4 - 4, 12 - i * 4, 4); } g2.fillStyle = "#fffaf0"; g2.fillRect(w / 2 - 6, h - 4, 8, 4); g2.fillStyle = "#1c1a24"; g2.font = "30px 'DotGothic16', monospace"; g2.textBaseline = "middle"; g2.fillText(text, 17, h / 2 + 1);
+    const t = new T.CanvasTexture(cv2); t.magFilter = T.NearestFilter; const s = new T.Sprite(new T.SpriteMaterial({ map: t, transparent: true, depthTest: false })); s.renderOrder = 30; s.center.set(0.5, 0); s.scale.set(cv2.width * 0.0075, cv2.height * 0.0075, 1); scene.add(s); return { s, c, t: 0, dur }; }
+  const camFwd = new T.Vector3();
+  function place(c, pLocal, onBoat) { c.pos.copy(pLocal); if (onBoat) { c.s.parent !== boat && boat.add(c.s); c.shadow.visible = false; } else { c.s.parent !== raft && raft.add(c.s); c.shadow.visible = true; } c.s.position.copy(pLocal); c.shadow.position.set(pLocal.x, DY + 0.01, pLocal.z); }
+  function frameFor(c, sitting, act) {
+    const f = c.face, wf = f.clone().applyQuaternion(raft.quaternion), side = wf.x * -camFwd.z + wf.z * camFwd.x, away = wf.x * camFwd.x + wf.z * camFwd.z;
+    if (sitting) { if (away > 0.45) return [12, false]; if (Math.abs(side) > 0.55 && away > -0.2) return [13, side < 0]; return [act ? (Math.floor(clockT * (c.id === "momo" ? 1.6 : 0.6) + c.row) % 3 === 0 ? 11 : 10) : 9, false]; }
+    const st = c.state === "walk" ? [1, 0, 2, 0][Math.floor(c.walk) % 4] : 0;
+    if (act && away < 0.3) return [10 + (Math.floor(clockT * 1.4) % 2), false];
+    if (Math.abs(side) > Math.abs(away) * 0.8) return [6 + st, side < 0];
+    return [(away > 0 ? 3 : 0) + st, false];
+  }
+  function walkTo(c, tgt, dt, sp = 1.0) { const d = new T.Vector3().subVectors(tgt, c.pos); d.y = 0; const L = d.length(); if (L < sp * dt) { c.pos.x = tgt.x; c.pos.z = tgt.z; return true; } d.multiplyScalar(1 / L); c.face.copy(d); c.pos.addScaledVector(d, sp * dt); c.walk += dt * 6.5 * sp; return false; }
+  // seated regulars
+  const seated = ["toku", "aoi", "haru", "momo", "kiri"];
+  // waiter route
+  let wRoute = ["counter", "t0", "counter", "t1", "counter", "t2", "counter", "kiri"], wI = 0, wWait = 1.5;
+  byId.sora.pos.copy(WP.counter);
+  // nagi: bench ↔ telescope
+  let nState = "bench", nT = 0;
+  // cat: railing walk
+  let catA = PI * 1.25, catT = 0, catState = "nap";
+  // guests by boat
+  let guests = [byId.sae, byId.taku], gState = "away";
+  for (const g of guests) g.s.visible = false;
+  function updatePeople(dt, hour) {
+    // seated regulars: just sit, sip, sketch, read and talk
+    for (const id of seated) { const c = byId[id], S = SEAT[id]; c.face.copy(S.f); place(c, V(S.p.x, 0, S.p.z).setY(DY + S.h - 9 * PX + 0.02), false); const [col, fl] = frameFor(c, true, true); setFrame(c, col, fl); }
+    if (R() < dt * 0.06) say(byId.aoi, pick(["きれい…", "プリンおいしい", "ねえ、見て"]));
+    if (R() < dt * 0.04) say(byId.toku, pick(["ふむ", "いい凪だ", "もう一杯"]));
+    if (R() < dt * 0.03) say(byId.momo, pick(["この色…", "あと少し", "♪"]));
+    // barista behind the counter
+    { const c = byId.minato; c.face.set(0, 0, 1); place(c, V(BARISTA.x + Math.sin(clockT * 0.3) * 0.5, DY, BARISTA.z), false); const [col, fl] = frameFor(c, false, Math.floor(clockT / 6) % 3 !== 2); setFrame(c, col, fl); if (R() < dt * 0.04) say(c, pick(["いらっしゃい", "いい香り", "おまたせ"])); if (Math.floor(clockT * 2) % 9 === 0 && R() < 0.05) steamAt(V(-1.35, DY + 1.6, -3.3)); }
+    // the young waiter makes his rounds
+    { const c = byId.sora, key = wRoute[wI]; c.pos.y = DY; if (wWait > 0) { wWait -= dt; c.state = "idle"; const tgtSeat = { t0: SEAT.toku, t1: SEAT.aoi, t2: SEAT.momo, kiri: SEAT.kiri }[key]; if (tgtSeat) c.face.copy(new T.Vector3().subVectors(tgtSeat.p, c.pos).setY(0).normalize()); else c.face.set(0, 0, -1); if (key !== "counter" && wWait > 1.0 && wWait < 1.0 + dt) say(c, pick(["おまたせしました！", "ごゆっくり！", "熱いのでどうぞ"])); } else { c.state = "walk"; if (walkTo(c, WP[key], dt, 1.1)) { wI = (wI + 1) % wRoute.length; wWait = key === "counter" ? 2.5 : 2.2; } } place(c, c.pos, false); const [col, fl] = frameFor(c, false, c.state === "idle" || true); setFrame(c, c.state === "walk" ? frameFor(c, false, false)[0] : col, c.state === "walk" ? frameFor(c, false, false)[1] : fl); }
+    // the island child: ice cream on the bench, then the telescope
+    { const c = byId.nagi; nT += dt; const S = SEAT.nagi, telePos = TELE.clone().multiplyScalar(0.86); if (nState === "bench") { c.face.copy(S.f); place(c, V(S.p.x, DY + S.h - 8 * PX + 0.02, S.p.z), false); const [col, fl] = frameFor(c, true, true); setFrame(c, col, fl); if (nT > 26) { nState = "go"; nT = 0; } } else if (nState === "go" || nState === "back") { c.state = "walk"; const tgt = nState === "go" ? telePos : S.p; c.pos.y = DY; const done = walkTo(c, tgt, dt, 1.3); place(c, c.pos, false); const [col, fl] = frameFor(c, false, false); setFrame(c, col, fl); if (done) { nState = nState === "go" ? "look" : "bench"; nT = 0; } } else { c.state = "idle"; c.face.set(Math.cos(TELE.a), 0, Math.sin(TELE.a)); place(c, V(telePos.x, DY, telePos.z), false); const [col, fl] = frameFor(c, false, false); setFrame(c, col, fl); if (nT > 3 && nT < 3 + dt) say(c, pick(["イルカだ！", "島が見える", "あっ、船！"])); if (nT > 12) { nState = "back"; nT = 0; } } }
+    // the cat on the railing
+    { const c = byId.kai; catT += dt; const r = RP - 0.15; if (catState === "nap") { if (catT > 20) { catState = "walk"; catT = 0; } } else { catA += dt * 0.12; if (catT > 9) { catState = "nap"; catT = 0; } }
+      if (catA > PI * 1.9) catA = PI * 1.1;
+      const p = V(Math.cos(catA) * r, 0, Math.sin(catA) * r); c.pos.copy(p).setY(DY + 0.82); c.face.set(-Math.sin(catA), 0, Math.cos(catA)); c.state = catState === "walk" ? "walk" : "idle"; c.walk += dt * 5; c.s.position.copy(c.pos); c.shadow.visible = false; const [col, fl] = catState === "nap" ? [9, false] : frameFor(c, false, false); setFrame(c, col, fl); if (catState === "nap" && R() < dt * 0.05) say(c, "zzz", 2); }
+    // the boatman and his guests
+    updateBoat(dt);
+  }
+  function updateBoat(dt) {
+    bT += dt; const goro = byId.goro;
+    let k = 1;
+    if (bState === "dock") { k = 1; if (bT > 4 && gState === "away") { /* nothing aboard: go fetch guests */ bState = "out"; bT = 0; } if (gState === "boarding") { bState = "out"; bT = 0; } }
+    if (bState === "out") { k = 1 - clamp(bT / 22, 0, 1); if (bT > 22) { bState = "far"; bT = 0; if (gState === "boarding") { for (const g of guests) g.s.visible = false; gState = "away"; } } }
+    if (bState === "far") { k = 0; if (bT > 6) { bState = "in"; bT = 0; if (gState === "away") { gState = "aboard"; for (const g of guests) g.s.visible = true; } } }
+    if (bState === "in") { k = clamp(bT / 22, 0, 1); if (bT > 22) { bState = "dock"; bT = 0; if (gState === "aboard") { gState = "landing"; gT = 0; } } }
+    const p = boatPos(k), nxt = boatPos(clamp(k + (bState === "out" ? -0.01 : 0.01), 0, 1)); const swell = Math.sin(clockT * 1.1) * 0.05;
+    boat.position.set(p.x, 0.12 + swell, p.z); if (bState !== "dock" && bState !== "far") boat.rotation.y = Math.atan2(-(nxt.z - p.z), nxt.x - p.x); else boat.rotation.y = -PIER_A - PI / 2 + 0.2; boat.rotation.z = Math.sin(clockT * 1.3) * 0.04;
+    const rowing = bState === "in" || bState === "out"; for (const o of oars) { o.p.rotation.y = rowing ? Math.sin(clockT * 3) * 0.5 * o.s : 0.3 * o.s; o.p.rotation.x = rowing ? Math.cos(clockT * 3) * 0.15 : 0; }
+    if (rowing && Math.floor(clockT * 3 / PI) % 2 === 0 && R() < dt * 2) doSplash(boat.localToWorld(new T.Vector3(-0.25, 0, 1.3)), 3, 1.2);
+    goro.face.set(-1, 0, 0); place(goro, V(-0.2, 0.06, 0), true); { const [col, fl] = frameFor2(goro, rowing); setFrame(goro, col, fl); }
+    if (gState === "aboard" || gState === "boarding" && bState !== "dock") guests.forEach((g, i) => { g.face.set(1, 0, 0); place(g, V(0.35 + i * 0.32 - 0.3, 0.06, i ? 0.15 : -0.15), true); const [col, fl] = frameFor2(g, false); setFrame(g, col, fl); });
+    updateGuests(dt);
+  }
+  function frameFor2(c, act) { // seated on the boat: face along the boat
+    const f = c.face.clone().applyAxisAngle(new T.Vector3(0, 1, 0), boat.rotation.y), side = f.x * -camFwd.z + f.z * camFwd.x, away = f.x * camFwd.x + f.z * camFwd.z;
+    if (away > 0.45) return [12, false]; if (Math.abs(side) > 0.55 && away > -0.2) return [13, side < 0]; return [act ? 10 + (Math.floor(clockT * 1.5) % 2) : 9, false];
+  }
+  let gT = 0;
+  function updateGuests(dt) {
+    gT += dt;
+    if (gState === "landing") { // walk from the pier to the counter stools
+      const route = [WP.pier1, WP.pier0, WP.mid, WP.counter]; guests.forEach((g, i) => { g.leg = g.leg ?? 0; if (g.leg < route.length) { if (g.s.parent === boat) { const w = boat.localToWorld(g.s.position.clone()); place(g, raft.worldToLocal(w).setY(DY), false); } g.state = "walk"; g.pos.y = DY; if (gT > i * 0.8 && walkTo(g, route[g.leg], dt, 0.9)) g.leg++; place(g, g.pos, false); } else { const S = i ? SEAT.s2 : SEAT.s1; g.face.copy(S.f); g.state = "idle"; place(g, V(S.p.x, DY + S.h - 9 * PX + 0.02, S.p.z), false); } const [col, fl] = g.leg < route.length ? frameFor(g, false, false) : frameFor(g, true, true); setFrame(g, col, fl); });
+      if (guests.every(g => g.leg >= route.length)) { gState = "seated"; gT = 0; say(guests[0], "ここ、すてき！"); } }
+    else if (gState === "seated") { guests.forEach((g, i) => { const S = i ? SEAT.s2 : SEAT.s1; g.face.copy(S.f); place(g, V(S.p.x, DY + S.h - 9 * PX + 0.02, S.p.z), false); const [col, fl] = frameFor(g, true, true); setFrame(g, col, fl); }); if (gT > 50 && bState === "dock") { gState = "leaving"; gT = 0; guests.forEach(g => g.leg = 0); } }
+    else if (gState === "leaving") { const route = [WP.counter, WP.mid, WP.pier0, WP.pier1]; guests.forEach((g, i) => { if (g.leg < route.length) { g.state = "walk"; g.pos.y = DY; if (gT > i * 0.8 && walkTo(g, route[g.leg], dt, 0.9)) g.leg++; place(g, g.pos, false); const [col, fl] = frameFor(g, false, false); setFrame(g, col, fl); } }); if (guests.every(g => g.leg >= route.length)) { gState = "boarding"; guests.forEach(g => g.leg = 0); say(byId.goro, "出すぞー"); } }
+  }
+  const steam = []; const PUFF = tex(32, 32, (g) => { g.fillStyle = "#ffffff"; g.fillRect(8, 8, 16, 16); g.fillRect(4, 12, 24, 8); g.fillRect(12, 4, 8, 24); g.fillStyle = "#1c1a24"; }, true);
+  for (let i = 0; i < 16; i++) { const s = new T.Sprite(new T.SpriteMaterial({ map: PUFF, transparent: true, opacity: 0 })); s.visible = false; raft.add(s); steam.push({ s, life: 0 }); }
+  function steamAt(p) { const q = steam.find(q => q.life <= 0); if (!q) return; q.life = 1; q.s.visible = true; q.s.position.copy(p); q.s.scale.set(0.06, 0.06, 1); }
+
+  // ---------- sky and the hour ----------
+  const KEYS = [[0, 0x050a24, 0x16264a, 0x8090c8, 0.2, 0.3], [4.6, 0x0b1a40, 0x2e2e58, 0x9090c0, 0.25, 0.32], [5.6, 0x2a4a8a, 0xf0a080, 0xffb088, 0.6, 0.5], [7, 0x4a90d8, 0xf6dcc0, 0xffe8cc, 1.0, 0.68], [12, 0x3a8ae0, 0xd6eefa, 0xffffff, 1.15, 0.78], [16, 0x4a86c8, 0xf6dcb0, 0xffe0b0, 1.0, 0.7], [17.6, 0x3a4a98, 0xff9a50, 0xff8a40, 1.0, 0.56], [18.6, 0x26306a, 0xe86a6a, 0xff7a6a, 0.5, 0.42], [19.6, 0x0c1438, 0x40306a, 0xa090c8, 0.25, 0.32], [24, 0x050a24, 0x16264a, 0x8090c8, 0.2, 0.3]];
+  function skyAt(h) { let i = 0; while (i < KEYS.length - 2 && h >= KEYS[i + 1][0]) i++; const a = KEYS[i], b = KEYS[i + 1], t = smooth(0, 1, (h - a[0]) / (b[0] - a[0])); return { top: C(a[1]).lerp(C(b[1]), t), hor: C(a[2]).lerp(C(b[2]), t), sun: C(a[3]).lerp(C(b[3]), t), si: lerp(a[4], b[4], t), amb: lerp(a[5], b[5], t) }; }
+  const night = h => clamp(h < 12 ? 1 - smooth(4.8, 6.4, h) : smooth(17.8, 19.6, h), 0, 1);
+  const tmp = new T.Color();
+  let hour = 17.2, speed = 1, clockT = 0, sunDir = new T.Vector3();
+  function applyHour(h) {
+    const S = skyAt(h), N = night(h);
+    const pos = skyGeo.attributes.position; for (let i = 0; i < pos.count; i++) { const y = pos.getY(i) / 600; tmp.copy(S.hor).lerp(S.top, Math.pow(clamp(y * 1.7, 0, 1), 0.6)); if (y < 0) tmp.copy(S.hor).multiplyScalar(0.6); skyCol.set([tmp.r, tmp.g, tmp.b], i * 3); } skyGeo.attributes.color.needsUpdate = true;
+    const a = (h - 6) / 12 * PI, el = Math.sin(a), sx = Math.cos(a);
+    sunDir.set(-sx * 0.9, Math.max(-0.2, el) * 0.8, -0.45).normalize(); const moonDir = new T.Vector3(sx * 0.8, Math.max(0.15, -el) * 0.7, -0.55).normalize();
+    sunDisc.position.copy(sunDir).multiplyScalar(520); sunDisc.lookAt(0, 0, 0); sunDisc.visible = el > -0.06; sunDisc.material.color.copy(S.sun).lerp(C(0xffffff), 0.25);
+    moonDisc.position.copy(moonDir).multiplyScalar(500); moonDisc.lookAt(0, 0, 0); moonDisc.visible = N > 0.3;
+    stars.material.opacity = N * 0.95;
+    const light = N > 0.6 ? moonDir : sunDir; sun.position.copy(light).multiplyScalar(40); sun.color.copy(S.sun); sun.intensity = S.si * 0.62;
+    hemi.color.copy(S.top).lerp(C(0xffffff), 0.45); hemi.groundColor.copy(S.hor).multiplyScalar(0.5); hemi.intensity = S.amb * 0.78 + 0.1;
+    seaMat.color.copy(C(0x2a7ec0)).lerp(S.hor, 0.2).multiplyScalar(0.48 + 0.32 * (1 - N)); seaMat.emissive.copy(S.top).multiplyScalar(0.1); seaMat.specular.copy(S.sun);
+    scene.fog = new T.Fog(S.hor, 60, 420); renderer.setClearColor(S.hor);
+    // glitter path toward the sun (or moon) as seen from the camera
+    const L = N > 0.5 ? moonDir : sunDir, az = new T.Vector3(L.x, 0, L.z).normalize(); glitter.position.set(camera.position.x + az.x * 80, 0.08, camera.position.z + az.z * 80); glitter.rotation.z = Math.atan2(az.x, az.z) - 0 + PI; glitter.rotation.set(-PI / 2, 0, -Math.atan2(az.x, -az.z)); glitter.material.color.copy(N > 0.5 ? C(0xbcc8ff) : S.sun); glitter.material.opacity = N > 0.5 ? 0.5 * N : (el > -0.05 ? 0.85 : 0);
+    // pixel people take on the light around them: warm under the café lamps, blue out on the water
+    for (const c of CAST) { const onBoat = c.s.parent === boat; c.s.material.color.copy(C(0xffffff)).lerp(C(onBoat ? 0x8a94c0 : 0xffd2a8), N * (onBoat ? 0.55 : 0.32)); }
+    // the café lights at dusk
+    const on = clamp((N - 0.15) / 0.5, 0, 1);
+    for (const b of bulbs) b.b.material.color.copy(C(0xf2ead8)).lerp(b.c, on);
+    for (const pl of cafeLights) pl.intensity = on * 1.1;
+    for (const p of portholes) p.material.color.copy(C(0x9fd8f0)).lerp(C(0xffd890), on);
+    lhLamp.material.color.copy(C(0xbbbbaa)).lerp(C(0xfff2c0), on); lhBeam.material.opacity = on * 0.12;
+    return N;
+  }
+
+  // ---------- camera ----------
+  const cam = { tg: new T.Vector3(0, 1.4, -0.5), r: 16, th: 0.5, ph: 1.18 }, want = { tg: cam.tg.clone(), r: cam.r, th: cam.th, ph: cam.ph };
+  let view = "all", follow = null, idle = 0;
+  const VIEWS = { all: { tg: V(0, 0, -0.3).setY(1.4), r: 16, th: 0.5, ph: 1.2 }, terrace: { tg: V(0.2, 0, 1.4).setY(1.2), r: 6.5, th: 0.15, ph: 1.25 }, counter: { tg: V(-0.4, 0, -3).setY(1.5), r: 3.6, th: 0.08, ph: 1.4 }, pier: { tg: V(6, 0, 6).setY(0.8), r: 7.5, th: 1.6, ph: 1.28 }, sea: { tg: V(0, 0, 0).setY(2.0), r: 30, th: -0.6, ph: 1.47 } };
+  function setView(v) { view = v; follow = null; document.querySelectorAll("[id^='v-']").forEach(b => b.setAttribute("aria-pressed", String(b.id === "v-" + v))); const S = VIEWS[v]; if (S) { want.tg.copy(S.tg); Object.assign(want, { r: S.r, th: S.th, ph: S.ph }); } }
+  const ptrs = new Map(); let moved = 0, pinch = 0;
+  cv.addEventListener("pointerdown", e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved = 0; hideHint(); if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); } });
+  cv.addEventListener("pointermove", e => { const p = ptrs.get(e.pointerId); if (!p) return; const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY; moved += Math.abs(dx) + Math.abs(dy); idle = 0; if (ptrs.size === 1) { want.th -= dx * 0.005; want.ph = clamp(want.ph - dy * 0.004, 0.55, 1.5); } else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch) want.r = clamp(want.r * pinch / d, 2.5, 60); pinch = d; } });
+  const up = e => { const had = ptrs.delete(e.pointerId); if (had && moved < 6 && e.type === "pointerup") pickAt(e.clientX, e.clientY); pinch = 0; };
+  cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
+  cv.addEventListener("wheel", e => { e.preventDefault(); want.r = clamp(want.r * Math.exp(e.deltaY * 0.0012), 2.5, 60); idle = 0; hideHint(); }, { passive: false });
+  const ray = new T.Raycaster(), ndc = new T.Vector2(); let cardC = null;
+  function pickAt(x, y) { ndc.set(x / innerWidth * 2 - 1, -(y / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); const hit = ray.intersectObjects(sprites.filter(s => s.visible), false)[0]; if (hit) showCard(hit.object.userData.c); }
+  function showCard(c) { cardC = c; $("#card").hidden = false; $("#cname").textContent = c.name; $("#crole").textContent = c.role; $("#ctext").textContent = c.lines.join("　"); const fx = $("#face").getContext("2d"); fx.clearRect(0, 0, CW, CHH); fx.drawImage(ATLAS, 0, c.row * CHH, CW, CHH, 0, 0, CW, CHH); }
+  $("#cclose").addEventListener("click", () => { $("#card").hidden = true; cardC = null; if (follow) setView("all"); });
+  $("#cnear").addEventListener("click", () => { if (!cardC) return; follow = cardC; view = "near"; Object.assign(want, { r: 3.2, ph: 1.32 }); document.querySelectorAll("[id^='v-']").forEach(b => b.setAttribute("aria-pressed", "false")); });
+  function updateCamera(dt) {
+    if (follow) { const w = follow.s.getWorldPosition(new T.Vector3()); want.tg.set(w.x, w.y + 0.8, w.z); }
+    if (view === "all" && !ptrs.size) { idle += dt; if (idle > 5) want.th += dt * 0.03; }
+    const k = 1 - Math.pow(0.002, dt); cam.tg.lerp(want.tg, k); cam.r = lerp(cam.r, want.r, k); cam.th = lerp(cam.th, want.th, k); cam.ph = lerp(cam.ph, want.ph, k);
+    const s = Math.sin(cam.ph); camera.position.set(cam.tg.x + cam.r * s * Math.sin(cam.th), Math.max(0.5, cam.tg.y + cam.r * Math.cos(cam.ph)), cam.tg.z + cam.r * s * Math.cos(cam.th)); camera.lookAt(cam.tg); camera.getWorldDirection(camFwd); camFwd.y = 0; camFwd.normalize();
+  }
+  const hint = $("#hint"); let hinted = false; function hideHint() { if (hinted) return; hinted = true; hint.style.opacity = "0"; } setTimeout(hideHint, 9000);
+  for (const v of ["all", "terrace", "counter", "pier", "sea"]) $("#v-" + v).addEventListener("click", () => setView(v));
+  const timeEl = $("#time"); timeEl.addEventListener("input", () => { hour = +timeEl.value; });
+  for (const [id, v] of [["sp0", 0], ["sp1", 1], ["sp6", 6]]) $("#" + id).addEventListener("click", () => { speed = v; ["sp0", "sp1", "sp6"].forEach(b => $("#" + b).setAttribute("aria-pressed", String(b === id))); });
+
+  // ---------- sound: waves, gulls, an original slow bossa on the café radio ----------
+  const A = { ac: null, on: false };
+  function initAudio() { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false; const ac = new AC(); A.ac = ac; A.master = ac.createGain(); A.master.gain.value = 0.5; A.master.connect(ac.destination); A.mus = ac.createGain(); A.mus.gain.value = 0.7; A.mus.connect(A.master); const nb = ac.createBuffer(1, ac.sampleRate * 3, ac.sampleRate), d = nb.getChannelData(0); let l = 0; for (let i = 0; i < d.length; i++) { l = (l + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = l * 3.5; } A.brown = nb; const wb = ac.createBuffer(1, ac.sampleRate, ac.sampleRate), wd = wb.getChannelData(0); for (let i = 0; i < wd.length; i++) wd[i] = Math.random() * 2 - 1; A.white = wb; const s = ac.createBufferSource(); s.buffer = nb; s.loop = true; const f = ac.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 700; A.waves = ac.createGain(); A.waves.gain.value = 0.2; s.connect(f); f.connect(A.waves); A.waves.connect(A.master); s.start(); A.next = ac.currentTime + 0.2; A.step = 0; return true; }
+  const mf = m => 440 * Math.pow(2, (m - 69) / 12);
+  function pluck(m, t0, dur, vol, type = "triangle") { const ac = A.ac, o = ac.createOscillator(), g = ac.createGain(), f = ac.createBiquadFilter(); o.type = type; o.frequency.value = mf(m); f.type = "lowpass"; f.frequency.setValueAtTime(2400, t0); f.frequency.exponentialRampToValueAtTime(500, t0 + dur); g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(vol, t0 + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); o.connect(f); f.connect(g); g.connect(A.mus); o.start(t0); o.stop(t0 + dur + 0.05); }
+  function shk(t0, vol) { const ac = A.ac, s = ac.createBufferSource(); s.buffer = A.white; const f = ac.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 6000; const g = ac.createGain(); g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.07); s.connect(f); f.connect(g); g.connect(A.mus); s.start(t0, Math.random() * 0.5); s.stop(t0 + 0.1); }
+  // Cmaj7 – A7 – Dm9 – G13 at 112 bpm, eighth-note bossa comping (an original sketch)
+  const CH = [[48, [64, 67, 71, 74]], [45, [61, 64, 67, 71]], [50, [65, 69, 72, 76]], [43, [65, 69, 71, 76]]], PAT = [1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0];
+  function music() { if (!A.on) return; const ac = A.ac, e = 60 / 112 / 2; while (A.next < ac.currentTime + 0.3) { const s = A.step, bar = Math.floor(s / 16) % 4, i = s % 16, t0 = A.next, [root, ch] = CH[bar]; if (i === 0 || i === 6 || i === 8 || i === 14) pluck(i === 6 || i === 14 ? root + 7 - 12 : root - 12, t0, e * 2.5, 0.16, "sine"); if (PAT[i]) ch.forEach((m, k) => pluck(m, t0 + k * 0.01, e * 1.7, 0.035)); shk(t0, i % 2 ? 0.015 : 0.03); if (s % 64 === 32 || s % 64 === 40) [76, 74, 72, 71].forEach((m, k) => pluck(m + (bar % 2 ? -2 : 0), t0 + k * e * 2, e * 2.2, 0.05, "sine")); A.next += e; A.step++; } }
+  function gull() { if (!A.on) return; const t = A.ac.currentTime; for (let i = 0; i < 2; i++) { const o = A.ac.createOscillator(), g = A.ac.createGain(); o.type = "triangle"; o.frequency.setValueAtTime(1600, t + i * 0.22); o.frequency.exponentialRampToValueAtTime(1050, t + i * 0.22 + 0.18); g.gain.setValueAtTime(0.0001, t + i * 0.22); g.gain.linearRampToValueAtTime(0.035, t + i * 0.22 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.22 + 0.2); o.connect(g); g.connect(A.master); o.start(t + i * 0.22); o.stop(t + i * 0.22 + 0.25); } }
+  $("#music").addEventListener("click", async () => { if (!A.ac && !initAudio()) return; A.on = !A.on; $("#music").setAttribute("aria-pressed", String(A.on)); if (A.on) { await A.ac.resume(); A.next = A.ac.currentTime + 0.1; } else await A.ac.suspend(); });
+
+  // ---------- loop ----------
+  let last = performance.now(), statT = 0, ffLeft = 0, dolphinT = -1, nextDolphin = 14;
+  const PHASE = h => h < 4.6 ? "深い夜" : h < 6.4 ? "夜明け" : h < 10 ? "朝なぎ" : h < 15.5 ? "まひる" : h < 17.4 ? "午後" : h < 19.4 ? "夕なぎ" : h < 23 ? "夜の海" : "深い夜";
+  function frame(now) { const dt0 = Math.min(0.05, (now - last) / 1000); last = now; while (ffLeft > 0) { sim(1 / 30); ffLeft -= 1 / 30; } sim(dt0); renderer.render(scene, camera); requestAnimationFrame(frame); }
+  function sim(dt) {
+    clockT += dt; const t = clockT;
+    hour = (hour + dt * speed / 20) % 24; if (document.activeElement !== timeEl) timeEl.value = hour.toFixed(2);
+    const N = applyHour(hour);
+    // waves
+    const p = seaGeo.attributes.position.array; for (let i = 0; i < p.length; i += 3) { const x = seaBase[i], z = seaBase[i + 2], fall = 1 / (1 + (x * x + z * z) / 4000); p[i + 1] = (0.12 * Math.sin(x * 0.35 + t * 1.1) + 0.08 * Math.sin(z * 0.42 - t * 1.4) + 0.04 * Math.sin((x - z) * 0.9 + t * 2.2)) * (1.2 - fall * 0.6); } seaGeo.attributes.position.needsUpdate = true; seaGeo.computeVertexNormals();
+    raft.position.y = Math.sin(t * 1.05) * 0.05; raft.rotation.x = Math.sin(t * 0.8) * 0.012; raft.rotation.z = Math.cos(t * 0.7) * 0.012;
+    foam.position.y = 0.04 + raft.position.y * 0.5; foam.material.opacity = 0.45 + 0.15 * Math.sin(t * 2);
+    // things at sea
+    sail.position.set(-120 + ((t * 1.2) % 260), 0.2, -110); sail.rotation.z = Math.sin(t * 0.8) * 0.05;
+    lhBeam.rotation.y += dt * 0.8;
+    for (const gl of gulls) { gl.g.visible = hour > 5.5 && hour < 19; if (!gl.g.visible) continue; gl.a += dt * gl.sp; gl.g.position.set(gl.cx + Math.cos(gl.a) * gl.r, gl.h + Math.sin(gl.a * 3) * 0.5, gl.cz + Math.sin(gl.a) * gl.r); gl.g.rotation.y = -gl.a - (gl.sp > 0 ? PI / 2 : -PI / 2); const f = Math.sin(t * 8 + gl.a * 4) * 0.6; gl.L.rotation.x = f; gl.Rr.rotation.x = -f; }
+    if (A.on && hour > 5.5 && hour < 19 && R() < dt * 0.07) gull();
+    if (dolphinT < 0 && t > nextDolphin) { dolphinT = 0; dolphin.userData.x = rr(-14, 14); dolphin.userData.z = rr(10, 20) * (R() < 0.5 ? 1 : -1); }
+    if (dolphinT >= 0) { dolphinT += dt; const k = dolphinT / 1.6; dolphin.visible = k < 1; dolphin.position.set(dolphin.userData.x + k * 4, Math.sin(k * PI) * 2.4 - 0.3, dolphin.userData.z); dolphin.rotation.set(0, PI / 2, 0); dolphin.rotateX(-(k - 0.5) * 2.4); if (dolphinT > 0.05 && dolphinT < 0.05 + dt) doSplash(dolphin.position.clone().setY(0), 12, 3); if (k >= 1 && k < 1 + dt / 1.6) doSplash(dolphin.position.clone().setY(0), 16, 3); if (k > 1.3) { dolphinT = -1; nextDolphin = t + rr(18, 34); } }
+    for (const q of splash) { if (q.life <= 0) continue; q.life -= dt * 1.1; q.v.y -= 9 * dt; q.s.position.addScaledVector(q.v, dt); if (q.s.position.y < 0 || q.life <= 0) { q.life = 0; q.s.visible = false; } }
+    for (const q of steam) { if (q.life <= 0) continue; q.life -= dt * 0.6; q.s.position.y += dt * 0.35; const s = 0.06 + (1 - q.life) * 0.1; q.s.scale.set(s, s, 1); q.s.material.opacity = q.life; if (q.life <= 0) q.s.visible = false; }
+    for (const b of bulbs) if (N > 0.2) b.b.scale.setScalar(1 + 0.08 * Math.sin(t * 3 + b.b.position.x));
+    updatePeople(dt, hour);
+    for (let i = bubbles.length - 1; i >= 0; i--) { const b = bubbles[i]; b.t += dt; const w = b.c.s.getWorldPosition(new T.Vector3()); b.s.position.set(w.x, w.y + CHH * PX + 0.1, w.z); b.s.material.opacity = Math.min(1, b.t * 5, (b.dur - b.t) * 3); if (b.t > b.dur) { scene.remove(b.s); b.s.material.map.dispose(); bubbles.splice(i, 1); } }
+    music(); updateCamera(dt);
+    statT -= dt; if (statT <= 0) { statT = 0.5; const h = Math.floor(hour), m = Math.floor((hour % 1) * 60); $("#clk").textContent = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`; $("#phase").textContent = PHASE(hour); }
+  }
+  resize(); applyHour(hour); setView("all"); Object.assign(cam, { r: 22, th: 0.9, ph: 1.25 });
+  window.Cafe = { ff: s => { ffLeft += s; }, setView, set hour(v) { hour = v; }, get state() { return { bState, gState, nState, catState }; } };
+  requestAnimationFrame(frame);
+})();
+</script>
