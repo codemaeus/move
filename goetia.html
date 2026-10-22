@@ -1110,8 +1110,19 @@ const AW=1500,AH=940,PXS=2.5;
 const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
 const G={W:800,H:600,dpr:1,uiS:1,auto:false,keys:{},mouse:{x:0,y:0,wx:0,wy:0,down:false,active:false},
   touch:{on:false,jx:0,jy:0,btn:[0,0,0,0,0,0]},save:null,stage:1,team:[],gained:0,screen:'title',lastTeam:null};
-function loadSave(){try{const s=JSON.parse(localStorage.getItem('goetia_save')||'null');if(s&&Array.isArray(s.c))return{c:s.c,seen:s.seen||[],best:s.best||0}}catch(e){}
-  return{c:[6,41,7,4,33,13,39,68],seen:[],best:0}}
+/* ---------- 難易度（攻撃力などはここで一括管理） ----------
+   playerAtk … こちらの攻撃力の倍率　　enemyAtk … 敵の攻撃力の倍率
+   enemyHp   … 敵の体力の倍率　　　　enemyAggro … 敵が技を使う頻度　　enemyGuard … 敵が防御する頻度
+   難易度を増やすときは、ここに一行足せば選択肢に並びます。 */
+const DIFFICULTY={
+  easy:  {name:'イージー',desc:'こちらの攻撃が強く、敵の攻撃は弱め。敵の動きもゆっくり。',playerAtk:1.4,enemyAtk:.55,enemyHp:.85,enemyAggro:.6,enemyGuard:.5,col:'#6ad08a'},
+  normal:{name:'ノーマル',desc:'標準の強さ。',playerAtk:1,enemyAtk:1,enemyHp:1,enemyAggro:1,enemyGuard:1,col:'#ffd25a'}
+};
+const DIFF_KEYS=Object.keys(DIFFICULTY);
+function diff(){return DIFFICULTY[G.save&&G.save.diff]||DIFFICULTY.normal}
+function diffOn(){return B&&(B.mode==='gaunt'||B.mode==='free')}
+function loadSave(){try{const s=JSON.parse(localStorage.getItem('goetia_save')||'null');if(s&&Array.isArray(s.c))return{c:s.c,seen:s.seen||[],best:s.best||0,diff:DIFFICULTY[s.diff]?s.diff:'normal'}}catch(e){}
+  return{c:[6,41,7,4,33,13,39,68],seen:[],best:0,diff:'normal'}}
 function saveGame(){try{localStorage.setItem('goetia_save',JSON.stringify(G.save))}catch(e){}}
 G.save=loadSave();
 let B=null;
@@ -1146,6 +1157,7 @@ function startBattle(ta,tb,opt){
     proj:[],haz:[],parts:[],texts:[],clones:[],fx:[],time:0,phase:'enter',pt:1.3,cut:null,shake:0,hitstop:0,slowT:0,
     cam:{x:AW/2,y:AH/2,z:camBase()},floor:null,log:[[],[]],banner:null,big:null,result:null,endT:0,candles:[],seal:null,ghosts:[],flash:null,punch:0};
   B.floor=makeFloor(th);
+  if(diffOn())for(const f of B.teams[1]){f.maxhp=Math.max(1,Math.round(f.maxhp*diff().enemyHp));f.hp=f.ghost=f.maxhp}
   B.dustCol=hex(lt(rgb(th.base),.42));B.dustEdge=hex(dk(rgb(th.base),.18));
   enter(0);enter(1);
   if(B.mode!=='attract')AU.menu=false;
@@ -1366,6 +1378,7 @@ function hit(att,tgt,pow,el,o){
   const atk=att?att.atk*(att.kingOn?1.3:1):1;
   const def=tgt.def*(tgt.bf.armor?1.6:1)*(tgt.st.curse?.7:1);
   let dmg=pow*atk/def*eff*stab*rand(.9,1.1)*(o.dot?1:.6)*gmul;
+  if(diffOn()){const D=diff(),fromP=att?att.side===0:tgt.side===1;dmg*=fromP?D.playerAtk:D.enemyAtk}
   const crit=!o.dot&&!blocked&&Math.random()<.06;if(crit)dmg*=1.5;
   if(tgt.d.rank==='公爵')dmg*=.88;
   if(tgt.shield>0){const ab=Math.min(tgt.shield,dmg);tgt.shield-=ab;dmg-=ab;if(ab>0)B.fx.push({type:'shock',x:tgt.x,y:tgt.y,t:0,dur:.25,r:60,col:'#9ad8ff'})}
@@ -1455,7 +1468,7 @@ function aiThink(f,o,dt){
     for(const h of B.haz){if(h.owner===f)continue;
       if(h.type==='beam'&&h.t>h.warn-.22&&h.t<h.warn&&distSeg(f.x,f.y,h.x,h.y,Math.cos(h.a),Math.sin(h.a),h.len)<h.w/2+30)threat=true;
       if(h.type==='nova'&&!h.done&&h.delay-h.t<.25&&h.t>0&&Math.hypot(f.x-h.x,f.y-h.y)<h.rad+10)threat=true}
-    if(threat&&a.gcd<=0&&f.sta>30&&f.gbreak<=0){a.gcd=.6;if(Math.random()<(f.d.rank==='公爵'?.45:.3)){a.guard=rand(.3,.6);f.wantGuard=true;return[0,0]}}
+    if(threat&&a.gcd<=0&&f.sta>30&&f.gbreak<=0){a.gcd=.6;if(Math.random()<(f.d.rank==='公爵'?.45:.3)*(f.side===1&&diffOn()?diff().enemyGuard:1)){a.guard=rand(.3,.6);f.wantGuard=true;return[0,0]}}
     let dang=0;
     let r=clamp((d-f.pref)/140,-1,1);
     let mx=dx/d*r-dy/d*a.strafe*.75,my=dy/d*r+dx/d*a.strafe*.75;
@@ -1472,7 +1485,7 @@ function aiThink(f,o,dt){
     // 攻撃
     if(f.lock<=0&&B.phase==='fight'){
       const order=[1,2,3,0].sort(()=>Math.random()-.5);
-      for(const i of order){const m=f.moves[i];if(m.t<=0&&inRange(m,d,f)&&Math.random()<(i===0?.85:.55)){useMove(f,m,aimFor(f,o));break}}
+      for(const i of order){const m=f.moves[i];if(m.t<=0&&inRange(m,d,f)&&Math.random()<(i===0?.85:.55)*(f.side===1&&diffOn()?diff().enemyAggro:1)){useMove(f,m,aimFor(f,o));break}}
       if(f.gauge>=100){a.spT+=.15;if(a.spT>.6){a.spT=0;special(f)}}
     }
   }
@@ -2017,7 +2030,7 @@ function drawHUD(g){
   drawSide(g,0,w);drawSide(g,1,w);
   const tm=B.time|0,ts=`${tm/60|0}:${String(tm%60).padStart(2,'0')}`;
   g.font='14px "DotGothic16"';g.fillStyle='rgba(10,6,16,.85)';rr(g,w/2-30,8,60,22,11);g.fill();g.fillStyle='#fff';g.textAlign='center';g.textBaseline='middle';g.fillText(ts,w/2,20);
-  if(B.opt.label){g.font='11px "DotGothic16"';g.fillStyle='#cbbbe6';g.fillText(B.opt.label,w/2,40)}
+  if(B.opt.label){g.font='11px "DotGothic16"';g.fillStyle='#cbbbe6';g.fillText(B.opt.label,w/2,40);if(diffOn()){g.fillStyle=diff().col;g.fillText(diff().name,w/2,54)}}
   if(B.banner){const b=B.banner,a=Math.min(1,b.t*5,(b.dur-b.t)*3);g.globalAlpha=a;g.font='20px "Dela Gothic One"';g.fillStyle='#fff';g.fillText('奥義 ― '+b.s,w/2,64);
     g.fillStyle=b.col;g.fillRect(w/2-90,76,180*Math.min(1,b.t*3),3);g.globalAlpha=1}
   const f=B.f[0];
@@ -2068,6 +2081,7 @@ function battleUI(on){
 }
 function rndTeam(n,ex){const pool=[...Array(72).keys()].filter(i=>!(ex||[]).includes(i));const t=[];while(t.length<n)t.push(pool.splice(Math.random()*pool.length|0,1)[0]);return t}
 function startAttract(){startBattle(rndTeam(3),rndTeam(3),{mode:'attract',theme:Math.random()*5|0});B.opt.lv=1}
+function cycleDiff(){const i=DIFF_KEYS.indexOf(G.save.diff);G.save.diff=DIFF_KEYS[(i+1)%DIFF_KEYS.length];saveGame()}
 function showTitle(){
   G.screen='title';G.auto=false;updAutoBtn();AU.menu=true;battleUI(false);startAttract();
   scr.innerHTML=`<div class="page title">
@@ -2079,12 +2093,13 @@ function showTitle(){
       <button data-a="free">自由召喚バトル　<span class="small">全72柱から選ぶ</span></button>
       <button data-a="watch">観戦モード</button>
       <button data-a="book">魔導書（図鑑）　${G.save.c.length} / 72 柱と契約</button>
+      <button class="ghost" data-a="diff" style="border-color:${diff().col}">難易度：<b style="color:${diff().col}">${diff().name}</b>　<span class="small">${diff().desc}</span></button>
       <button class="ghost sndbtn" data-a="snd">${AU.on?'音と音楽：入':'音と音楽：切'}</button>
     </div>
-    <div class="small" style="margin-top:16px">移動 <span class="kbd">WASD</span>　狙い <span class="kbd">マウス</span>　攻撃 <span class="kbd">クリック</span>　技 <span class="kbd">2</span><span class="kbd">3</span><span class="kbd">4</span>　真名解放・奥義 <span class="kbd">E</span><br>走る <span class="kbd">Shift</span>　防御 <span class="kbd">右クリック</span><span class="kbd">F</span>（当たる直前の防御は「ジャストガード」）<br>
+    <div class="small" style="margin-top:16px">移動 <span class="kbd">WASD</span>　狙い <span class="kbd">マウス</span>　攻撃 <span class="kbd">クリック</span>　技 <span class="kbd">2</span><span class="kbd">3</span><span class="kbd">4</span>　真名解放・奥義 <span class="kbd">E</span><br>
     走る <span class="kbd">Shift</span>　防御 <span class="kbd">右クリック</span><span class="kbd">F</span>（当たる直前に構えると「ジャストガード」）<br>
     属性の相性で「効果抜群」。ゲージがたまったら真名を解放して真の姿に、もう一度たまれば奥義。<br>最高記録：第${G.save.best}戦まで突破</div></div>`;
-  bind(scr,{gaunt:()=>showSelect('gaunt'),free:()=>showSelect('free'),watch:startWatch,book:()=>showSelect('book'),snd:()=>setSound(!AU.on)});
+  bind(scr,{gaunt:()=>showSelect('gaunt'),free:()=>showSelect('free'),watch:startWatch,book:()=>showSelect('book'),snd:()=>setSound(!AU.on),diff:()=>{cycleDiff();showTitle()}});
 }
 const SEL={mode:'free',picks:[],focus:0,filter:'all',tf:false};
 function showSelect(mode){
@@ -2113,7 +2128,7 @@ function renderSelect(){
       <canvas data-di="${i}" ${sil?`data-sil="${sil}"`:''}></canvas><div class="nm">${showName?d.name:'？？？'}</div><div class="tags">${showName?d.types.map(tagH).join(''):''}</div></div>`;}
   const slots=book?'':`<div class="team">${[0,1,2].map(k=>SEL.picks[k]!==undefined?`<div class="slot"><canvas data-di="${SEL.picks[k]}"></canvas></div>`:`<div class="slot">${k+1}</div>`).join('')}</div>`;
   scr.innerHTML=`<div class="page"><div class="selhead"><div><h2>${title}</h2><div class="small">${book?'倒した悪魔は「契約の旅」で契約できます。':gaunt?'契約済みの悪魔だけを連れて行けます。勝つたびに倒した悪魔と契約できます。':'先頭の一柱から順に戦います。'}</div></div>
-    <div class="row">${slots}<button class="ghost" data-a="back">戻る</button>${book?'':`<button class="ghost" data-a="rnd">おまかせ</button><button class="primary" data-a="go" ${SEL.picks.length?'':'disabled'}>出撃</button>`}</div></div>
+    <div class="row">${slots}${book?'':`<button class="ghost" data-a="diff" style="border-color:${diff().col}">難易度：<b style="color:${diff().col}">${diff().name}</b></button>`}<button class="ghost" data-a="back">戻る</button>${book?'':`<button class="ghost" data-a="rnd">おまかせ</button><button class="primary" data-a="go" ${SEL.picks.length?'':'disabled'}>出撃</button>`}</div></div>
     <div class="filters" style="margin-bottom:10px">${els.map(e=>`<button class="${SEL.filter===e?'on':''}" data-f="${e}">${e==='all'?'すべて':e}</button>`).join('')}</div>
     <div class="layout"><div class="grid">${cards}</div>${detailH(SEL.focus,(book?known(SEL.focus)&&G.save.c.includes(SEL.focus):ok(SEL.focus)),book?G.save.seen.includes(SEL.focus):G.save.seen.includes(SEL.focus))}</div></div>`;
   paint(scr);
@@ -2121,7 +2136,7 @@ function renderSelect(){
     if(!book&&ok(i)){const k=SEL.picks.indexOf(i);if(k>=0)SEL.picks.splice(k,1);else if(SEL.picks.length<3)SEL.picks.push(i)}
     const sc=scr.querySelector('.page').scrollTop;renderSelect();scr.querySelector('.page').scrollTop=sc}));
   scr.querySelectorAll('[data-f]').forEach(b=>b.addEventListener('click',()=>{SEL.filter=b.dataset.f;renderSelect()}));
-  bind(scr,{back:()=>{if(m==='gauntNext')showContinue();else showTitle()},
+  bind(scr,{diff:()=>{cycleDiff();const sc=scr.querySelector('.page').scrollTop;renderSelect();scr.querySelector('.page').scrollTop=sc},back:()=>{if(m==='gauntNext')showContinue();else showTitle()},
     rnd:()=>{const pool=DEMONS.map(d=>d.i).filter(ok);SEL.picks=[];while(SEL.picks.length<Math.min(3,pool.length))SEL.picks.push(pool.splice(Math.random()*pool.length|0,1)[0]);SEL.focus=SEL.picks[0];renderSelect()},
     go:()=>{if(!SEL.picks.length)return;G.lastTeam=SEL.picks.slice();G.team=SEL.picks.slice();
       if(m==='gaunt'){G.stage=1;G.gained=0;startStage()}else if(m==='gauntNext')startStage();else startFree()},
