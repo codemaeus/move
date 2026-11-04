@@ -199,10 +199,31 @@
   for (const [a, b, n] of [["lj0", "lj1", "lj01"], ["lj1", "lj2", "lj12"], ["lj2", "lj3", "lj23"], ["lj3", "lj4", "lj34"], ["lj4", "ljr", "lj4r"]]) KPOSE[n] = mixPose(KPOSE[a], KPOSE[b], 0.5);
   KPOSE.ljl2 = mixPose(KPOSE.ljl1, KPOSE.pound, 0.5); KPOSE.lj1ra = mixPose(KPOSE.lj1, KPOSE.ljr, 0.35); KPOSE.lj1rb = mixPose(KPOSE.lj1, KPOSE.ljr, 0.7);
   KPOSE.tA = mixPose(KPOSE.t0, KPOSE.t1, 0.5); KPOSE.tB = mixPose(KPOSE.t1, KPOSE.t2, 0.5); KPOSE.tC = { ...KPOSE.t2, ta: KPOSE.t2.ta + 0.12, by: 9, lean: 0.55, jaw: 0.5 };
-  const KF = {}, KFC = {}; for (const k in KPOSE) Object.defineProperty(KF, k, { enumerable: true, get: () => KFC[k] || (KFC[k] = kaijuFrame(KPOSE[k])) });
+  // Smooth motion: besides the hand-made key poses, every in-between pose is built on demand from the same skeleton
+  // (mixing two key poses), so actions, walking and running get a new drawing almost every tick. Kept in a small LRU cache.
+  function frameBank(stat, src, gen, cap) {
+    const dp = new Map(), cache = new Map(), Q = 12, poseOf = k => src[k] || dp.get(k);
+    const get = k => { let v = cache.get(k); if (v) { cache.delete(k); cache.set(k, v); return v; } v = gen(dp.get(k)); cache.set(k, v); if (cache.size > cap) cache.delete(cache.keys().next().value); return v; };
+    const B = {
+      F: new Proxy(stat, { get: (t, k) => k in t ? t[k] : typeof k === "string" && dp.has(k) ? get(k) : undefined }),
+      reg(k, fn) { if (!(k in stat) && !dp.has(k)) dp.set(k, fn()); return k; },
+      has: k => k in stat || dp.has(k), poseOf, queue: [], cache,
+      // a pose u of the way from key a to key b
+      km(a, b, u) { const q = Math.round(clamp(u, 0, 1) * Q); if (q === 0 || a === b) return B.reg(a, () => poseOf(a)); if (q === Q) return B.reg(b, () => poseOf(b)); return B.reg(`~${a}|${b}|${q}`, () => mixPose(poseOf(a), poseOf(b), q / Q)); },
+      // keyframe list [[t, key], ...] sampled at time t
+      seq(S, t) { let i = 0; while (i < S.length - 1 && t >= S[i + 1][0]) i++; if (i === S.length - 1 || S[i][1] === S[i + 1][1]) return B.km(S[i][1], S[i][1], 0); return B.km(S[i][1], S[i + 1][1], (t - S[i][0]) / (S[i + 1][0] - S[i][0])); },
+      // a looping cycle pre0..pre(n-1) at a fractional phase, split into `sub` steps between keys
+      cyc(pre, n, ph, sub) { ph = ((ph % n) + n) % n; const i = Math.floor(ph), fr = Math.floor((ph - i) * sub) / sub; return B.km(pre + i, pre + ((i + 1) % n), fr); },
+      warm() { let n = 0; while (B.queue.length && n < 2) { const k = B.queue.shift(); if (!cache.has(k) && dp.has(k)) { get(k); n++; } } return n; }
+    };
+    return B;
+  }
+  const KFS = {}, KFC = {}; for (const k in KPOSE) Object.defineProperty(KFS, k, { enumerable: true, get: () => KFC[k] || (KFC[k] = kaijuFrame(KPOSE[k])) });
+  const KD = frameBank(KFS, KPOSE, o => kaijuFrame(o), 340), KF = KD.F;
   for (const k of ["idle0", "idle1", "idle01", "roar0", "roar1"]) void KF[k]; for (let i = 0; i < 16; i++) void KF["w" + i];
   const JC = { ...KC, body: [70, 88, 128], bodyL: [112, 132, 180], bodyD: [46, 58, 92], bodyDD: [28, 34, 60], belly: [152, 160, 180], bellyD: [112, 120, 140], spB: [36, 56, 112], sp: [80, 180, 255], spL: [180, 236, 255], spC: [246, 255, 255], eye: [140, 255, 255], mouth: [90, 20, 50], mouthD: [50, 10, 30], arm: 1.35, plate: 0.7, horn: 1 };
-  const JF = {}, JFC = {}; for (const k of ["idle0", "idle1", "idle01", ...Array.from({ length: 16 }, (_, i) => "w" + i), "s0", "s01", "s1", "s12", "s2", "roar0", "roar01", "roar1", "hurt", "kneel", "b2", "pound"]) Object.defineProperty(JF, k, { enumerable: true, get: () => JFC[k] || (JFC[k] = kaijuFrame(KPOSE[k], JC)) });
+  const JFS = {}, JFC = {}; for (const k of ["idle0", "idle1", "idle01", ...Array.from({ length: 16 }, (_, i) => "w" + i), "s0", "s01", "s1", "s12", "s2", "roar0", "roar01", "roar1", "hurt", "kneel", "b2", "pound"]) Object.defineProperty(JFS, k, { enumerable: true, get: () => JFC[k] || (JFC[k] = kaijuFrame(KPOSE[k], JC)) });
+  const JD = frameBank(JFS, KPOSE, o => kaijuFrame(o, JC), 160), JF = JD.F;
   // ---------- the giant of light, Astel: an original silver-and-red hero, also built from a skeleton ----------
   const HC = { s: [198, 204, 216], sL: [242, 246, 252], sD: [136, 142, 160], sDD: [88, 92, 110], r: [204, 40, 44], rL: [240, 96, 84], rD: [128, 22, 30], rDD: [80, 14, 22], eye: [255, 240, 170], eyeC: [255, 255, 236], out: [12, 10, 18] };
   function heroFrame(o) {
@@ -263,9 +284,18 @@
   };
   for (let i = 0; i < 8; i++) { const a = i / 8 * PI * 2, s = Math.sin(a), c = Math.cos(a); HPOSE["w" + i] = { ...HB, ff: [Math.round(12 * s) + 2, Math.round(Math.max(0, c) * 6)], fb: [Math.round(-12 * s) - 2, Math.round(Math.max(0, -c) * 6)], by: 3 + Math.round(2 * Math.abs(s)), af: 0.5 - 0.35 * s, ab: 0.7 + 0.35 * s, lean: 0.1 }; }
   HPOSE.rise = mixPose(HPOSE.land, HPOSE.idle0, 0.5); HPOSE.chop01 = mixPose(HPOSE.chop0, HPOSE.chop1, 0.5); HPOSE.beam01 = mixPose(HPOSE.beam0, HPOSE.beam1, 0.5);
-  const HF = {}, HFC = {}; for (const k in HPOSE) Object.defineProperty(HF, k, { enumerable: true, get: () => HFC[k] || (HFC[k] = heroFrame(HPOSE[k])) });
-  function warmFrames() { let n = 0; for (const k in KPOSE) if (!KFC[k]) { void KF[k]; if (++n >= 2) break; } if (!n) for (const k in JF) if (!JFC[k]) { void JF[k]; if (++n >= 1) break; } if (!n) for (const k in HF) if (!HFC[k]) { void HF[k]; if (++n >= 1) break; } if (n) setTimeout(warmFrames, 30); }
-  setTimeout(warmFrames, 200);
+  const HFS = {}, HFC = {}; for (const k in HPOSE) Object.defineProperty(HFS, k, { enumerable: true, get: () => HFC[k] || (HFC[k] = heroFrame(HPOSE[k])) });
+  const HD = frameBank(HFS, HPOSE, o => heroFrame(o), 160), HF = HD.F;
+  function warmFrames() { let n = 0; for (const k in KPOSE) if (!KFC[k]) { void KF[k]; if (++n >= 2) break; } if (!n) n = KD.warm(); if (!n) for (const k in JFS) if (!JFC[k]) { void JF[k]; if (++n >= 1) break; } if (!n) for (const k in HFS) if (!HFC[k]) { void HF[k]; if (++n >= 1) break; } if (n) setTimeout(warmFrames, 30); }
+  setTimeout(() => {
+    // queue the in-betweens used most (walk and run cycles, idle breathing, every tick of each attack) to be drawn while idle
+    const q = new Set(), sub = (pre, n, st) => { for (let i = 0; i < n * st; i++) q.add(KD.cyc(pre, n, i / st, st)); };
+    sub("w", 16, 3); sub("d", 16, 3); for (let i = 0; i <= 12; i++) q.add(KD.km("idle0", "idle1", i / 12));
+    for (const a in ACT) for (let t = 0; t <= ACT[a].len; t++) q.add(KD.seq(ACT[a].frames, t));
+    for (const S of [SEQ_LAND, SEQ_LJLAND, SEQ_RISE, SEQ_HURT, LJSEQ]) for (let t = 0; t <= S[S.length - 1][0]; t++) q.add(KD.seq(S, t));
+    KD.queue.push(...[...q].filter(k => k[0] === "~"));
+    warmFrames();
+  }, 200);
 
   // ---------- small things: vehicles, people, props ----------
   const O = [14, 12, 16];
@@ -495,13 +525,49 @@
     return hit;
   }
   function sample(b) { const d = b.cx.getImageData((b.w / 2) | 0, (b.h / 2) | 0, 1, 1).data; return d[3] ? [d[0], d[1], d[2]] : [120, 120, 120]; }
-  function collapse(b) { if (b.type === "gastank") { if (!b.blown) { igniteTank(b, 50); b.fuse = Math.min(b.fuse, 50); b.hp = Math.max(b.hp, 1); } return; } markDead(b); if (b.h >= 110 && G.mode === "play" && G.t - G.cineLast > 900) { G.cineLast = G.t; G.slow = Math.max(G.slow, 36); cinema({ life: 80, focus: b.x + b.w / 2, zoom: 1.08, hold: 60 }); } if (b.h > 40 && Math.random() < 0.3) { addDamage(b.value); G.kills++; epicCollapse(b); return; } b.state = "collapse"; b.sv = 0.2; sfx("collapse"); G.shake = Math.max(G.shake, 6); addDamage(b.value); G.kills++; for (let i = 0; i < 8; i++) dust(b.x + b.w / 2, SW - 4, 2, 1.5); }
-  // about a third of the buildings go down in style: toppling over, blown apart into slabs, or gutted floor by floor
+  function collapse(b) { if (b.type === "gastank") { if (!b.blown) { igniteTank(b, 50); b.fuse = Math.min(b.fuse, 50); b.hp = Math.max(b.hp, 1); } return; } markDead(b); if (b.h >= 110 && G.mode === "play" && G.t - G.cineLast > 900) { G.cineLast = G.t; G.slow = Math.max(G.slow, 36); cinema({ life: 80, focus: b.x + b.w / 2, zoom: 1.08, hold: 60 }); } if (b.h > 40 ? Math.random() < 0.6 : b.h > 22 && Math.random() < 0.35) { addDamage(b.value); G.kills++; epicCollapse(b, b.h > 40 ? null : "crumble"); return; } b.state = "collapse"; b.sv = 0.2; sfx("collapse"); G.shake = Math.max(G.shake, 6); addDamage(b.value); G.kills++; for (let i = 0; i < 8; i++) dust(b.x + b.w / 2, SW - 4, 2, 1.5); }
+  // more than half of the buildings go down in style. Patterns: toppling over, blown apart into slabs, gutted floor by floor,
+  // snapped in the middle, split down the middle, floors pancaking down, leaning as the ground gives way, or crumbling to bits
+  function cutImg(b, x, y, w, h) { const [c, cx] = canvas(Math.max(1, Math.round(w)), Math.max(1, Math.round(h))); cx.drawImage(b.c, -Math.round(x), -Math.round(y)); return [c, cx]; }
+  function bigThud(x0, x1, b, h) {
+    G.shake = Math.max(G.shake, 16); G.flash = Math.max(G.flash, 4); G.stop = Math.max(G.stop, 5); sfx("impact"); sfx("collapse");
+    for (let x = x0; x < x1; x += 10) { dust(x, SW - 2, 2, 1.7); debris(x, SW - 8, 3, b.sample || [120, 110, 100], 3.2); if (Math.random() < 0.2) setFire(x, SW - 2, 600, rnd(0.8, 1.2)); }
+    G.fx.push({ k: "wave", x: (x0 + x1) / 2, y: GY, t: 0, life: 30, r: Math.max(40, (x1 - x0) * 0.8) });
+    G.fx.push({ k: "ono", s: "ズズーン！！", x: (x0 + x1) / 2, y: SW - 50, t: 0, life: 44, c: [255, 210, 150], big: 1 });
+    hitRect(x0, SW - 30, x1, SW, 4, { rival: 1, r: 10 }); for (const c of G.cars) if (c.alive && c.x > x0 && c.x < x1) { c.alive = false; c.crushed = true; explode(c.x, c.y - 3, 0.8); }
+    G.rubble.push({ x: x0 - 4, w: x1 - x0 + 8, c: rubbleOf({ seed: b.seed || 1, type: b.type, w: x1 - x0, h: Math.max(30, h || 40) }) });
+  }
   function epicCollapse(b, kind) {
-    kind = kind || pick(Math.random, b.h > 90 ? ["topple", "slabs", "blast"] : ["topple", "slabs"]);
+    kind = kind || pick(Math.random, b.h > 90 ? ["topple", "slabs", "blast", "snap", "split", "pancake", "lean", "crumble"] : ["topple", "slabs", "snap", "pancake", "lean", "crumble"]);
+    if (b.type === "crane" && (kind === "pancake" || kind === "split")) kind = "topple";
     b.state = "epic"; b.kind = kind; b.et = 0; b.dir = Math.sign(b.x + b.w / 2 - K.x) || 1; b.ang = 0; b.av = 0.002; G.slow = Math.max(G.slow || 0, 10); G.zoom = Math.max(G.zoom || 1, 1.04);
     const top = SW - b.h, cx = b.x + b.w / 2;
     if (kind === "topple") { G.fx.push({ k: "ono", s: "グラッ……", x: cx, y: top - 10, t: 0, life: 50, c: [255, 230, 190] }); sfx("creak"); }
+    else if (kind === "snap") { b.brk = Math.round(b.h * rnd(0.36, 0.58)); G.fx.push({ k: "ono", s: "ミシミシッ……", x: cx, y: SW - b.brk - 14, t: 0, life: 40, c: [255, 230, 190] }); sfx("creak"); }
+    else if (kind === "pancake") { b.floors = clamp(Math.round(b.h / 16), 3, 9); G.fx.push({ k: "ono", s: "ドドドドッ", x: cx, y: top - 10, t: 0, life: 60, c: [255, 220, 170] }); sfx("collapse"); }
+    else if (kind === "lean") { b.leanTo = rnd(0.16, 0.3); G.fx.push({ k: "ono", s: "ズズズ……", x: cx, y: top - 10, t: 0, life: 60, c: [230, 220, 200] }); sfx("creak"); }
+    else if (kind === "split") {
+      // a jagged crack runs from roof to street, and the two halves fall away from each other
+      const zig = []; for (let y = 0; y <= b.h; y += 6) zig.push([b.w / 2 + rnd(-b.w * 0.12, b.w * 0.12), y]);
+      for (const side of [-1, 1]) {
+        const [pc, px] = cutImg(b, 0, 0, b.w, b.h); px.globalCompositeOperation = "destination-out"; px.beginPath();
+        const edge = side < 0 ? b.w + 2 : -2; px.moveTo(edge, -2); for (const [zx, zy] of zig) px.lineTo(zx + (side < 0 ? 1 : -1), zy); px.lineTo(edge, b.h + 2); px.closePath(); px.fill();
+        G.pieces.push({ hinge: 1, img: pc, px: side < 0 ? b.x : b.x + b.w, py: SW, ox: side < 0 ? 0 : b.w, oy: b.h, dir: side, ang: 0, av: 0.004 + rnd(0, 0.003), w: b.w, h: b.h, sample: sample(b), seed: b.seed, type: b.type });
+      }
+      for (const [zx, zy] of zig) if (Math.random() < 0.5) { sparks(b.x + zx, top + zy, 2, [255, 220, 160], 2); debris(b.x + zx, top + zy, 2, sample(b), 1.5); }
+      glass(cx, top + b.h * 0.4, 24); G.shake = 12; G.flash = 5; G.fx.push({ k: "ono", s: "バキバキィッ！！", x: cx, y: top - 16, t: 0, life: 46, c: [255, 220, 150], big: 1 }); sfx("impact");
+      b.state = "gone";
+    }
+    else if (kind === "crumble") {
+      // the whole block falls apart into small chunks, from the bottom up, like a sandcastle
+      const bs = Math.max(7, Math.ceil(Math.sqrt(b.w * b.h / 120))), rows = Math.ceil(b.h / bs), data = b.cx.getImageData(0, 0, b.w, b.h).data, smp = sample(b);
+      for (let ry = 0; ry < rows; ry++) for (let x = 0; x < b.w; x += bs) {
+        const y = ry * bs, w = Math.min(bs, b.w - x), h = Math.min(bs, b.h - y); let solid = 0; for (let yy = y; yy < y + h; yy += 2) for (let xx = x; xx < x + w; xx += 2) if (data[(yy * b.w + xx) * 4 + 3]) solid++; if (solid < 3) continue;
+        const [pc] = cutImg(b, x, y, w, h); G.pieces.push({ lite: 1, img: pc, x: b.x + x + w / 2, y: top + y + h / 2, w, h, vx: rnd(-0.7, 0.7) + (x / b.w - 0.5) * 1.2, vy: rnd(-0.6, 0), rot: 0, vr: rnd(-0.09, 0.09), sample: smp, delay: Math.round(6 + (rows - 1 - ry) * 2.4 + rnd(0, 10)) });
+      }
+      dust(cx, SW - 2, 6, 1.6); G.shake = 8; G.fx.push({ k: "ono", s: "ガラガラガラ……", x: cx, y: top - 10, t: 0, life: 56, c: [240, 220, 190] }); sfx("collapse");
+      b.state = "gone"; const rb = { x: b.x - 8, w: b.w + 16, c: rubbleOf(b) }; setTimeout(() => G.rubble.push(rb), 700);
+    }
     else if (kind === "blast") { G.fx.push({ k: "ono", s: "ゴゴゴゴ……", x: cx, y: top - 10, t: 0, life: 50, c: [255, 210, 160] }); sfx("collapse"); }
     else {
       // cut the building into slabs and blow them apart from a point inside
@@ -527,6 +593,31 @@
         hitRect(x0, SW - b.w, x1, SW, 6, { rival: 1, holes: 2, r: 13 }); for (const c of G.cars) if (c.alive && c.x > x0 && c.x < x1) { c.alive = false; c.crushed = true; explode(c.x, c.y - 3, 0.8); }
         b.state = "gone"; G.rubble.push({ x: x0 - 6, w: b.h + 12, c: rubbleOf({ ...b, w: b.h, h: b.w * 3 }) });
       }
+    } else if (b.kind === "lean") {
+      // the ground gives way under one side: the building sinks and tilts, then goes over
+      const k = Math.min(1, b.et / 70); b.ang = b.leanTo * k * k * (3 - 2 * k); b.sink += 0.22;
+      const px = b.dir > 0 ? b.x + b.w : b.x; if (b.et % 2 === 0) { dust(px + rnd(-6, 6), SW - 2, 1, 1.4); debris(px, SW - 4, 1, sample(b), 1.6); }
+      if (b.et % 9 === 0) { carve(b, b.dir > 0 ? b.w - rnd(2, 10) : rnd(2, 10), b.h - b.sink - rnd(2, 12), rnd(3, 6)); sfx("crash"); }
+      G.shake = Math.max(G.shake, 2.5); b.hitT = b.et % 4 === 0 ? 2 : b.hitT;
+      if (b.et >= 78) { b.kind = "topple"; b.av = 0.006; G.fx.push({ k: "ono", s: "グラァッ！", x: cx + b.dir * 20, y: top, t: 0, life: 40, c: [255, 220, 170] }); sfx("creak"); }
+    } else if (b.kind === "snap") {
+      // cracks spread across one floor, then the upper part breaks off, swings over and drops into the street
+      const ly = b.h - b.brk;
+      if (b.et < 24) { b.hitT = 2; G.shake = Math.max(G.shake, 2 + b.et / 8); if (b.et % 3 === 0) { carve(b, rnd(2, b.w - 2), ly + rnd(-3, 3), rnd(2.5, 4.5)); debris(b.x + rnd(0, b.w), SW - b.brk, 2, sample(b), 1.6); dust(b.x + rnd(0, b.w), SW - b.brk, 1, 0.8); } }
+      if (b.et === 24) {
+        const [pc] = cutImg(b, 0, 0, b.w, ly + 2), d = b.dir;
+        G.pieces.push({ hinge: 1, drop: 1.05, img: pc, px: d > 0 ? b.x + b.w : b.x, py: SW - b.brk + 2, ox: d > 0 ? b.w : 0, oy: ly + 2, dir: d, ang: 0, av: 0.012, w: b.w, h: ly + 2, sample: sample(b), seed: b.seed, type: b.type });
+        b.cx.clearRect(0, 0, b.w, ly); b.lx.clearRect(0, 0, b.w, ly); for (let x = 0; x < b.w; x += 4) carve(b, x, ly + rnd(-1, 2), rnd(2, 4));
+        explode(cx, SW - b.brk, 1.6); glass(cx, SW - b.brk, 20); G.shake = 12; G.flash = 4; G.fx.push({ k: "ono", s: "バキィッ！", x: cx, y: SW - b.brk - 20, t: 0, life: 40, c: [255, 210, 150], big: 1 }); sfx("impact");
+        for (let i = 0; i < 3; i++) setFire(b.x + rnd(4, b.w - 4), SW - b.brk + 3, 240, rnd(0.8, 1.2));
+      }
+      if (b.et === 80) { b.state = "collapse"; b.sv = 0.5; sfx("collapse"); }
+    } else if (b.kind === "pancake") {
+      // each floor gives way in turn: the building drops one storey at a time, blasting dust out of both sides
+      const fh = b.h / b.floors, ph = b.et % 12;
+      if (b.et > 10) { if (ph < 3) b.sink = Math.min(b.h, b.sink + fh / 3); if (ph === 3) { for (let i = 0; i < 3; i++) { dust(b.x - 4, SW - 2, 1, 1.5); dust(b.x + b.w + 4, SW - 2, 1, 1.5); } for (const sd of [-1, 1]) for (let i = 0; i < 4; i++) G.parts.push({ k: "dust", x: sd < 0 ? b.x : b.x + b.w, y: SW - rnd(2, 14), vx: sd * rnd(1, 2.6), vy: rnd(-0.5, 0), t: 0, life: rnd(40, 70) | 0, r: rnd(4, 8) }); debris(b.x + rnd(0, b.w), SW - 6, 4, sample(b), 2.5); glass(b.x + b.w / 2, SW - b.h + b.sink + 4, 6); G.shake = Math.max(G.shake, 7); sfx("crash"); } }
+      else { b.hitT = 2; G.shake = Math.max(G.shake, 2); }
+      if (b.sink >= b.h - 2) { b.state = "gone"; G.rubble.push({ x: b.x - 8, w: b.w + 16, c: rubbleOf(b) }); for (let i = 0; i < 2 + b.w / 30; i++) setFire(b.x + rnd(0, b.w), SW - rnd(2, 8), 900, rnd(0.8, 1.3)); G.fx.push({ k: "wave", x: cx, y: GY, t: 0, life: 26, r: b.w }); G.shake = 12; sfx("collapse"); }
     } else if (b.kind === "blast") {
       const floors = 9, step = 6, f = Math.floor(b.et / step);
       if (b.et % step === 0 && f < floors) { const y = SW - (f + 0.5) * b.h / floors; explode(b.x + rnd(4, b.w - 4), y, 1.3); glass(b.x + b.w / 2, y, 10); carve(b, rnd(4, b.w - 4), b.h - (f + 0.5) * b.h / floors, rnd(7, 11)); for (let i = 0; i < 2; i++) setFire(b.x + rnd(4, b.w - 4), y, 500, rnd(0.8, 1.2), b); }
@@ -551,20 +642,34 @@
   const kFace = () => kTurn() >= 0 ? K.dir : -K.dir;
   const worldF = (pt, d) => [K.x + pt[0] * d, GY + K.y + pt[1]];
   const LJSEQ = [[0, "lj0"], [4, "lj01"], [7, "lj1"], [15, "lj1ra"], [19, "lj1rb"], [23, "ljr"]];
-  function ljFrame() { if (K.vy > 0 && K.y > -14) return "ljr"; let k = "lj0"; for (const [t, f] of LJSEQ) if (K.t >= t) k = f; return k; }
+  function ljFrame() { if (K.vy > 0 && K.y > -14) return "ljr"; return KD.seq(LJSEQ, K.t); }
+  const kWalk = dash => KD.cyc(dash ? "d" : "w", 16, K.walk / (dash ? 3 : 2), 3);
+  const osc = (period, t) => (1 - Math.cos(t / period * PI * 2)) / 2;
+  const SEQ_LAND = [[0, "pound"], [8, "pound"], [14, "rise1"], [19, "idle0"]], SEQ_LJLAND = [[0, "ljl0"], [3, "ljl1"], [10, "ljl2"], [15, "rise1"], [19, "idle0"]];
+  const SEQ_RISE = [[0, "kneel"], [28, "kneel"], [36, "rise2"], [44, "roar1"]], SEQ_HURT = [[0, "hurt"], [10, "hurt"], [17, "idle0"]], SEQ_AIR = [[0, "jump"], [0.5, "apex"], [1, "fall"]];
   function kFrame() {
     const s = K.state;
-    if (K.firing) { if (s === "walk") { const q = Math.floor(K.walk / (K.dash ? 3 : 2)) % 16; return (K.dash ? "fd" : "fw") + K.aim + (q >> 1); } if (s === "air") return (K.djump ? "fda" : "fa") + K.aim; return (Math.floor(G.t / 3) % 2 ? "b" : "c") + K.aim; }
-    if (ACT[s]) { let k = ACT[s].frames[0][1]; for (const [t, fk] of ACT[s].frames) if (K.t >= t) k = fk; if (K.moving && CLAWMAP[k] != null) return (K.cdash ? "cd" : "cw") + s[0] + CLAWMAP[k] + (Math.floor(K.walk / (K.cdash ? 3 : 2)) % 16 >> 1); if (s === "roar" && K.t > 10) k = Math.floor(K.t / 3) % 2 ? "roar0" : "roar1"; return k; }
-    if (s === "breath") return (Math.floor(G.t / 3) % 2 ? "b" : "c") + K.aim;
-    if (s === "air") return K.pound ? "pound" : K.djump ? ljFrame() : K.vy < -1.2 ? "jump" : K.vy < 1.2 ? "apex" : "fall";
-    if (s === "land") return K.ljLand ? (K.t < 3 ? "ljl0" : K.t < 10 ? "ljl1" : K.t < 15 ? "ljl2" : "rise1") : K.t < 12 ? "pound" : "rise1";
-    if (s === "hurt") return "hurt";
+    if (K.firing) {
+      if (s === "walk") { const wk = kWalk(K.dash), a = AIMS[K.aim]; return KD.reg(`~F${K.dash ? 1 : 0}${K.aim}|${wk}`, () => { const L = KD.poseOf(wk), up = { neck: 0.1 + a * 0.3, jaw: 0.95, ha: a, fire: 1 }; return K.dash ? { ...L, ...up, neck: -0.1 + a * 0.3 } : { ...L, ...up, lean: 0.28, af: 0.6, fold: -1.4 }; }); }
+      if (s === "air") return (K.djump ? "fda" : "fa") + K.aim;
+      return KD.km("c" + K.aim, "b" + K.aim, osc(7, G.t));
+    }
+    if (ACT[s]) {
+      let k = ACT[s].frames[0][1]; for (const [t, fk] of ACT[s].frames) if (K.t >= t) k = fk;
+      if (s === "roar" && K.t > 10) return KD.km("roar0", "roar1", osc(6, K.t));
+      const ak = KD.seq(ACT[s].frames, K.t);
+      if (K.moving && CLAWMAP[k] != null) { const c = K.cdash ? "cd" : "cw", wk = kWalk(K.cdash); return KD.reg(`~C${c}|${ak}|${wk}`, () => { const A = KD.poseOf(ak), L = KD.poseOf(wk); return { ...L, af: A.af, fold: A.fold, ha: A.ha, jaw: A.jaw, lean: (L.lean + A.lean) / 2 + 0.05, neck: c === "cd" ? -0.1 : 0 }; }); }
+      return ak;
+    }
+    if (s === "breath") return KD.km("c" + K.aim, "b" + K.aim, osc(7, G.t));
+    if (s === "air") return K.pound ? "pound" : K.djump ? ljFrame() : KD.seq(SEQ_AIR, clamp((K.vy + 2.4) / 4.8, 0, 1));
+    if (s === "land") return KD.seq(K.ljLand ? SEQ_LJLAND : SEQ_LAND, K.t);
+    if (s === "hurt") return KD.seq(SEQ_HURT, K.t);
     if (s === "down") return "kneel";
-    if (s === "rise") return K.t < 32 ? "kneel" : K.t < 40 ? "rise2" : "roar1";
-    if (s === "intro") return "w" + (Math.floor(K.walk / 2) % 16);
-    if (s === "walk") return K.dash ? "d" + (Math.floor(K.walk / 3) % 16) : "w" + (Math.floor(K.walk / 2) % 16);
-    const ip = (G.t % 100) / 100; return ip < 0.44 ? "idle0" : ip < 0.5 ? "idle01" : ip < 0.94 ? "idle1" : "idle01";
+    if (s === "rise") return KD.seq(SEQ_RISE, K.t);
+    if (s === "intro") return kWalk(false);
+    if (s === "walk") return kWalk(K.dash);
+    return KD.km("idle0", "idle1", osc(100, G.t));
   }
   const world = (pt) => [K.x + pt[0] * K.dir, GY + K.y + pt[1]];
   function box(b) { const [a, y0, c, y1] = b; return K.dir > 0 ? [K.x + a, GY + K.y + y0, K.x + c, GY + K.y + y1] : [K.x - c, GY + K.y + y0, K.x - a, GY + K.y + y1]; }
@@ -792,29 +897,24 @@
     if (R.state !== "leap" && R.state !== "descend") fall();
     if (dist < 44 && K.y === 0 && R.y === 0) { const push = (44 - dist) / 2, sgn = Math.sign(dx) || 1; K.x += sgn * push; R.x -= sgn * push; }
   }
+  const HSEQ = { land: [[0, "land"], [26, "land"], [34, "rise"], [40, "idle0"]], chop: [[0, "chop0"], [7, "chop01"], [11, "chop1"], [16, "chop2"]], kick: [[0, "kick0"], [8, "kick0"], [12, "kick1"], [20, "kick1"], [25, "kick0"]],
+    leap: [[0, "land"], [5, "land"], [10, "fkick"]], ring: [[0, "ring0"], [32, "ring0"], [38, "ring1"]], beam: [[0, "beam0"], [40, "beam0"], [46, "beam01"], [50, "beam1"]], die: [[0, "kneel"], [76, "kneel"], [90, "rise"], [104, "fly"]] };
   function hFrame() {
     const s = R.state, t = R.t;
     if (s === "descend") return R.y > -30 ? "land" : "drop";
-    if (s === "land") return t < 30 ? "land" : t < 38 ? "rise" : "idle0";
-    if (s === "chop") return t < 7 ? "chop0" : t < 11 ? "chop01" : t < 16 ? "chop1" : "chop2";
-    if (s === "kick") return t < 11 ? "kick0" : t < 22 ? "kick1" : "kick0";
-    if (s === "leap") return t < 8 ? "land" : "fkick";
-    if (s === "ring") return t < 36 ? "ring0" : "ring1";
-    if (s === "beam") return t < 44 ? "beam0" : t < 50 ? "beam01" : "beam1";
+    if (HSEQ[s]) return HD.seq(HSEQ[s], t);
     if (s === "guard") return "guard";
     if (s === "stagger") return "hurt";
-    if (s === "die") return t < 80 ? "kneel" : t < 100 ? "rise" : "fly";
-    return s === "walk" && Math.abs(K.x - R.x) > 85 ? "w" + (Math.floor(R.walk / 3) % 8) : (G.t % 90) < 45 ? "idle0" : "idle1";
+    return s === "walk" && Math.abs(K.x - R.x) > 85 ? HD.cyc("w", 8, R.walk / 3, 4) : HD.km("idle0", "idle1", osc(90, G.t));
   }
+  const RSEQ = { punch: [[0, "s0"], [6, "s01"], [9, "s1"], [13, "s12"], [16, "s2"], [24, "s2"], [30, "idle0"]], beam: [[0, "roar0"], [36, "roar0"], [41, "b2"]], die: [[0, "hurt"], [50, "hurt"], [64, "kneel"]] };
   function rFrame() {
     const s = R.state, t = R.t;
-    if (s === "punch") return t < 6 ? "s0" : t < 9 ? "s01" : t < 13 ? "s1" : t < 16 ? "s12" : "s2";
-    if (s === "charge") return t < 30 ? "pound" : "w" + (Math.floor(R.walk / 2) % 16);
-    if (s === "beam") return t < 40 ? "roar0" : "b2";
-    if (s === "roar") return t < 5 ? "roar0" : t < 10 ? "roar01" : Math.floor(t / 3) % 2 ? "roar0" : "roar1";
+    if (RSEQ[s]) return JD.seq(RSEQ[s], t);
+    if (s === "charge") return t < 26 ? "pound" : t < 30 ? JD.km("pound", "w0", (t - 26) / 4) : JD.cyc("w", 16, R.walk / 2, 3);
+    if (s === "roar") return t < 10 ? JD.seq([[0, "roar0"], [5, "roar01"], [10, "roar1"]], t) : JD.km("roar0", "roar1", osc(6, t));
     if (s === "stagger") return "hurt";
-    if (s === "die") return R.t < 60 ? "hurt" : "kneel";
-    return R.walk > 0 && (R.state === "enter" || R.state === "walk") && Math.abs(K.x - R.x) > 80 ? "w" + (Math.floor(R.walk / 2) % 16) : (G.t % 100) < 44 ? "idle0" : (G.t % 100) < 50 || (G.t % 100) >= 94 ? "idle01" : "idle1";
+    return R.walk > 0 && (R.state === "enter" || R.state === "walk") && Math.abs(K.x - R.x) > 80 ? JD.cyc("w", 16, R.walk / 2, 3) : JD.km("idle0", "idle1", osc(100, G.t));
   }
   function updateKaiju() {
     const left = btn("left"), right = btn("right");
@@ -959,7 +1059,17 @@
       for (const s of b.smoke) if (b.state === "stand" && G.t % 8 === 0) smokeP(b.x + s[0], SW - b.h + s[1], 1.3);
     }
     G.blds = G.blds.filter(b => b.state !== "gone");
-    for (const p of G.pieces) { if (p.delay > 0) { p.delay--; p.y += 0.3; continue; } p.vy += 0.2; p.x += p.vx; p.y += p.vy; p.rot += p.vr; if (Math.random() < 0.2) G.parts.push({ k: "dust", x: p.x, y: p.y + p.h / 2, vx: 0, vy: -0.2, t: 0, life: 30, r: 3 }); if (p.y + p.h / 2 > SW + 4) { p.dead = true; debris(p.x, SW - 4, 10, p.sample, 3); dust(p.x, SW - 2, 4, 1.4); G.shake = Math.max(G.shake, 5); if (Math.random() < 0.4) { explode(p.x, SW - 6, 1); setFire(p.x, SW - 2, 600, 1); } else sfx("crash"); hitRect(p.x - p.w / 2, SW - 30, p.x + p.w / 2, SW, 2, { rival: 1 }); } }
+    for (const p of G.pieces) {
+      if (p.hinge) {
+        // a big section swinging about its bottom corner, like a felled tree
+        p.av = Math.min(0.07, p.av * 1.06 + 0.0008); p.ang += p.av; if (G.t % 3 === 0) { dust(p.px, p.py - 2, 1, 1.2); G.shake = Math.max(G.shake, 2 + p.ang * 2); }
+        if (p.drop && p.ang >= p.drop) { const r = p.ang * p.dir, ccx = p.w / 2 - p.ox, ccy = p.h / 2 - p.oy; Object.assign(p, { hinge: 0, big: 1, x: p.px + ccx * Math.cos(r) - ccy * Math.sin(r), y: p.py + ccx * Math.sin(r) + ccy * Math.cos(r), rot: r, vr: p.av * p.dir * 0.8, vx: p.dir * 1.3, vy: 0.5, delay: 0 }); }
+        else if (!p.drop && p.ang >= PI / 2 - 0.02) { p.dead = true; const x0 = p.dir > 0 ? p.px : p.px - p.h, x1 = p.dir > 0 ? p.px + p.h : p.px; bigThud(x0, x1, p, p.w * 2); }
+        continue;
+      }
+      if (p.delay > 0) { p.delay--; p.y += 0.3; continue; } p.vy += 0.2; p.x += p.vx; p.y += p.vy; p.rot += p.vr; if (Math.random() < 0.2) G.parts.push({ k: "dust", x: p.x, y: p.y + p.h / 2, vx: 0, vy: -0.2, t: 0, life: 30, r: 3 }); if (p.big && p.y + Math.max(p.w, p.h) * 0.35 > SW) { p.dead = true; bigThud(p.x - p.w * 0.6, p.x + p.w * 0.6, p, p.h); continue; }
+      if (p.lite && p.y + p.h / 2 > SW + 2) { p.dead = true; debris(p.x, SW - 4, 2, p.sample, 2); if (Math.random() < 0.3) dust(p.x, SW - 2, 1, 1); if (Math.random() < 0.08) sfx("crash"); G.shake = Math.max(G.shake, 2); continue; }
+      if (p.y + p.h / 2 > SW + 4) { p.dead = true; debris(p.x, SW - 4, 10, p.sample, 3); dust(p.x, SW - 2, 4, 1.4); G.shake = Math.max(G.shake, 5); if (Math.random() < 0.4) { explode(p.x, SW - 6, 1); setFire(p.x, SW - 2, 600, 1); } else sfx("crash"); hitRect(p.x - p.w / 2, SW - 30, p.x + p.w / 2, SW, 2, { rival: 1 }); } }
     G.pieces = G.pieces.filter(p => !p.dead);
     for (const p of G.props) { if (p.fall) p.fall = Math.min(PI / 2, p.fall + 0.08); if (p.off > 1) p.off--; }
     for (const p of G.pylons) if (p.fall && p.fall < 1.3) { p.fall = Math.min(1.3, p.fall + 0.02 + p.fall * 0.06); if (p.fall >= 1.3) { G.shake = Math.max(G.shake, 5); dust(p.x + p.fdir * 70, SW, 8, 1.3); sfx("crash"); } }
@@ -1038,7 +1148,7 @@
   }
   function drawBuilding(b, cam, ctx) {
     const X = Math.round(b.x - cam), top = SW - b.h + Math.round(b.sink); if (X > W + 10 || X + b.w < -10) return;
-    if (b.state === "epic" && b.kind === "topple") { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, SW + 4); ctx.clip(); const px = X + (b.dir > 0 ? b.w : 0); ctx.translate(px, SW); ctx.rotate(b.ang * b.dir); ctx.drawImage(b.c, b.dir > 0 ? -b.w : 0, -b.h); ctx.restore(); return; }
+    if (b.state === "epic" && (b.kind === "topple" || b.kind === "lean")) { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, SW + 4); ctx.clip(); const px = X + (b.dir > 0 ? b.w : 0); ctx.translate(px, SW); ctx.rotate(b.ang * b.dir); ctx.drawImage(b.c, b.dir > 0 ? -b.w : 0, -b.h + Math.round(b.sink)); ctx.restore(); return; }
     const jit = b.hitT ? (b.hitT % 2 ? 1 : -1) : b.state === "collapse" || b.state === "epic" ? Math.round(rnd(-1.5, 1.5)) : 0;
     ctx.save(); ctx.beginPath(); ctx.rect(X - 10, 0, b.w + 20, SW); ctx.clip();
     if (b.state === "collapse") { ctx.translate(X + b.w / 2, SW); ctx.rotate(Math.sin(b.seed) * b.sink / b.h * 0.12); ctx.drawImage(b.c, -b.w / 2 + jit, -b.h + b.sink); ctx.restore(); return; }
@@ -1321,7 +1431,9 @@
     for (const p of G.props) drawProp(p, cam);
     if (G.mode === "play") { drawRival(cam); drawKaiju(cam); }
     for (const o of G.thrown) { w.save(); w.translate(Math.round(o.x - cam), Math.round(o.y)); w.rotate(o.rot); w.scale((o.flip ? -1 : 1) * (o.sc || 1), o.sc || 1); w.drawImage(o.img, -o.img.width / 2, -o.img.height / 2); w.restore(); }
-    for (const p of G.pieces) { const X = p.x - cam; if (X < -120 || X > W + 120) continue; w.save(); w.translate(Math.round(X), Math.round(p.y)); w.rotate(p.rot); w.drawImage(p.img, -p.w / 2, -p.h / 2); w.restore(); }
+    for (const p of G.pieces) {
+      if (p.hinge) { const X = p.px - cam; if (X < -260 || X > W + 260) continue; w.save(); w.beginPath(); w.rect(0, 0, W, SW + 4); w.clip(); w.translate(Math.round(X), Math.round(p.py)); w.rotate(p.ang * p.dir); w.drawImage(p.img, -p.ox, -p.oy); w.restore(); continue; }
+      const X = p.x - cam; if (X < -160 || X > W + 160) continue; w.save(); w.translate(Math.round(X), Math.round(p.y)); w.rotate(p.rot); w.drawImage(p.img, -p.w / 2, -p.h / 2); w.restore(); }
     drawUnits(cam); drawParts(cam); drawFlames(cam); drawFx(cam);
     lighting();
     g.drawImage(wc, 0, 0);
@@ -1334,7 +1446,7 @@
     if (G.flash) { g.fillStyle = `rgba(255,240,220,${G.flash / 30})`; g.fillRect(0, 0, W, H); }
     if (G.mode === "title") {
       g.fillStyle = "rgba(8,6,12,0.45)"; g.fillRect(0, 0, W, H);
-      const F = KF[Math.floor(G.t / 40) % 2 ? "roar0" : "idle0"]; g.drawImage(F.r, 0, 205 - AY + 4); g.globalAlpha = 0.7 + 0.3 * Math.sin(G.t * 0.08); g.drawImage(F.gr, 0, 205 - AY + 4); g.globalAlpha = 1;
+      const F = KF[KD.km("idle0", "roar0", osc(80, G.t))]; g.drawImage(F.r, 0, 205 - AY + 4); g.globalAlpha = 0.7 + 0.3 * Math.sin(G.t * 0.08); g.drawImage(F.gr, 0, 205 - AY + 4); g.globalAlpha = 1;
       const t1 = text("怪獣ボルガ", 24, [255, 170, 80], [60, 16, 10]), t2 = text("夜の街", 16, [255, 230, 200], [40, 10, 10]); g.drawImage(t1, 200, 60); g.drawImage(t2, 232, 92);
       if (Math.floor(G.t / 30) % 2) { const t3 = text("Z / Enter でスタート", 12); g.drawImage(t3, 214, 130); }
       const t4 = text("不死身の怪獣が 夜の街を どこまでも壊していく", 12, [200, 190, 190]); g.drawImage(t4, Math.round((W - t4.width) / 2), 196);
@@ -1438,7 +1550,7 @@
   resetWorld(); G.mode = "title";
   let last = performance.now(), acc = 0, msAvg = 0;
   function loop(now) { acc += Math.min(0.1, (now - last) / 1000); last = now; while (acc >= 1 / 60) { update(); acc -= 1 / 60; } audioTick(); const t0 = performance.now(); render(); msAvg = lerp(msAvg, performance.now() - t0, 0.05); const z = G.zoom || 1; if (z > 1.002) { const sw = W / z, sh = H / z, cx = clamp((G.zoomHold > 0 && G.zoomX != null ? G.zoomX : K.x) - G.cam, sw / 2, W - sw / 2); vctx.drawImage(low, cx - sw / 2, (H - sh) * 0.75, sw, sh, 0, 0, view.width, view.height); } else vctx.drawImage(low, 0, 0, view.width, view.height); requestAnimationFrame(loop); }
-  window.Game = { G, K, KF, HF, kFrame: () => kFrame(), lightning: () => lightning(), blowTank: b => blowTank(b), pylonDown: p => pylonDown(p), spawnBoss: k => spawnRival(k), get R() { return R; }, epic: (b, k) => epicCollapse(b, k), carve: (b, x, y, r) => carve(b, x, y, r), update, render, keys, resetWorld, low, ms: () => msAvg };
+  window.Game = { G, K, KF, HF, KD, kFrame: () => kFrame(), lightning: () => lightning(), blowTank: b => blowTank(b), pylonDown: p => pylonDown(p), spawnBoss: k => spawnRival(k), get R() { return R; }, epic: (b, k) => epicCollapse(b, k), carve: (b, x, y, r) => carve(b, x, y, r), update, render, keys, resetWorld, low, ms: () => msAvg };
   view.focus(); requestAnimationFrame(loop);
 })();
 </script>
