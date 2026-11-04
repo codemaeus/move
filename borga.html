@@ -30,7 +30,7 @@
 <div class="wrap">
   <div class="screen"><canvas id="view" width="1152" height="648" tabindex="0" aria-label="怪獣ボルガ 夜の街 ゲーム画面"></canvas></div>
   <div class="pad" aria-label="タッチ操作">
-    <div class="dir"><span></span><button data-k="up" aria-label="上">▲</button><span></span><button data-k="left" aria-label="左">◀</button><button data-k="down" aria-label="下">▼</button><button data-k="right" aria-label="右">▶</button></div>
+    <div class="dir"><span></span><button data-k="up" aria-label="上">▲</button><button class="fire" data-k="trans" aria-label="変身">変</button><button data-k="left" aria-label="左">◀</button><button data-k="down" aria-label="下">▼</button><button data-k="right" aria-label="右">▶</button></div>
     <div class="act"><button data-k="tail" aria-label="しっぽ">尾</button><button data-k="roar" aria-label="咆哮">吼</button><button data-k="jump" aria-label="ジャンプ">跳</button><button data-k="claw" aria-label="爪">爪</button><button class="fire" data-k="fire" aria-label="火炎">炎</button><button data-k="grab" aria-label="つかむ・投げる">掴</button></div>
   </div>
   <div>
@@ -39,8 +39,8 @@
   </div>
   <div class="group"><button id="snd" aria-pressed="false">音を出す</button><button id="pause" aria-pressed="false">ポーズ</button><button id="restart">タイトルへ</button></div>
   <p class="keys">
-    <kbd>←</kbd><kbd>→</kbd> 歩く　<kbd>Z</kbd> 爪（連打で ひっかき→すくい上げ、歩き・ダッシュ中も出せる）　<kbd>X</kbd> 火炎（押しっぱなし、<kbd>↑</kbd><kbd>↓</kbd>で角度）　<kbd>C</kbd> しっぽ叩きつけ　<kbd>Space</kbd> ジャンプ（空中で <kbd>↓</kbd> か もう一度で踏みつけ）　<kbd>F</kbd> つかむ／投げる（↑で山なり、↓で低く）　<kbd>V</kbd> 咆哮（怒りゲージ満タンでマグマノヴァ）　<kbd>Enter</kbd> ポーズ<br>
-    雷獣ジンライと光の巨人アステルが交互に立ちはだかります。ビルは何度でも壊れ、戦車・ヘリ・戦闘機・メーサー車が迎え撃ちます。体力がなくなっても、ボタン連打で何度でもよみがえります。ゲームパッド対応（A ジャンプ／X 爪／B 火炎／Y しっぽ／RB 咆哮／LB つかむ・投げる）。
+    <kbd>←</kbd><kbd>→</kbd> 歩く　<kbd>Z</kbd> 爪（連打で ひっかき→すくい上げ、歩き・ダッシュ中も出せる）　<kbd>X</kbd> 火炎（押しっぱなし、<kbd>↑</kbd><kbd>↓</kbd>で角度）　<kbd>C</kbd> しっぽ叩きつけ　<kbd>Space</kbd> ジャンプ（空中で <kbd>↓</kbd> か もう一度で踏みつけ）　<kbd>F</kbd> つかむ／投げる（↑で山なり、↓で低く）　<kbd>V</kbd> 咆哮（怒りゲージ満タンでマグマノヴァ）　<kbd>T</kbd> 変身（変身ゲージ満タンで1分間の超ボルガ）　<kbd>Enter</kbd> ポーズ<br>
+    雷獣ジンライと光の巨人アステルが交互に立ちはだかります。ビルは何度でも壊れ、戦車・ヘリ・戦闘機・メーサー車が迎え撃ちます。体力がなくなっても、ボタン連打で何度でもよみがえります。ゲームパッド対応（A ジャンプ／X 爪／B 火炎／Y しっぽ／RB 咆哮／LB つかむ・投げる／LT・RT 変身）。
   </p>
 </div>
 <script>
@@ -149,7 +149,9 @@
     const footF = legAt(add(hip, f, 4), o.ff || [12, 0], C.body, C.bodyD, C.bodyL);
     const hand = armAt(sh, o.af == null ? 1.0 : o.af, o.fold == null ? -1.2 : o.fold, C.body, C.bodyD, C.bodyL);
     // scale texture and outline
-    for (let y = 0; y < KH; y++) for (let x = 0; x < KW; x++) { const c = p.G(x, y); if (!c) continue; if (c[1] === C.body[1] && c[0] === C.body[0] && h2(x >> 1, y >> 1) > 0.8) p.P(x, y, C.bodyD); else if (c[1] === C.bodyL[1] && h2(x, y) > 0.86) p.P(x, y, C.body); else if (c[1] === C.bodyD[1] && h2(x >> 1, (y >> 1) + 9) > 0.86) p.P(x, y, C.bodyDD); }
+    for (let y = 0; y < KH; y++) for (let x = 0; x < KW; x++) { const c = p.G(x, y); if (!c) continue;
+      if (C.veins && (c[0] === C.body[0] && c[1] === C.body[1] || c[0] === C.bodyD[0] && c[1] === C.bodyD[1] || c[0] === C.bodyL[0] && c[1] === C.bodyL[1]) && ((x + (y >> 1) + ((h2(x >> 3, y >> 3) * 7) | 0)) % 19 === 0 || (x - (y >> 1) + ((h2((y >> 3) + 5, x >> 3) * 5) | 0) + 400) % 23 === 0)) { p.P(x, y, C.veinsD); q.P(x, y, C.veins); continue; }
+      if (c[1] === C.body[1] && c[0] === C.body[0] && h2(x >> 1, y >> 1) > 0.8) p.P(x, y, C.bodyD); else if (c[1] === C.bodyL[1] && h2(x, y) > 0.86) p.P(x, y, C.body); else if (c[1] === C.bodyD[1] && h2(x >> 1, (y >> 1) + 9) > 0.86) p.P(x, y, C.bodyDD); }
     p.outline(C.out);
     const main = p.done(), glow = q.done(), rel = pt => [pt[0] - AX, pt[1] - AY];
     const out = { r: main, gr: glow, eye: rel(eye), tips: tips.map(rel), mouth: rel(add(add(Hc, F, 19), U, -1)), hand: rel(hand), feet: [rel(footB), rel(footF)], tail: rel(tailPts[15].p), head: rel(Hc) }, lz = (k, fn) => { let v = null; Object.defineProperty(out, k, { get: () => v || (v = fn()) }); };
@@ -201,25 +203,31 @@
   KPOSE.tA = mixPose(KPOSE.t0, KPOSE.t1, 0.5); KPOSE.tB = mixPose(KPOSE.t1, KPOSE.t2, 0.5); KPOSE.tC = { ...KPOSE.t2, ta: KPOSE.t2.ta + 0.12, by: 9, lean: 0.55, jaw: 0.5 };
   // Smooth motion: besides the hand-made key poses, every in-between pose is built on demand from the same skeleton
   // (mixing two key poses), so actions, walking and running get a new drawing almost every tick. Kept in a small LRU cache.
-  function frameBank(stat, src, gen, cap) {
-    const dp = new Map(), cache = new Map(), Q = 12, poseOf = k => src[k] || dp.get(k);
+  function frameBank(stat, src, gen, cap, shared) {
+    const dp = shared || new Map(), cache = new Map(), Q = 12, poseOf = k => src[k] || dp.get(k);
     const get = k => { let v = cache.get(k); if (v) { cache.delete(k); cache.set(k, v); return v; } v = gen(dp.get(k)); cache.set(k, v); if (cache.size > cap) cache.delete(cache.keys().next().value); return v; };
     const B = {
       F: new Proxy(stat, { get: (t, k) => k in t ? t[k] : typeof k === "string" && dp.has(k) ? get(k) : undefined }),
       reg(k, fn) { if (!(k in stat) && !dp.has(k)) dp.set(k, fn()); return k; },
-      has: k => k in stat || dp.has(k), poseOf, queue: [], cache,
+      has: k => k in stat || dp.has(k), poseOf, queue: [], cache, dp,
       // a pose u of the way from key a to key b
       km(a, b, u) { const q = Math.round(clamp(u, 0, 1) * Q); if (q === 0 || a === b) return B.reg(a, () => poseOf(a)); if (q === Q) return B.reg(b, () => poseOf(b)); return B.reg(`~${a}|${b}|${q}`, () => mixPose(poseOf(a), poseOf(b), q / Q)); },
       // keyframe list [[t, key], ...] sampled at time t
       seq(S, t) { let i = 0; while (i < S.length - 1 && t >= S[i + 1][0]) i++; if (i === S.length - 1 || S[i][1] === S[i + 1][1]) return B.km(S[i][1], S[i][1], 0); return B.km(S[i][1], S[i + 1][1], (t - S[i][0]) / (S[i + 1][0] - S[i][0])); },
       // a looping cycle pre0..pre(n-1) at a fractional phase, split into `sub` steps between keys
       cyc(pre, n, ph, sub) { ph = ((ph % n) + n) % n; const i = Math.floor(ph), fr = Math.floor((ph - i) * sub) / sub; return B.km(pre + i, pre + ((i + 1) % n), fr); },
-      warm() { let n = 0; while (B.queue.length && n < 2) { const k = B.queue.shift(); if (!cache.has(k) && dp.has(k)) { get(k); n++; } } return n; }
+      warm() { let n = 0; while (B.queue.length && n < 2) { const k = B.queue.shift(); if (k in stat) { void stat[k]; n++; } else if (!cache.has(k) && dp.has(k)) { get(k); n++; } } return n; }
     };
     return B;
   }
   const KFS = {}, KFC = {}; for (const k in KPOSE) Object.defineProperty(KFS, k, { enumerable: true, get: () => KFC[k] || (KFC[k] = kaijuFrame(KPOSE[k])) });
-  const KD = frameBank(KFS, KPOSE, o => kaijuFrame(o), 340), KF = KD.F;
+  const KD = frameBank(KFS, KPOSE, o => kaijuFrame(o), 340);
+  // Super Volga: charred black-red hide split by glowing lava veins, white-hot spines, horns, bigger plates and heavier arms
+  const SC = { ...KC, body: [46, 28, 30], bodyL: [84, 50, 46], bodyD: [28, 16, 20], bodyDD: [15, 8, 12], belly: [128, 72, 40], bellyD: [96, 48, 28], spB: [210, 96, 30], sp: [255, 200, 90], spL: [255, 244, 180], spC: [255, 255, 255], claw: [255, 238, 200], eye: [255, 255, 255], mouth: [170, 30, 20], mouthD: [100, 14, 10], arm: 1.18, plate: 1.38, horn: 1, veins: [255, 150, 50], veinsD: [230, 90, 30] };
+  const SFS = {}, SFC = {}; for (const k in KPOSE) Object.defineProperty(SFS, k, { enumerable: true, get: () => SFC[k] || (SFC[k] = kaijuFrame(KPOSE[k], SC)) });
+  const SD = frameBank(SFS, KPOSE, o => kaijuFrame(o, SC), 240, KD.dp);
+  let kForm = 0; // 1 while transformed
+  const KF = new Proxy({}, { get: (t, k) => (kForm ? SD.F : KD.F)[k] });
   for (const k of ["idle0", "idle1", "idle01", "roar0", "roar1"]) void KF[k]; for (let i = 0; i < 16; i++) void KF["w" + i];
   const JC = { ...KC, body: [70, 88, 128], bodyL: [112, 132, 180], bodyD: [46, 58, 92], bodyDD: [28, 34, 60], belly: [152, 160, 180], bellyD: [112, 120, 140], spB: [36, 56, 112], sp: [80, 180, 255], spL: [180, 236, 255], spC: [246, 255, 255], eye: [140, 255, 255], mouth: [90, 20, 50], mouthD: [50, 10, 30], arm: 1.35, plate: 0.7, horn: 1 };
   const JFS = {}, JFC = {}; for (const k of ["idle0", "idle1", "idle01", ...Array.from({ length: 16 }, (_, i) => "w" + i), "s0", "s01", "s1", "s12", "s2", "roar0", "roar01", "roar1", "hurt", "kneel", "b2", "pound"]) Object.defineProperty(JFS, k, { enumerable: true, get: () => JFC[k] || (JFC[k] = kaijuFrame(KPOSE[k], JC)) });
@@ -286,14 +294,15 @@
   HPOSE.rise = mixPose(HPOSE.land, HPOSE.idle0, 0.5); HPOSE.chop01 = mixPose(HPOSE.chop0, HPOSE.chop1, 0.5); HPOSE.beam01 = mixPose(HPOSE.beam0, HPOSE.beam1, 0.5);
   const HFS = {}, HFC = {}; for (const k in HPOSE) Object.defineProperty(HFS, k, { enumerable: true, get: () => HFC[k] || (HFC[k] = heroFrame(HPOSE[k])) });
   const HD = frameBank(HFS, HPOSE, o => heroFrame(o), 160), HF = HD.F;
-  function warmFrames() { let n = 0; for (const k in KPOSE) if (!KFC[k]) { void KF[k]; if (++n >= 2) break; } if (!n) n = KD.warm(); if (!n) for (const k in JFS) if (!JFC[k]) { void JF[k]; if (++n >= 1) break; } if (!n) for (const k in HFS) if (!HFC[k]) { void HF[k]; if (++n >= 1) break; } if (n) setTimeout(warmFrames, 30); }
+  function warmFrames() { let n = 0; for (const k in KPOSE) if (!KFC[k]) { void KF[k]; if (++n >= 2) break; } if (!n && kForm) n = SD.warm(); if (!n) n = KD.warm(); if (!n) for (const k in JFS) if (!JFC[k]) { void JF[k]; if (++n >= 1) break; } if (!n) for (const k in HFS) if (!HFC[k]) { void HF[k]; if (++n >= 1) break; } if (n) setTimeout(warmFrames, 30); }
+  const WARM = [];
   setTimeout(() => {
     // queue the in-betweens used most (walk and run cycles, idle breathing, every tick of each attack) to be drawn while idle
     const q = new Set(), sub = (pre, n, st) => { for (let i = 0; i < n * st; i++) q.add(KD.cyc(pre, n, i / st, st)); };
     sub("w", 16, 3); sub("d", 16, 3); for (let i = 0; i <= 12; i++) q.add(KD.km("idle0", "idle1", i / 12));
     for (const a in ACT) for (let t = 0; t <= ACT[a].len; t++) q.add(KD.seq(ACT[a].frames, t));
     for (const S of [SEQ_LAND, SEQ_LJLAND, SEQ_RISE, SEQ_HURT, LJSEQ]) for (let t = 0; t <= S[S.length - 1][0]; t++) q.add(KD.seq(S, t));
-    KD.queue.push(...[...q].filter(k => k[0] === "~"));
+    WARM.push(...q); KD.queue.push(...[...q].filter(k => k[0] === "~"));
     warmFrames();
   }, 200);
 
@@ -449,12 +458,12 @@
   const BRIDGE = mk(768, 60, p => { for (let x = 0; x < 768; x++) { const y = 30 + Math.round(Math.abs(Math.sin(x / 768 * Math.PI * 3)) * -18) + 18; p.P(x, y, [40, 36, 60]); if (x % 3 === 0) for (let yy = y; yy < 48; yy++) p.P(x, yy, [34, 30, 52]); } p.R(0, 48, 768, 2, [40, 36, 60]); for (const tx of [128, 384, 640]) p.R(tx - 2, 8, 5, 42, [44, 40, 66]); });
 
   // ---------- world ----------
-  const K = { x: 200, y: 0, vy: 0, dir: 1, state: "intro", t: 0, hp: 100, breath: 100, rage: 0, inv: 0, walk: 0, aim: 2, combo: 0, rise: 0, deaths: 0, emerge: 1, stepT: 0, qd: false, flash: 0, hurtF: 0, novaT: 0 };
+  const K = { x: 200, y: 0, vy: 0, dir: 1, state: "intro", t: 0, hp: 100, breath: 100, rage: 0, inv: 0, walk: 0, aim: 2, combo: 0, rise: 0, deaths: 0, emerge: 1, stepT: 0, qd: false, flash: 0, hurtF: 0, novaT: 0, awk: 0, super: 0 };
   const G = { mode: "title", t: 0, cam: 0, blds: [], rubble: [], props: [], cars: [], units: [], shots: [], parts: [], fires: [], fx: [], people: [], pieces: [], genX: SEA, damage: 0, kills: 0, shake: 0, flash: 0, stop: 0, alert: 1, district: "", distT: 0, spawn: { tank: 200, heli: 400, jet: 900, maser: 1500, car: 60, tram: 500 }, msg: null, beams: [], hrings: [], thrown: [], pylons: [], newsQ: [], dstat: {}, derailed: {}, rain: 0, fog: 0, dawn: 0, night: 0, cine: null, focus: null, zoomHold: 0, silh: 0, rank: null, bolt: null, tv: null };
   function resetWorld() {
     G.distI = null; G.nextPylon = SEA + 260; G.dawnNews = null; G.cineLast = -9999;
     R = null; G.nextBoss = SEA + 2300; G.bossN = 0; G.zoom = 1; G.slow = 0; if (typeof A !== "undefined") A.fast = false;
-    Object.assign(K, { x: 230, y: 0, vy: 0, dir: 1, state: "intro", t: 0, hp: 100, breath: 100, rage: 0, inv: 0, walk: 0, aim: 2, combo: 0, rise: 0, deaths: 0, emerge: 1, flash: 0, hurtF: 0, held: null });
+    Object.assign(K, { x: 230, y: 0, vy: 0, dir: 1, state: "intro", t: 0, hp: 100, breath: 100, rage: 0, inv: 0, walk: 0, aim: 2, combo: 0, rise: 0, deaths: 0, emerge: 1, flash: 0, hurtF: 0, held: null, awk: 0, super: 0 }); kForm = 0;
     Object.assign(G, { cam: 0, blds: [], rubble: [], props: [], cars: [], units: [], shots: [], parts: [], fires: [], fx: [], people: [], pieces: [], genX: SEA + 40, damage: 0, kills: 0, shake: 0, flash: 0, stop: 0, alert: 1, district: "", distT: 0, spawn: { tank: 300, heli: 600, jet: 1200, maser: 2200, car: 30, tram: 500 }, msg: null, beams: [], hrings: [], thrown: [], pylons: [], newsQ: [], dstat: {}, derailed: {}, rain: 0, fog: 0, dawn: 0, night: 0, cine: null, focus: null, zoomHold: 0, silh: 0, rank: null, bolt: null, tv: null });
     generate();
   }
@@ -475,20 +484,21 @@
 
   // ---------- input ----------
   const keys = {}, prev = {};
-  const KEYMAP = { ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right", ArrowDown: "down", KeyS: "down", ArrowUp: "up", KeyW: "up", KeyZ: "claw", KeyJ: "claw", KeyX: "fire", KeyK: "fire", KeyC: "tail", KeyL: "tail", Space: "jump", KeyV: "roar", KeyI: "roar", KeyF: "grab", KeyU: "grab", Enter: "start", KeyP: "start", Escape: "start" };
+  const KEYMAP = { ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right", ArrowDown: "down", KeyS: "down", ArrowUp: "up", KeyW: "up", KeyZ: "claw", KeyJ: "claw", KeyX: "fire", KeyK: "fire", KeyC: "tail", KeyL: "tail", Space: "jump", KeyV: "roar", KeyI: "roar", KeyF: "grab", KeyU: "grab", KeyT: "trans", KeyO: "trans", Enter: "start", KeyP: "start", Escape: "start" };
   const ACTS = ["claw", "fire", "tail", "jump", "roar", "grab"];
   addEventListener("keydown", e => { const k = KEYMAP[e.code]; if (k) { keys[k] = true; e.preventDefault(); } });
   addEventListener("keyup", e => { const k = KEYMAP[e.code]; if (k) { keys[k] = false; e.preventDefault(); } });
   addEventListener("blur", () => { for (const k in keys) keys[k] = false; });
   for (const b of document.querySelectorAll(".pad button")) { const k = b.dataset.k, on = e => { e.preventDefault(); keys[k] = true; if (G.mode !== "play") keys.start = true; }, off = e => { e.preventDefault(); keys[k] = false; keys.start = false; }; b.addEventListener("pointerdown", on); b.addEventListener("pointerup", off); b.addEventListener("pointercancel", off); b.addEventListener("pointerleave", off); }
   view.addEventListener("pointerdown", () => { keys.start = true; keys.tap = true; setTimeout(() => { keys.start = false; keys.tap = false; }, 90); });
-  function pollPad() { const pads = navigator.getGamepads ? navigator.getGamepads() : []; const gp = pads && [...pads].find(p => p); if (!gp) return; const b = i => gp.buttons[i] && gp.buttons[i].pressed, ax = gp.axes[0] || 0, ay = gp.axes[1] || 0; keys.pl = b(14) || ax < -0.4; keys.pr = b(15) || ax > 0.4; keys.pd = b(13) || ay > 0.5; keys.pu = b(12) || ay < -0.5; keys.pj = b(0); keys.pc = b(2); keys.pf = b(1); keys.pt = b(3); keys.pro = b(5); keys.pg = b(4); keys.ps = b(9); }
-  const PADK = { left: "pl", right: "pr", down: "pd", up: "pu", jump: "pj", claw: "pc", fire: "pf", tail: "pt", roar: "pro", grab: "pg", start: "ps" };
+  function pollPad() { const pads = navigator.getGamepads ? navigator.getGamepads() : []; const gp = pads && [...pads].find(p => p); if (!gp) return; const b = i => gp.buttons[i] && gp.buttons[i].pressed, ax = gp.axes[0] || 0, ay = gp.axes[1] || 0; keys.pl = b(14) || ax < -0.4; keys.pr = b(15) || ax > 0.4; keys.pd = b(13) || ay > 0.5; keys.pu = b(12) || ay < -0.5; keys.pj = b(0); keys.pc = b(2); keys.pf = b(1); keys.pt = b(3); keys.pro = b(5); keys.pg = b(4); keys.ptr = b(6) || b(7); keys.ps = b(9); }
+  const PADK = { left: "pl", right: "pr", down: "pd", up: "pu", jump: "pj", claw: "pc", fire: "pf", tail: "pt", roar: "pro", grab: "pg", trans: "ptr", start: "ps" };
   const btn = k => keys[k] || keys[PADK[k]];
   const pressed = k => btn(k) && !prev[k];
 
   // ---------- effects ----------
-  function addDamage(v) { const b0 = G.damage; G.damage += v; if (G.damage >= 10000 && Math.floor(Math.log10(G.damage / 10000)) > Math.floor(Math.log10(Math.max(1, b0) / 10000))) news(`被害総額が ついに${yen(Math.pow(10, Math.floor(Math.log10(G.damage / 10000))) * 10000)}円を突破`); K.rage = Math.min(100, K.rage + v / 900); }
+  const AWK_COST = 2600, SUPER_LEN = 3600;
+  function addDamage(v) { const b0 = G.damage; G.damage += v; if (G.damage >= 10000 && Math.floor(Math.log10(G.damage / 10000)) > Math.floor(Math.log10(Math.max(1, b0) / 10000))) news(`被害総額が ついに${yen(Math.pow(10, Math.floor(Math.log10(G.damage / 10000))) * 10000)}円を突破`); K.rage = Math.min(100, K.rage + v / 900); if (!K.super && K.state !== "trans") K.awk = Math.min(100, K.awk + v / AWK_COST); }
   function debris(x, y, n, c, sp = 3) { for (let i = 0; i < n; i++) G.parts.push({ k: "chunk", x, y, vx: rnd(-sp, sp), vy: rnd(-sp * 1.4, -0.5), t: 0, life: rnd(60, 110) | 0, c: mixc(c, [0, 0, 0], rnd(0, 0.4)), s: Math.random() < 0.3 ? 3 : 2 }); }
   function glass(x, y, n) { for (let i = 0; i < n; i++) G.parts.push({ k: "glass", x, y, vx: rnd(-2, 2), vy: rnd(-2.5, 0), t: 0, life: rnd(40, 70) | 0 }); }
   function dust(x, y, n, s = 1) { for (let i = 0; i < n; i++) G.parts.push({ k: "dust", x: x + rnd(-10, 10) * s, y: y + rnd(-4, 2), vx: rnd(-0.8, 0.8) * s, vy: rnd(-0.6, -0.1), t: 0, life: rnd(50, 90) | 0, r: rnd(4, 9) * s }); }
@@ -500,6 +510,7 @@
 
   // ---------- hitting things ----------
   function hitRect(x0, y0, x1, y1, dmg, opts = {}) {
+    if (K.super && !opts.rival) dmg *= 1.8;
     let hit = false;
     for (const b of G.blds) {
       if (b.state !== "stand") continue; const top = SW - b.h;
@@ -649,6 +660,7 @@
   const SEQ_RISE = [[0, "kneel"], [28, "kneel"], [36, "rise2"], [44, "roar1"]], SEQ_HURT = [[0, "hurt"], [10, "hurt"], [17, "idle0"]], SEQ_AIR = [[0, "jump"], [0.5, "apex"], [1, "fall"]];
   function kFrame() {
     const s = K.state;
+    if (s === "trans") return K.t < 48 ? KD.seq([[0, "idle0"], [10, "kneel"], [46, "kneel"]], K.t) : K.t < 56 ? KD.km("kneel", "roar1", (K.t - 48) / 8) : KD.km("roar0", "roar1", osc(6, K.t));
     if (K.firing) {
       if (s === "walk") { const wk = kWalk(K.dash), a = AIMS[K.aim]; return KD.reg(`~F${K.dash ? 1 : 0}${K.aim}|${wk}`, () => { const L = KD.poseOf(wk), up = { neck: 0.1 + a * 0.3, jaw: 0.95, ha: a, fire: 1 }; return K.dash ? { ...L, ...up, neck: -0.1 + a * 0.3 } : { ...L, ...up, lean: 0.28, af: 0.6, fold: -1.4 }; }); }
       if (s === "air") return (K.djump ? "fda" : "fa") + K.aim;
@@ -703,7 +715,8 @@
     if (R && R.state !== "die" && Math.abs(R.x - x) < 70) hitRival(R.x - 1, GY - 50, R.x + 1, GY - 40, 12);
   }
   function stomp(x, big) {
-    const r = big ? 90 : 26; G.shake = Math.max(G.shake, big ? 10 : 2.2); sfx(big ? "pound" : "step");
+    if (K.super && !big) { G.shake = Math.max(G.shake, 4); if (Math.random() < 0.35) setFire(x + rnd(-6, 6), GY + rnd(0, 6), 240, rnd(0.5, 0.8)); sparks(x, GY, 3, [255, 180, 90], 1.6); }
+    const r = big ? (K.super ? 130 : 90) : K.super ? 36 : 26; G.shake = Math.max(G.shake, big ? 10 : 2.2); sfx(big ? "pound" : "step");
     for (const c of G.cars) if (c.alive && Math.abs(c.x - x) < r) { if (Math.abs(c.x - x) < 14) { c.alive = false; c.crushed = true; explode(c.x, c.y - 3, 0.6); addDamage(150); } else if (big) { c.alive = false; c.flying = true; c.vy = -rnd(2, 5); c.vx = Math.sign(c.x - x) * rnd(1, 3); c.spin = rnd(-0.3, 0.3); } }
     for (const u of G.units) if (!u.dead && !u.fly && Math.abs(u.x - x) < (big ? r : 16)) { u.hp -= big ? 6 : 4; u.flash = 8; if (u.hp <= 0) killUnit(u); }
     for (const p of G.props) if (p.alive && Math.abs(p.x - x) < (big ? r : 10)) { p.alive = false; p.fall = 1; p.fdir = p.x > x ? 1 : -1; addDamage(60); }
@@ -920,21 +933,28 @@
     const left = btn("left"), right = btn("right");
     if (K.inv) K.inv--; if (K.flash) K.flash--;
     if (!K.firing) K.breath = Math.min(100, K.breath + 0.35);
+    if (K.super > 0) {
+      K.super--; K.breath = 100;
+      if (G.t % 2 === 0) G.parts.push({ k: "ember", x: K.x + rnd(-34, 34), y: GY + K.y - rnd(6, 120), vx: rnd(-0.3, 0.3) - K.dir * 0.2, vy: rnd(-1.8, -0.7), t: 0, life: rnd(24, 40) | 0 });
+      if (K.super === 600) say("超ボルガ　のこり10秒", 100);
+      if (K.super === 0) endSuper();
+    }
     const free = K.state === "idle" || K.state === "walk";
     if (!free && K.state !== "air" && K.state !== "land" && K.firing) { K.firing = false; sfx("fireStop"); }
-    K.heat = lerp(K.heat || 0, K.firing ? 1 : 0, K.firing ? 0.12 : 0.05);
+    K.heat = lerp(K.heat || 0, K.firing ? 1 : K.super ? 0.7 : 0, K.firing ? 0.12 : 0.05);
     if (K.state === "intro") { K.emerge = Math.max(0, K.emerge - 0.006); K.walk += 0.5; K.x += 0.5; if (G.t % 20 === 0) { for (let i = 0; i < 6; i++) G.parts.push({ k: "water", x: K.x + rnd(-30, 30), y: GY - 30, vx: rnd(-1, 1), vy: rnd(-3, -1), t: 0, life: 40 }); } if (K.emerge <= 0 && K.x > SEA - 60) { K.state = "roar"; K.t = 0; sfx("roar"); } return; }
     if (free) {
       const want = right && !left ? 1 : left && !right ? -1 : 0;
       for (const [kk, dd] of [["right", 1], ["left", -1]]) if (pressed(kk)) { if (K.tapDir === dd && G.t - K.tapT < 16) { K.dash = true; K.dir = dd; sfx("dash"); G.fx.push({ k: "ono", s: "ダッ！", x: K.x - dd * 30, y: GY - 60, t: 0, life: 26, c: [255, 230, 160] }); } K.tapDir = dd; K.tapT = G.t; }
       if (!want || want !== K.dir) K.dash = false;
-      const sp = K.dash ? 2.5 : 0.95;
+      const sp = (K.dash ? 2.5 : 0.95) * (K.super ? 1.3 : 1);
       if (K.dash && want) { if (G.t % 2 === 0) dust(K.x - K.dir * 20, GY + 2, 1, 0.9); G.shake = Math.max(G.shake, 1.4); if (G.t % 6 === 0) { const [x0, y0, x1, y1] = box([12, -86, 44, -18]); if (hitRect(x0, y0, x1, y1, 1.4, { r: 9, ram: 1 })) { sfx("crash"); } } if (R && R.state !== "die" && Math.abs(R.x - K.x) < 52) { tackleRival(); } }
       if (want) { K.dir = want; K.x += want * sp; K.walk += sp; K.state = "walk"; const cyc = K.dash ? "d" : "w", ph = Math.floor(K.walk / (K.dash ? 3 : 2)) % 16; if (ph !== K.lastPh && (ph === 4 || ph === 12)) { const f = KF[cyc + ph].feet[ph === 4 ? 1 : 0]; stomp(world(f)[0], false); if (K.dash) dust(world(f)[0], GY + 2, 3, 1.1); } K.lastPh = ph; }
       else K.state = "idle";
       K.x = Math.max(K.x, SEA - 140);
       doFire();
       if (want) for (const c of G.cars) if (c.alive && !c.rammed && Math.abs(c.x - (K.x + K.dir * 16)) < 22) { c.rammed = true; const r = Math.random(); if (r < 0.05) carToScreen(c); else if (r < 0.35) { c.alive = false; c.flying = true; c.vy = -rnd(6, 9); c.vx = K.dir * rnd(3, 5.5); c.spin = rnd(-0.45, 0.45); addDamage(150); sparks(c.x, c.y - 4, 10, [255, 220, 140], 3); sfx("crash"); G.shake = Math.max(G.shake, 4); G.fx.push({ k: "ono", s: "ドカッ！", x: c.x, y: c.y - 30, t: 0, life: 26, c: [255, 230, 170] }); } }
+      if (pressed("trans") && K.awk >= 100 && !K.super) { startTrans(); return; }
       if (pressed("grab") || (K.held && pressed("claw"))) { K.dash = false; startAct(K.held ? "throw" : "grab"); }
       else if (pressed("claw")) { K.combo = 0; K.cdash = K.dash && want === K.dir; K.lunge = K.dash && !K.cdash ? 14 : 0; K.dash = false; startAct("swipe"); }
       else if (pressed("tail")) startAct("tail");
@@ -948,7 +968,7 @@
       if (K.lunge) { K.lunge--; K.x += K.dir * 2; }
       K.moving = false;
       if ((K.state === "swipe" || K.state === "upper") && btn(K.dir > 0 ? "right" : "left") && !btn(K.dir > 0 ? "left" : "right")) { // claw on the move
-        const sp = K.cdash ? 2.5 : 0.95; K.moving = true; K.x += K.dir * sp; K.walk += sp; const cyc = K.cdash ? "d" : "w", ph = Math.floor(K.walk / (K.cdash ? 3 : 2)) % 16;
+        const sp = (K.cdash ? 2.5 : 0.95) * (K.super ? 1.3 : 1); K.moving = true; K.x += K.dir * sp; K.walk += sp; const cyc = K.cdash ? "d" : "w", ph = Math.floor(K.walk / (K.cdash ? 3 : 2)) % 16;
         if (ph !== K.lastPh && (ph === 4 || ph === 12)) { const f = KF[cyc + ph].feet[ph === 4 ? 1 : 0]; stomp(world(f)[0], false); if (K.cdash) dust(world(f)[0], GY + 2, 3, 1.1); } K.lastPh = ph;
         if (K.cdash && G.t % 2 === 0) dust(K.x - K.dir * 20, GY + 2, 1, 0.9);
       } else K.cdash = false;
@@ -976,6 +996,7 @@
       if (K.y >= 0) { K.y = 0; stomp(K.x, K.pound || K.vy > 6 || K.djump); K.ljLand = K.djump && !K.pound; if (K.ljLand) { G.stop = Math.max(G.stop, 4); G.shake = Math.max(G.shake, 12); dust(K.x + K.dir * 20, GY + 2, 14, 1.8); G.fx.push({ k: "ono", s: "ズドォン！", x: K.x + K.dir * 10, y: GY - 120, t: 0, life: 32, c: [255, 220, 170], big: 1 }); } K.state = "land"; K.t = 0; K.vy = 0; if (K.djump && !K.pound) { K.dash = btn(K.dir > 0 ? "right" : "left"); } K.djump = false; }
     } else if (K.state === "land") { if (K.firing) doFire(); if (K.ljLand && K.t < 18) { if (K.t < 8) K.x += K.dir * (8 - K.t) * 0.25; } else if (K.dash) { K.state = "walk"; K.ljLand = false; } else if (K.t > 18) { K.state = "idle"; K.ljLand = false; } }
     else if (K.state === "hurt") { if (K.t > 16) K.state = "idle"; }
+    else if (K.state === "trans") updateTrans();
     else if (K.state === "down") {
       if (K.held) release(false);
       K.rise = Math.max(0, K.rise - 0.25);
@@ -993,14 +1014,48 @@
   }
   function breathe() {
     const fk = KF[kFrame()], m = world(fk.mouth), a = AIMS[K.aim], ang = K.dir > 0 ? a : PI - a;
-    for (let i = 0; i < 4; i++) { const sp = rnd(4.2, 5.4), spread = rnd(-0.07, 0.07); G.parts.push({ k: "flame", x: m[0] + Math.cos(ang) * 2, y: m[1] + Math.sin(ang) * 2, vx: Math.cos(ang + spread) * sp, vy: Math.sin(ang + spread) * sp, t: 0, life: rnd(26, 36) | 0, r: 2 }); }
+    const sup = K.super > 0; // Super Volga breathes a wider, longer, blue-white stream
+    for (let i = 0; i < (sup ? 6 : 4); i++) { const sp = rnd(4.2, 5.4) * (sup ? 1.3 : 1), spread = rnd(-0.07, 0.07) * (sup ? 1.5 : 1); G.parts.push({ k: "flame", hot: sup, x: m[0] + Math.cos(ang) * 2, y: m[1] + Math.sin(ang) * 2, vx: Math.cos(ang + spread) * sp, vy: Math.sin(ang + spread) * sp, t: 0, life: rnd(26, 36) | 0, r: sup ? 3 : 2 }); }
     if (G.t % 4 === 0) { // damage along the stream
-      for (let s = 20; s < 170; s += 18) { const x = m[0] + Math.cos(ang) * s, y = m[1] + Math.sin(ang) * s; if (y > GY + 6) break; hitRect(x - 7, y - 7, x + 7, y + 7, 2.4, { fire: true, r: rnd(4, 7) }); }
+      for (let s = 20; s < (sup ? 240 : 170); s += 18) { const x = m[0] + Math.cos(ang) * s, y = m[1] + Math.sin(ang) * s; if (y > GY + 6) break; hitRect(x - 7, y - 7, x + 7, y + 7, 2.4, { fire: true, r: rnd(4, 7) }); }
       const gx = m[0] + Math.cos(ang) * ((GY - m[1]) / Math.max(0.05, Math.sin(ang))); if (Math.sin(ang) > 0.1 && Math.abs(gx - m[0]) < 200 && Math.random() < 0.3) setFire(gx + rnd(-10, 10), GY + rnd(0, 8), 400, rnd(0.7, 1.1));
     }
   }
   function nova() { G.silh = 24; G.flash = 30; G.shake = 22; G.stop = 10; sfx("nova"); K.rage = 0; G.fx.push({ k: "ring", x: K.x, y: GY - 50, t: 0, life: 50, r: 260 }); G.fx.push({ k: "ring", x: K.x, y: GY - 50, t: -8, life: 50, r: 200 }); hitRect(K.x - 250, 0, K.x + 250, GY + 10, 20, { holes: 3, r: 14, fire: true }); for (const u of G.units) if (Math.abs(u.x - K.x) < 300) { u.hp = 0; killUnit(u); } for (let i = 0; i < 30; i++) setFire(K.x + rnd(-240, 240), GY + rnd(0, 8), 600, rnd(0.8, 1.4)); say("マグマノヴァ！", 90); }
-  function hurtKaiju(n, big) { if (K.inv || K.state === "down" || K.state === "rise" || K.state === "intro") return; K.hp -= n; K.flash = 6; K.rage = Math.min(100, K.rage + n * 0.6); if (big && (K.state === "idle" || K.state === "walk")) { K.state = "hurt"; K.t = 0; sfx("hurt"); } if (K.hp <= 0) { K.hp = 0; K.state = "down"; K.t = 0; K.rise = 0; K.deaths++; sfx("down"); G.shake = 14; dust(K.x, GY, 20, 2); say("ボルガ　たおれる……", 90); } }
+  // ---------- transformation: a separate gauge fills as the city burns; when full, T turns Volga into Super Volga for 60 seconds ----------
+  function startTrans() {
+    if (K.held) release(false); K.state = "trans"; K.t = 0; K.dash = false; K.firing = false; K.inv = Math.max(K.inv, 130); sfx("novaCharge"); sfx("roar", 1.2);
+    cinema({ life: 110, focus: K.x, zoom: 1.14, hold: 90 }); G.slow = Math.max(G.slow || 0, 20);
+    G.fx.push({ k: "ono", s: "グルルル……", x: K.x, y: GY - 130, t: 0, life: 50, c: [255, 200, 150] });
+    SD.queue = ["idle0", "idle1", "idle01", "kneel", "roar0", "roar1", "hurt", "pound", "jump", "apex", "fall", ...Object.keys(KPOSE).filter(k => /^(w|d)\d+$|^[su][012]$|^tw[012]$|^[bc]\d$/.test(k)), ...WARM]; setTimeout(warmFrames, 60);
+  }
+  function updateTrans() {
+    const t = K.t;
+    if (t < 48) {
+      // drawing heat in: the ground cracks, embers and debris rise towards it, the spines flicker
+      if (G.t % 2 === 0) { const a = rnd(0, PI * 2), r = rnd(80, 140); G.parts.push({ k: "suck", x: K.x + Math.cos(a) * r, y: GY - 50 + Math.sin(a) * r * 0.6, tx: K.x, ty: GY - 50, t: 0, life: 30 }); }
+      if (t % 6 === 0) { debris(K.x + rnd(-80, 80), GY, 2, [90, 70, 60], 2.4); dust(K.x + rnd(-60, 60), GY + 2, 2, 1.2); setFire(K.x + rnd(-70, 70), GY + rnd(0, 6), 300, rnd(0.6, 1)); }
+      if (t % 12 === 0) sparks(K.x + rnd(-20, 20), GY - rnd(40, 100), 8, [255, 200, 120], 3);
+      G.shake = Math.max(G.shake, 1 + t / 12); K.heat = Math.max(K.heat || 0, t / 48);
+    }
+    if (t === 48) {
+      kForm = 1; K.super = SUPER_LEN; K.awk = 0; K.hp = 100; K.rage = Math.min(100, K.rage + 30); K.inv = Math.max(K.inv, 60);
+      G.flash = 30; G.silh = 20; G.stop = 10; G.shake = 26; sfx("nova"); sfx("roar", 1.6);
+      for (let i = 0; i < 3; i++) G.fx.push({ k: "ring", x: K.x, y: GY - 50, t: -i * 7, life: 46, r: 180 + i * 60 });
+      hitRect(K.x - 170, 0, K.x + 170, GY + 10, 10, { holes: 3, r: 13, fire: true }); for (const u of G.units) if (Math.abs(u.x - K.x) < 220) { u.hp = 0; killUnit(u); }
+      for (let i = 0; i < 14; i++) setFire(K.x + rnd(-160, 160), GY + rnd(0, 8), 600, rnd(0.8, 1.3));
+      G.fx.push({ k: "ono", s: "超ボルガ　覚醒！！", x: K.x, y: GY - 150, t: 0, life: 70, c: [255, 236, 150], big: 1 });
+      say("超ボルガ！　60秒間　パワー全開", 170); news("ボルガが 変身　さらに凶暴な姿に　専門家「手がつけられない」");
+    }
+    if (t > 48 && t < 90 && t % 10 === 0) G.fx.push({ k: "roarwave", x: world(KF.roar1.mouth)[0], y: world(KF.roar1.mouth)[1], t: 0, life: 40 });
+    if (t >= 100) K.state = "idle";
+  }
+  function endSuper() {
+    kForm = 0; K.super = 0; G.flash = Math.max(G.flash, 10); G.shake = Math.max(G.shake, 6); sfx("fireStop");
+    for (let i = 0; i < 26; i++) G.parts.push({ k: "smoke", x: K.x + rnd(-30, 30), y: GY + K.y - rnd(10, 110), vx: rnd(-0.5, 0.5), vy: rnd(-1.4, -0.4), t: 0, life: rnd(90, 150) | 0, r: rnd(4, 8) });
+    G.fx.push({ k: "ono", s: "シュウゥゥ……", x: K.x, y: GY - 130, t: 0, life: 50, c: [220, 220, 230] }); say("ボルガ　もとの姿に　もどった", 110);
+  }
+  function hurtKaiju(n, big) { if (K.inv || K.state === "down" || K.state === "rise" || K.state === "intro" || K.state === "trans") return; if (K.super) { n *= 0.35; big = false; } K.hp -= n; K.flash = 6; K.rage = Math.min(100, K.rage + n * 0.6); if (big && (K.state === "idle" || K.state === "walk")) { K.state = "hurt"; K.t = 0; sfx("hurt"); } if (K.hp <= 0) { K.hp = 0; K.state = "down"; K.t = 0; K.rise = 0; K.deaths++; sfx("down"); G.shake = 14; dust(K.x, GY, 20, 2); say("ボルガ　たおれる……", 90); } }
 
   // ---------- military and city life ----------
   function spawnUnits() {
@@ -1184,12 +1239,13 @@
     if (K.dash || K.djump) { for (let i = 0; i < 6; i++) { const y = Y - 20 - h2(i, G.t >> 2) * 80, len = 20 + h2(i, 3) * 30; e.fillStyle = rgba([255, 240, 220], 0.35); e.fillRect(Math.round(X - K.dir * (30 + h2(i, 9) * 40) - (K.dir > 0 ? len : 0)), Math.round(y), Math.round(len), 1); } }
     const em = K.state === "intro" ? K.emerge * 100 : 0;
     if (em > 0) { w.save(); w.beginPath(); w.rect(0, 0, W, 180); w.clip(); }
+    if (K.super || (K.state === "trans" && K.t > 30)) { const fl = 0.4 + 0.2 * Math.sin(G.t * 0.4), hi = fc > 0 ? F.hr : F.hl; w.globalAlpha = fl; for (const [dx, dy] of [[-2, 0], [2, 0], [0, -2], [0, 2], [-1, -1], [1, -1]]) { if (sqz < 0.999) { w.save(); w.translate(X + dx, 0); w.scale(sqz, 1); w.drawImage(hi, -ox, Y - AY + dy); w.restore(); } else w.drawImage(hi, X - ox + dx, Y - AY + dy); } w.globalAlpha = K.inv && Math.floor(K.inv / 4) % 2 ? 0.6 : 1; addLight(K.x, GY - 60 + K.y, 110, 0.5, [255, 110, 50]); }
     drawK(w, img, Y - AY + em); if (em > 0) w.restore(); w.globalAlpha = 1;
     G.kSil = { F, fc, x: X - ox, y: Y - AY + em };
     if (K.held) { const Hd = K.held, hx = X + F.hand[0] * fc, hy = Y + F.hand[1]; w.save(); w.translate(hx + fc * 3, hy - 2); w.rotate(fc * (-0.3 + 0.08 * Math.sin(G.t * 0.1))); w.scale(fc * Hd.sc, Hd.sc); w.drawImage(Hd.img, -Hd.img.width / 2, -Hd.img.height / 2); w.restore(); }
     bx.globalCompositeOperation = "destination-out"; drawK(bx, img, Y - AY + em); bx.globalCompositeOperation = "source-over";
     // spines glow brighter while breathing fire, charging, or enraged
-    const pulse = 0.55 + 0.25 * Math.sin(G.t * 0.08) + (K.firing ? 0.4 : 0) + (K.state === "nova" ? Math.min(1, K.t / 40) : 0) + (K.rage >= 100 ? 0.2 * Math.sin(G.t * 0.3) : 0);
+    const pulse = 0.55 + 0.25 * Math.sin(G.t * 0.08) + (K.firing ? 0.4 : 0) + (K.state === "nova" ? Math.min(1, K.t / 40) : 0) + (K.rage >= 100 ? 0.2 * Math.sin(G.t * 0.3) : 0) + (K.super ? 0.35 : 0);
     if (em < 60) { e.globalAlpha = clamp(pulse, 0, 1); drawK(e, glowI, Y - AY + em); e.globalAlpha = 1; if (K.state === "nova" && K.t < 44) { e.globalAlpha = K.t / 60; e.drawImage(K.dir > 0 ? F.hr : F.hl, X - ox, Y - AY); e.globalAlpha = 1; } }
     addLight(K.x, GY - 70 + K.y, 50, 0.25 * pulse, [255, 150, 60]);
     // breathing fire: the spines ignite from the tail to the head, then ripple white-hot; the eye burns
@@ -1314,7 +1370,7 @@
     g.save(); g.translate(X, Y); if (t.dir < 0) g.scale(-1, 1); g.rotate(0.06); g.scale(1.3, 1.3); g.drawImage(TVH, -35, -15);
     const rw = 34 + Math.abs(Math.sin(G.t * 0.9)) * 12; g.fillStyle = "rgba(20,20,28,0.8)"; g.fillRect(-9 - rw, -12, rw * 2, 1); g.fillStyle = "rgba(40,40,60,0.35)"; g.fillRect(-9 - rw, -13, rw * 2, 3); g.restore();
     const blink = G.t % 30 < 4; if (blink) { g.fillStyle = "rgb(255,70,60)"; g.fillRect(X + (t.dir > 0 ? 37 : -39), Y - 15, 3, 3); } g.fillStyle = "rgb(255,255,230)"; g.fillRect(sx - 1, sy - 1, 3, 2);
-    if (G.t % 40 < 26) { g.fillStyle = "rgb(230,30,30)"; g.beginPath(); g.arc(12, 34, 3, 0, PI * 2); g.fill(); } g.drawImage(text("LIVE　中継中", 12, [255, 240, 240], [60, 0, 0]), 18, 27);
+    if (G.t % 40 < 26) { g.fillStyle = "rgb(230,30,30)"; g.beginPath(); g.arc(12, 48, 3, 0, PI * 2); g.fill(); } g.drawImage(text("LIVE　中継中", 12, [255, 240, 240], [60, 0, 0]), 18, 41);
   }
   function drawUnits(cam) {
     for (const u of G.units) {
@@ -1346,7 +1402,7 @@
     // the breath: layered puffs from white-hot to red, with smoke at the tail end
     const list = G.parts.filter(p => p.k === "flame"); let li = 0;
     for (const p of list) { const k = p.t / p.life, X = p.x - cam, Y = p.y, r = p.r; if (k > 0.75) { w.fillStyle = rgba([60, 40, 40], 0.5 * (1 - k) * 4); w.fillRect(Math.round(X - r), Math.round(Y - r), Math.round(r * 2), Math.round(r * 2)); continue; } }
-    for (const p of list) { const k = p.t / p.life, X = p.x - cam, Y = p.y, r = p.r; if (k > 0.75) continue; const c = k < 0.12 ? [255, 255, 230] : k < 0.3 ? [255, 230, 110] : k < 0.5 ? [255, 160, 50] : [220, 70, 30]; e.fillStyle = rgba(c, 1); const rr = Math.round(r * (k < 0.5 ? 1 : 1 - (k - 0.5))); e.fillRect(Math.round(X - rr), Math.round(Y - rr * 0.8), rr * 2 + 1, Math.round(rr * 1.6) + 1); if (k > 0.3 && k < 0.6 && (p.t & 1)) { e.fillStyle = "rgb(255,236,150)"; e.fillRect(Math.round(X - rr * 0.4), Math.round(Y - rr * 0.3), Math.max(1, Math.round(rr * 0.8)), Math.max(1, Math.round(rr * 0.6))); } if (li++ % 6 === 0) addLight(p.x, p.y, 70, 0.55, [255, 160, 70]); }
+    for (const p of list) { const k = p.t / p.life, X = p.x - cam, Y = p.y, r = p.r; if (k > 0.75) continue; const c = p.hot ? (k < 0.14 ? [255, 255, 255] : k < 0.32 ? [200, 240, 255] : k < 0.52 ? [110, 180, 255] : [110, 80, 230]) : k < 0.12 ? [255, 255, 230] : k < 0.3 ? [255, 230, 110] : k < 0.5 ? [255, 160, 50] : [220, 70, 30]; e.fillStyle = rgba(c, 1); const rr = Math.round(r * (k < 0.5 ? 1 : 1 - (k - 0.5))); e.fillRect(Math.round(X - rr), Math.round(Y - rr * 0.8), rr * 2 + 1, Math.round(rr * 1.6) + 1); if (k > 0.3 && k < 0.6 && (p.t & 1)) { e.fillStyle = "rgb(255,236,150)"; e.fillRect(Math.round(X - rr * 0.4), Math.round(Y - rr * 0.3), Math.max(1, Math.round(rr * 0.8)), Math.max(1, Math.round(rr * 0.6))); } if (li++ % 6 === 0) addLight(p.x, p.y, 70, 0.55, [255, 160, 70]); }
     for (const f of G.fires) { const X = Math.round(f.x - cam); if (X < -20 || X > W + 20) continue; const fade = Math.min(1, (f.life - f.t) / 60, f.t / 10); flameSprite(e, X, Math.round(f.y), f.s * fade, f.t + f.x); addLight(f.x, f.y - 6, 70 * f.s * fade, 0.75 * fade, [255, 140, 60]); }
   }
   function drawFx(cam) {
@@ -1408,6 +1464,9 @@
     const bar = (x, y, wd, v, c, c2, label) => { g.fillStyle = "rgb(14,10,14)"; g.fillRect(x - 1, y - 1, wd + 2, 7); g.fillStyle = col(c2); g.fillRect(x, y, wd, 5); g.fillStyle = col(c); g.fillRect(x, y, Math.round(wd * clamp(v, 0, 1)), 5); g.fillStyle = "rgba(255,255,255,0.35)"; g.fillRect(x, y, Math.round(wd * clamp(v, 0, 1)), 1); g.drawImage(text(label, 12, [240, 230, 220]), x - 1, y - 15); };
     bar(8, 18, 90, K.hp / 100, [120, 220, 110], [50, 30, 30], "体力"); bar(108, 18, 60, K.breath / 100, [255, 150, 60], [50, 30, 20], "火炎");
     const full = K.rage >= 100; bar(178, 18, 70, K.rage / 100, full && G.t % 20 < 10 ? [255, 255, 200] : [255, 80, 60], [50, 20, 20], full ? "怒り MAX [V]" : "怒り");
+    { const sup = K.super > 0, v = sup ? K.super / SUPER_LEN : K.awk / 100, full = !sup && K.awk >= 100, c = sup ? (G.t % 16 < 8 ? [255, 240, 160] : [255, 150, 60]) : full && G.t % 20 < 10 ? [255, 255, 220] : [255, 200, 70];
+      g.fillStyle = "rgb(14,10,14)"; g.fillRect(7, 30, 92, 5); g.fillStyle = "rgb(50,36,20)"; g.fillRect(8, 31, 90, 3); g.fillStyle = col(c); g.fillRect(8, 31, Math.round(90 * clamp(v, 0, 1)), 3);
+      const sec = Math.ceil(K.super / 60), lb = sup ? `超ボルガ　${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}` : full ? "変身できる！ [T]" : "変身"; g.drawImage(text(lb, 12, sup ? [255, 230, 160] : full ? [255, 255, 210] : [240, 230, 220]), 102, 26); }
     const oku = Math.floor(G.damage / 10000), man = Math.floor(G.damage % 10000), s = `被害総額 ${oku > 0 ? oku + "億" : ""}${man.toLocaleString()}万円`;
     const ti = text(s, 12, [255, 214, 140]); g.drawImage(ti, W - ti.width - 6, 4);
     const al = text(`警戒レベル ${"■".repeat(G.alert)}${"□".repeat(5 - G.alert)}`, 12, G.alert >= 4 ? [255, 120, 110] : [200, 200, 220]); g.drawImage(al, W - al.width - 6, 18);
