@@ -459,8 +459,9 @@
 
   // ---------- world ----------
   const K = { x: 200, y: 0, vy: 0, dir: 1, state: "intro", t: 0, hp: 100, breath: 100, rage: 0, inv: 0, walk: 0, aim: 2, combo: 0, rise: 0, deaths: 0, emerge: 1, stepT: 0, qd: false, flash: 0, hurtF: 0, novaT: 0, awk: 0, super: 0 };
-  const G = { mode: "title", t: 0, cam: 0, blds: [], rubble: [], props: [], cars: [], units: [], shots: [], parts: [], fires: [], fx: [], people: [], pieces: [], genX: SEA, damage: 0, kills: 0, shake: 0, flash: 0, stop: 0, alert: 1, district: "", distT: 0, spawn: { tank: 200, heli: 400, jet: 900, maser: 1500, car: 60, tram: 500 }, msg: null, beams: [], hrings: [], thrown: [], pylons: [], newsQ: [], dstat: {}, derailed: {}, rain: 0, fog: 0, dawn: 0, night: 0, cine: null, focus: null, zoomHold: 0, silh: 0, rank: null, bolt: null, tv: null };
+  const G = { mode: "title", t: 0, cam: 0, blds: [], rubble: [], props: [], cars: [], units: [], shots: [], parts: [], fires: [], fx: [], people: [], pieces: [], genX: SEA, damage: 0, kills: 0, shake: 0, flash: 0, stop: 0, alert: 1, district: "", distT: 0, spawn: { tank: 200, heli: 400, jet: 900, maser: 1500, car: 60, tram: 500 }, msg: null, beams: [], hrings: [], thrown: [], pylons: [], newsQ: [], dstat: {}, derailed: {}, rain: 0, fog: 0, dawn: 0, night: 0, cine: null, focus: null, zoomHold: 0, silh: 0, rank: null, bolt: null, tv: null, cb: { n: 0, t: 0, dmg: 0, tier: 0, pop: 0 }, cbEnd: null, lines: [], kx: 0, ky: 0 };
   function resetWorld() {
+    G.cb = { n: 0, t: 0, dmg: 0, tier: 0, pop: 0 }; G.cbEnd = null; G.lines = []; G.kx = G.ky = 0;
     G.distI = null; G.nextPylon = SEA + 260; G.dawnNews = null; G.cineLast = -9999;
     R = null; G.nextBoss = SEA + 2300; G.bossN = 0; G.zoom = 1; G.slow = 0; if (typeof A !== "undefined") A.fast = false;
     Object.assign(K, { x: 230, y: 0, vy: 0, dir: 1, state: "intro", t: 0, hp: 100, breath: 100, rage: 0, inv: 0, walk: 0, aim: 2, combo: 0, rise: 0, deaths: 0, emerge: 1, flash: 0, hurtF: 0, held: null, awk: 0, super: 0 }); kForm = 0;
@@ -489,7 +490,7 @@
   addEventListener("keydown", e => { const k = KEYMAP[e.code]; if (k) { keys[k] = true; e.preventDefault(); } });
   addEventListener("keyup", e => { const k = KEYMAP[e.code]; if (k) { keys[k] = false; e.preventDefault(); } });
   addEventListener("blur", () => { for (const k in keys) keys[k] = false; });
-  for (const b of document.querySelectorAll(".pad button")) { const k = b.dataset.k, on = e => { e.preventDefault(); keys[k] = true; if (G.mode !== "play") keys.start = true; }, off = e => { e.preventDefault(); keys[k] = false; keys.start = false; }; b.addEventListener("pointerdown", on); b.addEventListener("pointerup", off); b.addEventListener("pointercancel", off); b.addEventListener("pointerleave", off); }
+  for (const b of document.querySelectorAll(".pad button")) { const k = b.dataset.k, on = e => { e.preventDefault(); G.touchIn = true; keys[k] = true; if (G.mode !== "play") keys.start = true; }, off = e => { e.preventDefault(); keys[k] = false; keys.start = false; }; b.addEventListener("pointerdown", on); b.addEventListener("pointerup", off); b.addEventListener("pointercancel", off); b.addEventListener("pointerleave", off); }
   view.addEventListener("pointerdown", () => { keys.start = true; keys.tap = true; setTimeout(() => { keys.start = false; keys.tap = false; }, 90); });
   function pollPad() { const pads = navigator.getGamepads ? navigator.getGamepads() : []; const gp = pads && [...pads].find(p => p); if (!gp) return; const b = i => gp.buttons[i] && gp.buttons[i].pressed, ax = gp.axes[0] || 0, ay = gp.axes[1] || 0; keys.pl = b(14) || ax < -0.4; keys.pr = b(15) || ax > 0.4; keys.pd = b(13) || ay > 0.5; keys.pu = b(12) || ay < -0.5; keys.pj = b(0); keys.pc = b(2); keys.pf = b(1); keys.pt = b(3); keys.pro = b(5); keys.pg = b(4); keys.ptr = b(6) || b(7); keys.ps = b(9); }
   const PADK = { left: "pl", right: "pr", down: "pd", up: "pu", jump: "pj", claw: "pc", fire: "pf", tail: "pt", roar: "pro", grab: "pg", trans: "ptr", start: "ps" };
@@ -498,7 +499,23 @@
 
   // ---------- effects ----------
   const AWK_COST = 2600, SUPER_LEN = 3600;
-  function addDamage(v) { const b0 = G.damage; G.damage += v; if (G.damage >= 10000 && Math.floor(Math.log10(G.damage / 10000)) > Math.floor(Math.log10(Math.max(1, b0) / 10000))) news(`被害総額が ついに${yen(Math.pow(10, Math.floor(Math.log10(G.damage / 10000))) * 10000)}円を突破`); K.rage = Math.min(100, K.rage + v / 900); if (!K.super && K.state !== "trans") K.awk = Math.min(100, K.awk + v / AWK_COST); }
+  // ---------- juice: destruction combo, money pop-ups, speed lines, camera kicks, rumble ----------
+  const COMBO_T = 150, TIERS = [[5, "いい調子！", [255, 236, 160]], [10, "大暴れ！", [255, 196, 96]], [20, "大災害！", [255, 140, 70]], [35, "天変地異！", [255, 96, 96]], [60, "神話級の破壊！！", [255, 230, 255]]];
+  const money = v => v >= 10000 ? `${(v / 10000).toFixed(v >= 100000 ? 0 : 1)}億` : `${Math.max(1, Math.round(v))}万`;
+  function chain(x, y) {
+    if (G.mode !== "play") return; const c = G.cb; if (c.t <= 0) { c.n = 0; c.dmg = 0; c.tier = 0; }
+    c.n++; c.t = COMBO_T; c.pop = 8; c.best = Math.max(c.best || 0, c.n); sfx("chain", c.n);
+    const T = TIERS[c.tier]; if (T && c.n >= T[0]) { c.tier++; G.fx.push({ k: "ono", s: T[1], x: K.x, y: GY - 150, t: 0, life: 60, c: T[2], big: 1 }); lines(x, y, 26); G.stop = Math.max(G.stop, 4); G.flash = Math.max(G.flash, 6); sfx("tier", c.tier); rumble(0.6, 200); }
+  }
+  function endCombo() { const c = G.cb; if (c.n >= 5) { const bonus = Math.round(c.dmg * 0.1 * Math.min(3, c.n / 10)); G.cbEnd = { n: c.n, dmg: c.dmg, bonus, t: 0 }; G.damage += bonus; K.rage = Math.min(100, K.rage + c.n * 0.8); if (!K.super) K.awk = Math.min(100, K.awk + c.n * 0.4); sfx("tier", 1); } c.n = 0; c.tier = 0; c.dmg = 0; }
+  function lines(wx, y, life = 18) { G.lines.push({ x: wx, y, t: 0, life, seed: Math.random() * 1000 }); if (G.lines.length > 3) G.lines.shift(); }
+  function kick(dx, dy) { G.kx = clamp((G.kx || 0) + dx, -8, 8); G.ky = clamp((G.ky || 0) + dy, -8, 8); }
+  function rumble(mag, ms) {
+    if (G.mode !== "play") return; const now = performance.now(); if (now - (G.rumbleT || 0) < 70) return; G.rumbleT = now;
+    try { const gp = [...(navigator.getGamepads ? navigator.getGamepads() : [])].find(p => p); if (gp && gp.vibrationActuator) gp.vibrationActuator.playEffect("dual-rumble", { duration: ms, strongMagnitude: clamp(mag, 0, 1), weakMagnitude: clamp(mag * 0.6, 0, 1) }); } catch (err) { /* no rumble */ }
+    if (G.touchIn && navigator.vibrate) try { navigator.vibrate(Math.round(ms * Math.min(1, mag + 0.2))); } catch (err) { /* no vibration */ }
+  }
+  function addDamage(v) { const b0 = G.damage; G.damage += v; if (G.cb && G.cb.t > 0) G.cb.dmg += v; if (G.damage >= 10000 && Math.floor(Math.log10(G.damage / 10000)) > Math.floor(Math.log10(Math.max(1, b0) / 10000))) news(`被害総額が ついに${yen(Math.pow(10, Math.floor(Math.log10(G.damage / 10000))) * 10000)}円を突破`); K.rage = Math.min(100, K.rage + v / 900); if (!K.super && K.state !== "trans") K.awk = Math.min(100, K.awk + v / AWK_COST); }
   function debris(x, y, n, c, sp = 3) { for (let i = 0; i < n; i++) G.parts.push({ k: "chunk", x, y, vx: rnd(-sp, sp), vy: rnd(-sp * 1.4, -0.5), t: 0, life: rnd(60, 110) | 0, c: mixc(c, [0, 0, 0], rnd(0, 0.4)), s: Math.random() < 0.3 ? 3 : 2 }); }
   function glass(x, y, n) { for (let i = 0; i < n; i++) G.parts.push({ k: "glass", x, y, vx: rnd(-2, 2), vy: rnd(-2.5, 0), t: 0, life: rnd(40, 70) | 0 }); }
   function dust(x, y, n, s = 1) { for (let i = 0; i < n; i++) G.parts.push({ k: "dust", x: x + rnd(-10, 10) * s, y: y + rnd(-4, 2), vx: rnd(-0.8, 0.8) * s, vy: rnd(-0.6, -0.1), t: 0, life: rnd(50, 90) | 0, r: rnd(4, 9) * s }); }
@@ -518,11 +535,11 @@
       const cx = clamp((x0 + x1) / 2, b.x, b.x + b.w), cy = clamp((y0 + y1) / 2, top, SW), n = opts.holes || 1;
       if (opts.ram && b.h >= 70) { // a tall building only gets its front wall dented by a running body, never flattened
         if (G.t - (b.ramLast || -999) > 90) b.ramN = 0; b.ramLast = G.t; if (b.ramN >= 2) continue; b.ramN++;
-        const ex = K.dir > 0 ? rnd(1, 5) : b.w - rnd(1, 5); carve(b, ex, cy - top + rnd(-8, 8), rnd(6, 8)); b.hp = Math.max(b.max * 0.35, b.hp - dmg * 0.5); b.hitT = 8; hit = true; addDamage(b.value * dmg * 0.5 / b.max);
+        const ex = K.dir > 0 ? rnd(1, 5) : b.w - rnd(1, 5); carve(b, ex, cy - top + rnd(-8, 8), rnd(6, 8)); b.hp = Math.max(b.max * 0.35, b.hp - dmg * 0.5); b.hitT = 8; b.hitN = (b.hitN || 0) + 1; hit = true; addDamage(b.value * dmg * 0.5 / b.max);
         debris(b.x + ex, cy, 6, sample(b), 3); glass(b.x + ex, cy, 3); dust(b.x + ex, cy, 2, 0.6); continue;
       }
       for (let i = 0; i < n; i++) carve(b, cx - b.x + rnd(-6, 6), cy - top + rnd(-6, 6), opts.r || rnd(6, 11));
-      b.hp -= dmg; b.hitT = 8; hit = true; addDamage(b.value * dmg / b.max); if (!G.lastHit) G.lastHit = [cx, cy];
+      b.hp -= dmg; b.hitT = 8; b.hitN = (b.hitN || 0) + 1; hit = true; addDamage(b.value * dmg / b.max); if (!G.lastHit) G.lastHit = [cx, cy];
       debris(cx, cy, opts.fire ? 3 : 8, sample(b), opts.fire ? 2 : 3.2); glass(cx, cy, opts.fire ? 1 : 4); if (!opts.fire) dust(cx, cy, 2, 0.6);
       if (opts.fire && Math.random() < 0.25) setFire(cx + rnd(-5, 5), cy + rnd(-5, 5), 700, rnd(0.8, 1.3), b);
       if (b.type === "gastank" && (opts.fire || b.hp < b.max * 0.5)) igniteTank(b);
@@ -636,7 +653,7 @@
       if (b.et === floors * step + 6) { explode(cx, top + b.h * 0.3, 3.4); G.flash = 12; G.shake = 20; G.stop = 6; G.zoom = 1.08; G.fx.push({ k: "ring", x: cx, y: top + b.h * 0.4, t: 0, life: 40, r: 160 }); G.fx.push({ k: "ono", s: "ドゴォォン！！", x: cx, y: top - 20, t: 0, life: 50, c: [255, 180, 100], big: 1 }); sfx("impact"); sfx("boom", 2.5); for (let i = 0; i < 26; i++) G.parts.push({ k: "smoke", x: cx + rnd(-10, 10), y: top + rnd(0, 30), vx: rnd(-0.6, 0.6), vy: rnd(-1.8, -0.6), t: 0, life: rnd(150, 220) | 0, r: rnd(6, 11) }); b.state = "collapse"; b.sv = 1.2; }
     }
   }
-  function killUnit(u) { if (u.dead) return; u.dead = true; explode(u.x, u.y - u.h / 2, u.type === "maser" ? 2 : 1); addDamage(u.type === "maser" ? 3000 : 600); if (u.fly) { u.falling = true; u.dead = false; u.hp = 0; } else { setFire(u.x, GY + 4, 300, 0.8); } }
+  function killUnit(u) { if (u.dead) return; u.dead = true; chain(u.x, u.y - u.h / 2); explode(u.x, u.y - u.h / 2, u.type === "maser" ? 2 : 1); addDamage(u.type === "maser" ? 3000 : 600); if (u.fly) { u.falling = true; u.dead = false; u.hp = 0; } else { setFire(u.x, GY + 4, 300, 0.8); } }
 
   // ---------- kaiju actions ----------
   const ACT = {
@@ -707,7 +724,7 @@
   }
   function tailImpact() {
     const tp = world(KF.t2.tail), x = tp[0];
-    stomp(x, true); G.stop = 9; G.shake = 17; G.flash = 7; G.zoom = 1.1;
+    stomp(x, true); G.stop = 9; G.shake = 17; G.flash = 7; G.zoom = 1.1; lines(x, GY - 40, 20); kick(0, 6); rumble(0.9, 260);
     G.fx.push({ k: "crack", x, y: GY + 4, t: 0, life: 150, seed: Math.random() * 100 });
     G.fx.push({ k: "ono", s: "ドゴォォン！！", x, y: GY - 70, t: 0, life: 44, c: [255, 200, 120], big: 1 });
     for (let i = 0; i < 22; i++) G.parts.push({ k: "chunk", x: x + rnd(-14, 14), y: GY, vx: rnd(-3.5, 3.5), vy: rnd(-7, -2.5), t: 0, life: rnd(60, 110) | 0, c: Math.random() < 0.5 ? [70, 70, 80] : [120, 114, 110], s: Math.random() < 0.4 ? 3 : 2 });
@@ -717,7 +734,7 @@
   function stomp(x, big) {
     if (K.super && !big) { G.shake = Math.max(G.shake, 4); if (Math.random() < 0.35) setFire(x + rnd(-6, 6), GY + rnd(0, 6), 240, rnd(0.5, 0.8)); sparks(x, GY, 3, [255, 180, 90], 1.6); }
     const r = big ? (K.super ? 130 : 90) : K.super ? 36 : 26; G.shake = Math.max(G.shake, big ? 10 : 2.2); sfx(big ? "pound" : "step");
-    for (const c of G.cars) if (c.alive && Math.abs(c.x - x) < r) { if (Math.abs(c.x - x) < 14) { c.alive = false; c.crushed = true; explode(c.x, c.y - 3, 0.6); addDamage(150); } else if (big) { c.alive = false; c.flying = true; c.vy = -rnd(2, 5); c.vx = Math.sign(c.x - x) * rnd(1, 3); c.spin = rnd(-0.3, 0.3); } }
+    for (const c of G.cars) if (c.alive && Math.abs(c.x - x) < r) { if (Math.abs(c.x - x) < 14) { chain(c.x, c.y); c.alive = false; c.crushed = true; explode(c.x, c.y - 3, 0.6); addDamage(150); } else if (big) { c.alive = false; c.flying = true; c.vy = -rnd(2, 5); c.vx = Math.sign(c.x - x) * rnd(1, 3); c.spin = rnd(-0.3, 0.3); } }
     for (const u of G.units) if (!u.dead && !u.fly && Math.abs(u.x - x) < (big ? r : 16)) { u.hp -= big ? 6 : 4; u.flash = 8; if (u.hp <= 0) killUnit(u); }
     for (const p of G.props) if (p.alive && Math.abs(p.x - x) < (big ? r : 10)) { p.alive = false; p.fall = 1; p.fdir = p.x > x ? 1 : -1; addDamage(60); }
     for (const pp of G.people) if (Math.abs(pp.x - x) < 10) pp.dead = true;
@@ -728,7 +745,7 @@
   const BNAME = { tower: "超高層ビル", office: "オフィスビル", crane: "港の大型クレーン", neon: "ネオンビル", apart: "マンション", factory: "工場", warehouse: "倉庫", gastank: "ガスタンク" };
   function yen(v) { const oku = Math.floor(v / 10000); return oku >= 10000 ? `${(oku / 10000).toFixed(oku >= 100000 ? 0 : 1)}兆` : `${oku}億`; }
   function news(s) { if (G.mode !== "play" || G.newsQ.length >= 4 || G.newsQ.some(n => n.s === s)) return; G.newsQ.push({ s, t: 0, len: Math.ceil((text(s, 12, [255, 255, 240]).width + W - 60) / 1.3) }); }
-  function markDead(b) { if (b.counted) return; b.counted = 1; const s = G.dstat[b.di]; if (s) s.dead++; if (b.h >= 100 && G.t - (G.bigNewsT || -999) > 200) { G.bigNewsT = G.t; news(`速報　${DISTRICT[(b.di || 0) % 4].name}で${BNAME[b.type] || "ビル"}が倒壊　被害総額は${yen(G.damage)}円に`); } }
+  function markDead(b) { if (b.counted) return; b.counted = 1; chain(b.x + b.w / 2, SW - b.h * 0.6); G.fx.push({ k: "ono", s: `${money(b.value)}円`, x: b.x + b.w / 2, y: SW - b.h - 6, t: 0, life: 64, c: [255, 222, 110], sm: 1 }); if (b.h >= 100) { lines(b.x + b.w / 2, SW - b.h * 0.5, 22); rumble(0.8, 320); kick(0, 4); } else rumble(0.35, 120); const s = G.dstat[b.di]; if (s) s.dead++; if (b.h >= 100 && G.t - (G.bigNewsT || -999) > 200) { G.bigNewsT = G.t; news(`速報　${DISTRICT[(b.di || 0) % 4].name}で${BNAME[b.type] || "ビル"}が倒壊　被害総額は${yen(G.damage)}円に`); } }
   function rankCard(di) { const s = G.dstat[di]; if (!s || !s.tot) return; const pct = Math.round(s.dead / s.tot * 100), grade = pct >= 90 ? "S" : pct >= 70 ? "A" : pct >= 50 ? "B" : pct >= 30 ? "C" : "D", name = DISTRICT[di % 4].name; G.rank = { name, pct, grade, t: -150 }; news(`${name}　壊滅率${pct}%　被害ランク${grade}`); }
   const WX = ["clear", "rain", "fog", "storm"];
   const weatherOf = di => di < 4 ? WX[di % 4] : ["clear", "rain", "fog", "storm", "clear"][Math.floor(hash(di * 7 + 3) * 5)];
@@ -762,7 +779,7 @@
     news(`${DISTRICT[(b.di || 0) % 4].name}でガスタンクが大爆発　付近一帯が炎上`);
   }
   function pylonDown(py) {
-    py.alive = false; py.fall = 0.02; py.fdir = py.x > K.x ? 1 : -1; addDamage(4000); G.shake = Math.max(G.shake, 8); G.flash = Math.max(G.flash, 5); sfx("zap"); sfx("crash");
+    chain(py.x, SW - 60); rumble(0.5, 200); py.alive = false; py.fall = 0.02; py.fdir = py.x > K.x ? 1 : -1; addDamage(4000); G.shake = Math.max(G.shake, 8); G.flash = Math.max(G.flash, 5); sfx("zap"); sfx("crash");
     const xs = G.pylons.map(p => p.x), prev = Math.max(-1e9, ...xs.filter(x => x < py.x)), next = Math.min(1e9, ...xs.filter(x => x > py.x)), x0 = prev > -1e9 ? prev : py.x - 320, x1 = next < 1e9 ? next : py.x + 320;
     for (const [dx, dy] of PYW) sparks(py.x + dx, SW + 2 - 118 + dy, 8, [200, 230, 255], 3);
     let n = 0; for (const b of G.blds) if (b.state === "stand" && !b.dark && b.x + b.w > x0 && b.x < x1) { b.dark = true; b.black = 30 + (Math.random() * 40 | 0); n++; }
@@ -953,7 +970,7 @@
       else K.state = "idle";
       K.x = Math.max(K.x, SEA - 140);
       doFire();
-      if (want) for (const c of G.cars) if (c.alive && !c.rammed && Math.abs(c.x - (K.x + K.dir * 16)) < 22) { c.rammed = true; const r = Math.random(); if (r < 0.05) carToScreen(c); else if (r < 0.35) { c.alive = false; c.flying = true; c.vy = -rnd(6, 9); c.vx = K.dir * rnd(3, 5.5); c.spin = rnd(-0.45, 0.45); addDamage(150); sparks(c.x, c.y - 4, 10, [255, 220, 140], 3); sfx("crash"); G.shake = Math.max(G.shake, 4); G.fx.push({ k: "ono", s: "ドカッ！", x: c.x, y: c.y - 30, t: 0, life: 26, c: [255, 230, 170] }); } }
+      if (want) for (const c of G.cars) if (c.alive && !c.rammed && Math.abs(c.x - (K.x + K.dir * 16)) < 22) { c.rammed = true; chain(c.x, c.y); const r = Math.random(); if (r < 0.05) carToScreen(c); else if (r < 0.35) { c.alive = false; c.flying = true; c.vy = -rnd(6, 9); c.vx = K.dir * rnd(3, 5.5); c.spin = rnd(-0.45, 0.45); addDamage(150); sparks(c.x, c.y - 4, 10, [255, 220, 140], 3); sfx("crash"); G.shake = Math.max(G.shake, 4); G.fx.push({ k: "ono", s: "ドカッ！", x: c.x, y: c.y - 30, t: 0, life: 26, c: [255, 230, 170] }); } }
       if (pressed("trans") && K.awk >= 100 && !K.super) { startTrans(); return; }
       if (pressed("grab") || (K.held && pressed("claw"))) { K.dash = false; startAct(K.held ? "throw" : "grab"); }
       else if (pressed("claw")) { K.combo = 0; K.cdash = K.dash && want === K.dir; K.lunge = K.dash && !K.cdash ? 14 : 0; K.dash = false; startAct("swipe"); }
@@ -975,7 +992,7 @@
       if (K.state === "grab" && K.t === 9) tryGrab(); if (K.state === "throw" && K.t === 12) release(true);
       if ((K.state === "swipe" || K.state === "upper") && K.t === A.hit[0] - 1) { const sh = world([20, -70]); G.fx.push({ k: "claw", x: sh[0], y: sh[1], dir: K.dir, a0: K.state === "swipe" ? -1.35 : 1.15, a1: K.state === "swipe" ? 1.15 : -1.45, t: 0, life: 18 }); sfx("slash"); }
       if (K.state === "tail") { const fc = kFace(), tp = worldF(KF[kFrame()].tail, fc); (K.tailPath = K.tailPath || []).push({ x: tp[0], y: tp[1], t: G.t }); if (K.tailPath.length > 14) K.tailPath.shift(); (K.trail = K.trail || []).push({ fk: kFrame(), x: K.x, dir: fc }); if (K.trail.length > 5) K.trail.shift(); tailSweep(); }
-      if (A.hit && K.t >= A.hit[0] && K.t <= A.hit[1]) { const [x0, y0, x1, y1] = box(A.box); G.lastHit = null; if (!K.hitDone && hitRect(x0, y0, x1, y1, A.dmg, { holes: K.state === "tail" ? 2 : 1, r: K.state === "tail" ? 13 : 10 })) { K.hitDone = true; G.stop = K.state === "tail" ? 6 : 5; G.shake = Math.max(G.shake, 5); sfx("crash"); const hp2 = G.lastHit || [(x0 + x1) / 2, (y0 + y1) / 2]; if (K.state !== "tail") { hanabi(hp2[0], hp2[1], 0); G.fx.push({ k: "ono", s: K.state === "swipe" ? "ザシュッ！" : "ズバァッ！", x: hp2[0], y: hp2[1] - 20, t: 0, life: 34, c: [255, 240, 200] }); } }
+      if (A.hit && K.t >= A.hit[0] && K.t <= A.hit[1]) { const [x0, y0, x1, y1] = box(A.box); G.lastHit = null; if (!K.hitDone && hitRect(x0, y0, x1, y1, A.dmg, { holes: K.state === "tail" ? 2 : 1, r: K.state === "tail" ? 13 : 10 })) { K.hitDone = true; kick(-K.dir * (K.state === "upper" ? 5 : 3), K.state === "upper" ? -3 : 1); rumble(K.state === "upper" ? 0.5 : 0.3, 80); if (K.state === "upper") { const hp3 = G.lastHit || [(x0 + x1) / 2, (y0 + y1) / 2]; lines(hp3[0], hp3[1], 14); } G.stop = K.state === "tail" ? 6 : 5; G.shake = Math.max(G.shake, 5); sfx("crash"); const hp2 = G.lastHit || [(x0 + x1) / 2, (y0 + y1) / 2]; if (K.state !== "tail") { hanabi(hp2[0], hp2[1], 0); G.fx.push({ k: "ono", s: K.state === "swipe" ? "ザシュッ！" : "ズバァッ！", x: hp2[0], y: hp2[1] - 20, t: 0, life: 34, c: [255, 240, 200] }); } }
         if (K.state === "tail" && K.t === 26) tailImpact(); }
       if (K.state === "swipe" && pressed("claw") && K.t > 8) K.qd = true;
       if (K.state === "roar" && K.t === 12) { G.shake = 8; G.fx.push({ k: "roarwave", x: world(KF.roar1.mouth)[0], y: world(KF.roar1.mouth)[1], t: 0, life: 40 }); K.rage = Math.min(100, K.rage + 8); K.hp = Math.min(100, K.hp + 4); for (const u of G.units) if (u.fly && Math.abs(u.x - K.x) < 200) { u.stun = 90; } for (const b of G.blds) if (b.state === "stand" && Math.abs(b.x + b.w / 2 - K.x) < 140) { for (let i = 0; i < 8; i++) { const lx = rnd(0, b.w), ly = rnd(0, b.h); b.lx.clearRect(lx | 0, ly | 0, 4, 4); } glass(b.x + b.w / 2, SW - b.h * 0.6, 6); } }
@@ -1021,7 +1038,7 @@
       const gx = m[0] + Math.cos(ang) * ((GY - m[1]) / Math.max(0.05, Math.sin(ang))); if (Math.sin(ang) > 0.1 && Math.abs(gx - m[0]) < 200 && Math.random() < 0.3) setFire(gx + rnd(-10, 10), GY + rnd(0, 8), 400, rnd(0.7, 1.1));
     }
   }
-  function nova() { G.silh = 24; G.flash = 30; G.shake = 22; G.stop = 10; sfx("nova"); K.rage = 0; G.fx.push({ k: "ring", x: K.x, y: GY - 50, t: 0, life: 50, r: 260 }); G.fx.push({ k: "ring", x: K.x, y: GY - 50, t: -8, life: 50, r: 200 }); hitRect(K.x - 250, 0, K.x + 250, GY + 10, 20, { holes: 3, r: 14, fire: true }); for (const u of G.units) if (Math.abs(u.x - K.x) < 300) { u.hp = 0; killUnit(u); } for (let i = 0; i < 30; i++) setFire(K.x + rnd(-240, 240), GY + rnd(0, 8), 600, rnd(0.8, 1.4)); say("マグマノヴァ！", 90); }
+  function nova() { lines(K.x, GY - 60, 30); rumble(1, 600); kick(0, 6); G.silh = 24; G.flash = 30; G.shake = 22; G.stop = 10; sfx("nova"); K.rage = 0; G.fx.push({ k: "ring", x: K.x, y: GY - 50, t: 0, life: 50, r: 260 }); G.fx.push({ k: "ring", x: K.x, y: GY - 50, t: -8, life: 50, r: 200 }); hitRect(K.x - 250, 0, K.x + 250, GY + 10, 20, { holes: 3, r: 14, fire: true }); for (const u of G.units) if (Math.abs(u.x - K.x) < 300) { u.hp = 0; killUnit(u); } for (let i = 0; i < 30; i++) setFire(K.x + rnd(-240, 240), GY + rnd(0, 8), 600, rnd(0.8, 1.4)); say("マグマノヴァ！", 90); }
   // ---------- transformation: a separate gauge fills as the city burns; when full, T turns Volga into Super Volga for 60 seconds ----------
   function startTrans() {
     if (K.held) release(false); K.state = "trans"; K.t = 0; K.dash = false; K.firing = false; K.inv = Math.max(K.inv, 130); sfx("novaCharge"); sfx("roar", 1.2);
@@ -1039,7 +1056,7 @@
       G.shake = Math.max(G.shake, 1 + t / 12); K.heat = Math.max(K.heat || 0, t / 48);
     }
     if (t === 48) {
-      kForm = 1; K.super = SUPER_LEN; K.awk = 0; K.hp = 100; K.rage = Math.min(100, K.rage + 30); K.inv = Math.max(K.inv, 60);
+      lines(K.x, GY - 70, 36); rumble(1, 700); kick(0, 7); kForm = 1; K.super = SUPER_LEN; K.awk = 0; K.hp = 100; K.rage = Math.min(100, K.rage + 30); K.inv = Math.max(K.inv, 60);
       G.flash = 30; G.silh = 20; G.stop = 10; G.shake = 26; sfx("nova"); sfx("roar", 1.6);
       for (let i = 0; i < 3; i++) G.fx.push({ k: "ring", x: K.x, y: GY - 50, t: -i * 7, life: 46, r: 180 + i * 60 });
       hitRect(K.x - 170, 0, K.x + 170, GY + 10, 10, { holes: 3, r: 13, fire: true }); for (const u of G.units) if (Math.abs(u.x - K.x) < 220) { u.hp = 0; killUnit(u); }
@@ -1055,7 +1072,7 @@
     for (let i = 0; i < 26; i++) G.parts.push({ k: "smoke", x: K.x + rnd(-30, 30), y: GY + K.y - rnd(10, 110), vx: rnd(-0.5, 0.5), vy: rnd(-1.4, -0.4), t: 0, life: rnd(90, 150) | 0, r: rnd(4, 8) });
     G.fx.push({ k: "ono", s: "シュウゥゥ……", x: K.x, y: GY - 130, t: 0, life: 50, c: [220, 220, 230] }); say("ボルガ　もとの姿に　もどった", 110);
   }
-  function hurtKaiju(n, big) { if (K.inv || K.state === "down" || K.state === "rise" || K.state === "intro" || K.state === "trans") return; if (K.super) { n *= 0.35; big = false; } K.hp -= n; K.flash = 6; K.rage = Math.min(100, K.rage + n * 0.6); if (big && (K.state === "idle" || K.state === "walk")) { K.state = "hurt"; K.t = 0; sfx("hurt"); } if (K.hp <= 0) { K.hp = 0; K.state = "down"; K.t = 0; K.rise = 0; K.deaths++; sfx("down"); G.shake = 14; dust(K.x, GY, 20, 2); say("ボルガ　たおれる……", 90); } }
+  function hurtKaiju(n, big) { if (K.inv || K.state === "down" || K.state === "rise" || K.state === "intro" || K.state === "trans") return; if (K.super) { n *= 0.35; big = false; } K.hp -= n; rumble(big ? 0.6 : 0.3, big ? 200 : 90); K.flash = 6; K.rage = Math.min(100, K.rage + n * 0.6); if (big && (K.state === "idle" || K.state === "walk")) { K.state = "hurt"; K.t = 0; sfx("hurt"); } if (K.hp <= 0) { K.hp = 0; K.state = "down"; K.t = 0; K.rise = 0; K.deaths++; sfx("down"); G.shake = 14; dust(K.x, GY, 20, 2); say("ボルガ　たおれる……", 90); } }
 
   // ---------- military and city life ----------
   function spawnUnits() {
@@ -1146,6 +1163,8 @@
   // ---------- main update ----------
   function update() {
     pollPad(); G.t++; G.beams = [];
+    G.kx = (G.kx || 0) * 0.72; G.ky = (G.ky || 0) * 0.72; if (Math.abs(G.kx) < 0.2) G.kx = 0; if (Math.abs(G.ky) < 0.2) G.ky = 0;
+    if (G.cb) { if (G.cb.pop > 0) G.cb.pop--; if (G.cb.t > 0 && G.mode === "play" && !G.stop && --G.cb.t === 0) endCombo(); } if (G.cbEnd && ++G.cbEnd.t > 170) G.cbEnd = null; for (const L of G.lines) L.t++; G.lines = G.lines.filter(L => L.t < L.life);
     if (G.shake > 0) { G.shake *= 0.88; if (G.shake < 0.25) G.shake = 0; } if (G.flash) G.flash--; if (G.msg && --G.msg.t <= 0) G.msg = null; if (G.cine && ++G.cine.t > G.cine.life) G.cine = null; if (G.silh) G.silh--;
     if (G.mode === "title") { for (const k of [...ACTS, "start"]) if (pressed(k)) { resetWorld(); G.mode = "play"; music("march"); break; } G.cam += 0.4; if (G.cam > G.genX - W * 2) generate(); spawnUnits(); updateUnits(); updateWorld(); }
     else if (G.mode === "play") {
@@ -1207,7 +1226,9 @@
     const jit = b.hitT ? (b.hitT % 2 ? 1 : -1) : b.state === "collapse" || b.state === "epic" ? Math.round(rnd(-1.5, 1.5)) : 0;
     ctx.save(); ctx.beginPath(); ctx.rect(X - 10, 0, b.w + 20, SW); ctx.clip();
     if (b.state === "collapse") { ctx.translate(X + b.w / 2, SW); ctx.rotate(Math.sin(b.seed) * b.sink / b.h * 0.12); ctx.drawImage(b.c, -b.w / 2 + jit, -b.h + b.sink); ctx.restore(); return; }
-    ctx.drawImage(b.c, X + jit, top); ctx.restore();
+    ctx.drawImage(b.c, X + jit, top);
+    if (b.hitT >= 6 && b.state === "stand") { if (b.wcN !== b.hitN) { b.wcI = tintOf(b.c, "#fff"); b.wcN = b.hitN; } ctx.globalAlpha = (b.hitT - 5) / 3 * 0.8; ctx.drawImage(b.wcI, X + jit, top); ctx.globalAlpha = 1; }
+    ctx.restore();
   }
   function drawBuildingLights(b, cam) {
     const X = Math.round(b.x - cam), top = SW - b.h + Math.round(b.sink); if (X > W + 10 || X + b.w < -10 || b.state !== "stand") return;
@@ -1457,8 +1478,33 @@
       }
     }
   }
+  function drawLines() {
+    // manga speed lines: thin wedges rushing in from the screen edge toward the point of impact
+    for (const L of G.lines) {
+      const k = L.t / L.life, x = L.x - G.camI, y = L.y, al = (1 - k) * (L.t < 2 ? 1.2 : 1);
+      for (let i = 0; i < 46; i++) {
+        const a = hash(i + L.seed) * PI * 2, r0 = 46 + hash(i * 3 + L.seed) * 60 + k * 30, r1 = 460, wd = 0.006 + hash(i * 7 + L.seed) * 0.012;
+        g.fillStyle = i % 3 ? rgba([255, 250, 240], 0.5 * al) : rgba([20, 10, 14], 0.4 * al); g.beginPath(); g.moveTo(x + Math.cos(a) * r0, y + Math.sin(a) * r0); g.lineTo(x + Math.cos(a - wd) * r1, y + Math.sin(a - wd) * r1); g.lineTo(x + Math.cos(a + wd) * r1, y + Math.sin(a + wd) * r1); g.fill();
+      }
+    }
+  }
+  function drawCombo() {
+    if (G.mode !== "play") return; const c = G.cb;
+    if (c.n >= 2 && c.t > 0) {
+      const T = TIERS[Math.max(0, c.tier - 1)], colr = c.tier ? T[2] : [255, 244, 220], sc = 1 + c.pop * 0.07, num = text(`×${c.n}`, 24, colr, [60, 16, 10]), lb = text("破壊コンボ", 12, [240, 230, 220]);
+      const wd = Math.round(num.width * sc), hg = Math.round(num.height * sc), x = W - 8 - wd, y = 62;
+      g.drawImage(lb, W - 8 - lb.width, y - 12); g.drawImage(num, x, y + Math.round((num.height - hg) / 2), wd, hg);
+      g.fillStyle = "rgb(14,10,14)"; g.fillRect(W - 69, y + 27, 62, 4); g.fillStyle = col(colr); g.fillRect(W - 68, y + 28, Math.round(60 * c.t / COMBO_T), 2);
+      const dm = text(`被害 ${money(c.dmg)}円`, 12, [255, 214, 140]); g.drawImage(dm, W - 8 - dm.width, y + 31);
+    }
+    if (G.cbEnd) {
+      const E = G.cbEnd, sl = E.t < 12 ? (12 - E.t) * 22 : E.t > 150 ? (E.t - 150) * 22 : 0, t1 = text(`コンボ終了　×${E.n}`, 16, [255, 236, 170], [40, 10, 10]), t2 = text(`被害 ${money(E.dmg)}円　ボーナス ${money(E.bonus)}円`, 12, [255, 214, 140]);
+      const bw = Math.max(t1.width, t2.width) + 16, bx0 = W - bw - 6 + sl; g.fillStyle = "rgba(10,6,10,0.7)"; g.fillRect(bx0, 108, bw, 38); g.fillStyle = "rgb(255,150,60)"; g.fillRect(bx0, 108, 2, 38);
+      g.drawImage(t1, bx0 + 8, 111); g.drawImage(t2, bx0 + 8, 130);
+    }
+  }
   function drawOno(cam) {
-    for (const f of G.fx) if (f.k === "ono") { const k = f.t / f.life, sc = f.t < 4 ? 1.6 - f.t * 0.15 : 1, size = f.big ? 24 : 16, img = text(f.s, size, f.c, [60, 16, 10]), dk = text(f.s, size, [40, 10, 8], null), wd = img.width * sc, hg = img.height * sc, X = Math.round(clamp(f.x - cam - wd / 2, 4, W - wd - 4)), Y = Math.round(Math.max(44, f.y - f.t * 0.4 - hg / 2)); g.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1; for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [2, 2]]) g.drawImage(dk, X + ox, Y + oy, wd, hg); g.drawImage(img, X, Y, wd, hg); g.globalAlpha = 1; }
+    for (const f of G.fx) if (f.k === "ono") { const k = f.t / f.life, sc = f.t < 4 ? 1.6 - f.t * 0.15 : 1, size = f.big ? 24 : f.sm ? 12 : 16, img = text(f.s, size, f.c, [60, 16, 10]), dk = text(f.s, size, [40, 10, 8], null), wd = img.width * sc, hg = img.height * sc, X = Math.round(clamp(f.x - cam - wd / 2, 4, W - wd - 4)), Y = Math.round(Math.max(44, f.y - f.t * 0.4 - hg / 2)); g.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1; for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [2, 2]]) g.drawImage(dk, X + ox, Y + oy, wd, hg); g.drawImage(img, X, Y, wd, hg); g.globalAlpha = 1; }
   }
   function drawHUD() {
     const bar = (x, y, wd, v, c, c2, label) => { g.fillStyle = "rgb(14,10,14)"; g.fillRect(x - 1, y - 1, wd + 2, 7); g.fillStyle = col(c2); g.fillRect(x, y, wd, 5); g.fillStyle = col(c); g.fillRect(x, y, Math.round(wd * clamp(v, 0, 1)), 5); g.fillStyle = "rgba(255,255,255,0.35)"; g.fillRect(x, y, Math.round(wd * clamp(v, 0, 1)), 1); g.drawImage(text(label, 12, [240, 230, 220]), x - 1, y - 15); };
@@ -1479,7 +1525,7 @@
     if (K.state === "down") { g.fillStyle = "rgba(0,0,0,0.35)"; g.fillRect(0, 0, W, H); const t1 = text("ボタン連打で 復活！", 16, G.t % 20 < 10 ? [255, 255, 200] : [255, 160, 80], [40, 10, 10]); g.drawImage(t1, Math.round((W - t1.width) / 2), 92); g.fillStyle = "rgb(20,10,10)"; g.fillRect(W / 2 - 61, 117, 122, 9); g.fillStyle = "rgb(255,120,50)"; g.fillRect(W / 2 - 60, 118, 120 * K.rise / 100, 7); g.fillStyle = "rgb(255,230,160)"; g.fillRect(W / 2 - 60, 118, 120 * K.rise / 100, 1); }
   }
   function render() {
-    const cam = Math.round(G.cam + (G.shake ? rnd(-G.shake, G.shake) : 0)), sy = G.shake ? Math.round(rnd(-G.shake, G.shake) * 0.7) : 0; G.camI = cam; LIGHTS.length = 0;
+    const cam = Math.round(G.cam + (G.shake ? rnd(-G.shake, G.shake) : 0) + (G.kx || 0)), sy = (G.shake ? Math.round(rnd(-G.shake, G.shake) * 0.7) : 0) + Math.round(G.ky || 0); G.camI = cam; LIGHTS.length = 0;
     g.save(); g.translate(0, sy);
     drawSkyAndBack(cam); drawWeatherMid();
     w.clearRect(0, 0, W, H); e.clearRect(0, 0, W, H); bx.clearRect(0, 0, W, H);
@@ -1509,7 +1555,7 @@
       const t1 = text("怪獣ボルガ", 24, [255, 170, 80], [60, 16, 10]), t2 = text("夜の街", 16, [255, 230, 200], [40, 10, 10]); g.drawImage(t1, 200, 60); g.drawImage(t2, 232, 92);
       if (Math.floor(G.t / 30) % 2) { const t3 = text("Z / Enter でスタート", 12); g.drawImage(t3, 214, 130); }
       const t4 = text("不死身の怪獣が 夜の街を どこまでも壊していく", 12, [200, 190, 190]); g.drawImage(t4, Math.round((W - t4.width) / 2), 196);
-    } else { drawScreenCars(); drawOno(Math.round(G.cam)); drawHUD(); drawNewsRank(); drawCinema(); }
+    } else { drawScreenCars(); drawLines(); drawOno(Math.round(G.cam)); drawHUD(); drawCombo(); drawNewsRank(); drawCinema(); }
     if (G.paused) { g.fillStyle = "rgba(0,0,0,0.5)"; g.fillRect(0, 0, W, H); const t1 = text("ポーズ", 24); g.drawImage(t1, Math.round((W - t1.width) / 2), 90); }
   }
 
@@ -1559,6 +1605,8 @@
       case "pound": tone("sine", 60, t, 0.9, 0.6, null, 28); nz(t, 1.2, 0.35, 220); nz(t + 0.05, 0.8, 0.12, 1200, "bandpass"); break;
       case "swipe": { const f = nz(t, 0.25, 0.25, 600, "bandpass", null, 1); f.frequency.exponentialRampToValueAtTime(2400, t + 0.2); break; }
       case "whoosh": { const f = nz(t, 0.5, 0.25, 300, "bandpass", null, 1); f.frequency.exponentialRampToValueAtTime(1400, t + 0.4); break; }
+      case "chain": { const f = 330 * Math.pow(2, Math.min(s, 36) / 24); tone("square", f, t, 0.08, 0.035, null, f * 1.3); tone("sine", f * 2, t + 0.03, 0.09, 0.03); break; }
+      case "tier": { const f = 392 * Math.pow(2, Math.min(s, 6) * 2 / 12); [1, 1.26, 1.5, 2].forEach((m, i) => tone("square", f * m, t + i * 0.07, i === 3 ? 0.35 : 0.1, 0.05)); break; }
       case "crash": nz(t, 0.5, 0.35, 700); for (let i = 0; i < 6; i++) nz(t + 0.02 + i * 0.03, 0.08, 0.12, 3000 + i * 500, "highpass"); break;
       case "collapse": nz(t, 2.4, 0.45, 180); nz(t + 0.2, 1.8, 0.2, 700); for (let i = 0; i < 10; i++) nz(t + i * 0.18, 0.2, 0.08, rnd(400, 2000), "bandpass"); break;
       case "boom": nz(t, 0.9 * s, 0.4 * Math.min(1.4, s), 400); tone("sine", 80, t, 0.5, 0.3 * s, null, 35); break;
