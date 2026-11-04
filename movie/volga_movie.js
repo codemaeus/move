@@ -75,54 +75,72 @@
   function snap() { const c = document.createElement("canvas"); c.width = W; c.height = H; c.getContext("2d").drawImage(MC, 0, 0); return c; }
 
   // ---------- kaiju close-ups: a big hand-pixelled profile head with expressions ----------
-  const FW = 128, FH = 96, FCACHE = new Map();
+  const FW = 128, FH = 96, FCACHE = new Map(), mixc = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
   function faceArt(C, ex) {
     const key = (C === L.JC ? "J" : C === L.SC ? "S" : "V") + JSON.stringify(ex); if (FCACHE.has(key)) return FCACHE.get(key); if (FCACHE.size > 200) FCACHE.clear();
     const p = L.painter(FW, FH), q = L.painter(FW, FH), jaw = ex.jaw || 0, brow = ex.brow || 0, snarl = ex.snarl || 0;
-    const add = (a, b, k = 1) => [a[0] + b[0] * k, a[1] + b[1] * k];
+    const add = (a, b, k = 1) => [a[0] + b[0] * k, a[1] + b[1] * k], same = (c, d) => c && c[0] === d[0] && c[1] === d[1] && c[2] === d[2];
     const spike = (b, d, len, wd, glow = true) => { const pr = [-d[1], d[0]], tip = add(b, d, len); p.poly([add(b, pr, wd), tip, add(b, pr, -wd)], C.spB); p.poly([add(add(b, pr, wd * 0.6), d, 1.5), add(tip, d, -1.5), add(add(b, pr, -wd * 0.6), d, 1.5)], C.sp); if (glow) { q.poly([add(add(b, pr, wd * 0.6), d, 1.5), add(tip, d, -1.5), add(add(b, pr, -wd * 0.6), d, 1.5)], C.sp); q.line(...add(b, d, len * 0.3), ...add(tip, d, -3), C.spC); } };
-    // neck sweeping down to the lower left, with dorsal plates
-    for (let i = 0; i <= 30; i++) { const t = i / 30; p.E(lerp(10, 50, t) + 1.5, lerp(104, 58, t) + 2.5, lerp(32, 21, t), lerp(32, 21, t), C.bodyD); }
-    [[14, 70, 22, 8], [24, 54, 20, 7], [36, 40, 17, 6], [47, 30, 13, 5]].forEach(([x, y, l, wd]) => spike([x, y], [-0.55, -0.83], l * (C.plate || 1), wd * (C.plate || 1)));
-    for (let i = 0; i <= 30; i++) { const t = i / 30; p.E(lerp(10, 50, t), lerp(104, 58, t), lerp(32, 21, t) - 1, lerp(32, 21, t) - 1, C.body); }
-    for (let i = 0; i <= 30; i++) { const t = i / 30; p.E(lerp(4, 42, t), lerp(96, 52, t), lerp(12, 7, t), lerp(12, 7, t), C.bodyL); }
-    // lower jaw, swinging from the hinge
-    const hg = [58, 58], ja = jaw * 0.62, J = [Math.cos(ja), Math.sin(ja)], Np = [J[1], -J[0]], jc = add(hg, J, 28);
-    p.E2(jc[0] + 1, jc[1] + 2, 31, 9, ja, C.bodyDD); p.E2(...jc, 30, 8, ja, C.bodyD); p.E2(...add(jc, Np, -3), 26, 3.5, ja, C.bellyD);
-    const lipU0 = [64, 56], lipU1 = [118, 52];
+    const rimC = C === L.JC ? [120, 220, 255] : C === L.SC ? [255, 200, 110] : [255, 170, 90];
+    // neck: a thick column with dorsal plates
+    for (let i = 0; i <= 30; i++) { const t = i / 30; p.E(lerp(8, 48, t) + 2, lerp(106, 60, t) + 3, lerp(34, 22, t), lerp(34, 22, t), C.bodyD); }
+    [[12, 72, 24, 8.5], [22, 55, 22, 7.5], [34, 41, 19, 6.5], [46, 30, 14, 5]].forEach(([x, y, l, wd]) => spike([x, y], [-0.55, -0.83], l * (C.plate || 1), wd * (C.plate || 1)));
+    for (let i = 0; i <= 30; i++) { const t = i / 30; p.E(lerp(8, 48, t), lerp(106, 60, t), lerp(34, 22, t) - 1, lerp(34, 22, t) - 1, C.body); }
+    for (let i = 0; i <= 30; i++) { const t = i / 30; p.E(lerp(2, 40, t), lerp(98, 54, t), lerp(11, 6, t), lerp(11, 6, t), C.bodyL); }
+    // neck scale rows (arcs) for texture
+    for (let r = 0; r < 5; r++) for (let i = 0; i < 6; i++) { const cx = 16 + i * 8 + r * 4, cy = 96 - r * 9 - i * 2; p.line(cx - 3, cy, cx, cy + 2, C.bodyD); p.line(cx, cy + 2, cx + 3, cy, C.bodyD); }
+    // lower jaw: an angular slab hinged under the cheek
+    const hg = [56, 60], ja = jaw * 0.6, rot = v => [hg[0] + v[0] * Math.cos(ja) - v[1] * Math.sin(ja), hg[1] + v[0] * Math.sin(ja) + v[1] * Math.cos(ja)];
+    const jawPts = [[-4, -4], [62, -3], [64, 2], [54, 8], [10, 13], [-6, 8]].map(rot); p.poly(jawPts.map(v => [v[0] + 1, v[1] + 2]), C.bodyDD); p.poly(jawPts, C.bodyD);
+    p.poly([[2, 6], [56, 5], [50, 9], [10, 12]].map(rot), C.bellyD); p.line(...rot([4, 2]), ...rot([58, 1]), C.bodyL);
+    const FANG_L = [5, 6.5, 11, 5, 6.5, 5.5, 9, 5];
     if (jaw > 0.06) {
-      const l0 = add(hg, J, 8), l1 = add(hg, J, 55);
-      p.poly([lipU0, lipU1, add(l1, Np, 2), l0], C.mouth); p.poly([add(lipU0, [4, 2]), add(lipU1, [-8, 3]), add(add(l1, J, -8), Np, 4), add(l0, J, 4)], C.mouthD);
-      if (ex.fire) { q.poly([add(lipU0, [6, 3]), add(lipU1, [-6, 3]), add(add(l1, J, -10), Np, 5), add(l0, J, 6)], [255, 200, 90]); q.poly([add(lipU0, [16, 5]), add(lipU1, [-16, 4]), add(add(l1, J, -20), Np, 6), add(l0, J, 14)], [255, 250, 220]); }
-      else p.E2(...add(add(hg, J, 34), Np, 4), 13, 4, ja * 0.6, [196, 78, 92]);
-      for (let s2 = 14; s2 < 52; s2 += 6.5) { const b = add(add(hg, J, s2), Np, 1.5); p.poly([add(b, J, -2), add(b, J, 2), add(b, Np, 4.5)], C.teeth); }
+      const lipU = [[64, 56], [121, 52]], l0 = rot([6, -3]), l1 = rot([60, -2]);
+      p.poly([lipU[0], lipU[1], l1, l0], C.mouthD); p.poly([add(lipU[0], [4, 3]), add(lipU[1], [-10, 3]), add(l1, [-10, -2]), add(l0, [6, -2])], C.mouth);
+      if (ex.fire) { q.poly([add(lipU[0], [6, 3]), add(lipU[1], [-8, 3]), add(l1, [-12, -2]), add(l0, [8, -2])], [255, 200, 90]); q.poly([add(lipU[0], [18, 5]), add(lipU[1], [-20, 4]), add(l1, [-22, -3]), add(l0, [18, -3])], [255, 250, 220]); }
+      else { p.E2(...rot([34, -6]), 14, 3.6, ja * 0.7, [200, 76, 92]); p.E2(...rot([30, -7]), 9, 1.2, ja * 0.7, [236, 120, 130]); }
+      // saliva strands between the jaws
+      if (!ex.fire) for (const u of [0.62]) { const top = [lerp(66, 118, u), lerp(57, 53, u)], bot = rot([lerp(8, 58, u), -3]); if (bot[1] - top[1] > 6) { p.line(top[0], top[1] + 3, top[0] + (bot[0] - top[0]) * 0.5 + 1, (top[1] + bot[1]) / 2 + 2, [236, 206, 216]); p.line(top[0] + (bot[0] - top[0]) * 0.5 + 1, (top[1] + bot[1]) / 2 + 2, bot[0], bot[1] - 3, [236, 206, 216]); } }
+      FANG_L.forEach((L2, i) => { const b0 = rot([10 + i * 6.6, -3]), d = [Math.sin(ja), -Math.cos(ja)]; p.poly([add(b0, [-2.4, 0]), add(b0, [2.4, 0]), add(b0, d, L2 * 0.75)], C.teeth); p.line(...add(b0, [1.4, 0]), ...add(b0, d, L2 * 0.6), [190, 184, 170]); p.P(...add(b0, d, 1), [255, 255, 255]); });
     }
-    // skull and snout
-    p.E2(63, 44, 30, 22, -0.1, C.bodyD); p.E2(62, 42, 29, 21, -0.1, C.body); p.E2(56, 31, 17, 6, -0.18, C.bodyL);
-    p.E2(93, 49, 28, 12, -0.04, C.bodyD); p.E2(92, 47, 27, 11, -0.04, C.body); p.E2(90, 39, 18, 3, -0.06, C.bodyL);
-    if (snarl > 0.05) { p.poly([[68, 54], [112, 51], [110, 51 - snarl * 2], [70, 53 - snarl * 2.5]], [176, 70, 82]); for (let i = 0; i < 3; i++) p.line(80 + i * 7, 40 - snarl * 2, 84 + i * 7, 47 - snarl, C.bodyDD); }
-    for (let x = 66; x < 116; x += 6) p.poly([[x, 54], [x + 3.5, 54], [x + 1.7, 58.5 + snarl * 2.5 + (x % 12 === 6 ? 1.5 : 0)]], C.teeth);
-    if (jaw <= 0.06) p.line(64, 57, 118, 53, C.bodyDD);
-    p.E(113, 42, 2.4, 1.3, C.bodyDD);
-    // eye and brow
-    const eh = ex.eyeH != null ? ex.eyeH : { open: 5, narrow: 2.6, wide: 7, closed: 0, glow: 4 }[ex.eye || "open"], ey = [74, 34];
-    p.E2(ey[0], ey[1], 10.5, Math.max(2.5, eh + 2.4), 0, C.bodyDD);
+    // skull: an angular wedge with a heavy brow and a deep snout
+    const skull = [[36, 44], [44, 26], [60, 16], [80, 15], [98, 22], [114, 32], [124, 40], [127, 47], [122, 54], [64, 58], [50, 62], [38, 56]];
+    p.poly(skull.map(v => [v[0] + 1, v[1] + 2]), C.bodyDD); p.poly(skull, C.body);
+    p.poly([[46, 27], [61, 18], [80, 17], [97, 24], [113, 34], [122, 41], [108, 38], [88, 30], [66, 27], [50, 32]], C.bodyL); // the lit top plane
+    p.poly([[40, 50], [62, 46], [92, 48], [122, 50], [121, 54], [64, 58], [50, 62], [38, 56]], C.bodyD); // shadowed cheek and lip
+    p.line(56, 44, 92, 41, C.bodyL); p.line(56, 45, 92, 42, C.bodyD); // cheekbone ridge
+    if (snarl > 0.05) { p.poly([[68, 55], [118, 51], [116, 51 - snarl * 2.5], [70, 53 - snarl * 3]], [176, 64, 78]); for (let i = 0; i < 4; i++) { const x = 90 + i * 7; p.line(x, 33 - snarl * 1, x + 4, 40 - snarl * 1, C.bodyDD); p.line(x + 1, 33 - snarl, x + 5, 40 - snarl, C.bodyL); } }
+    // upper fangs: uneven, with two long canines; when the mouth is shut they overlap the lower jaw
+    FANG_L.forEach((L2, i) => { const x = 68 + i * 6.6, y = 55 - (x - 68) * 0.07; p.poly([[x - 2.6, y], [x + 2.6, y], [x + 0.4, y + L2 + snarl * 2]], C.teeth); p.line(x + 1.5, y + 1, x + 0.6, y + L2 * 0.8, [190, 184, 170]); p.P(x - 1.2, y + 1, [255, 255, 255]); });
+    if (jaw <= 0.06) FANG_L.forEach((L2, i) => { if (i % 2) return; const x = 71 + i * 6.6, y = 60 - (x - 68) * 0.06; p.poly([[x - 2.4, y + 1], [x + 2.4, y + 1], [x, y - L2 * 0.65]], C.teeth); });
+    p.poly([[118, 42], [123, 41], [121, 44]], C.bodyDD); p.P(119, 41, C.bodyL); // nostril
+    spike([40, 34], [-0.95, -0.3], 13, 4.2, true); // cheek spike
+    if (C.horn) { spike([56, 21], [-0.42, -0.9], 28, 5, false); spike([46, 25], [-0.75, -0.66], 21, 4.2, false); }
+    // eye set deep under the brow, glowing out of the shadow
+    const eh = ex.eyeH != null ? ex.eyeH : { open: 4.2, narrow: 2.4, wide: 6, closed: 0, glow: 3.6 }[ex.eye || "open"], ey = [76, 34], tilt = 0.12 + Math.max(0, brow) * 0.2;
+    const sl = Math.max(0, brow) * 0.7, alm = (w2, h2, dx = 0, dy = 0) => [[-w2, -0.1 * h2], [-0.35 * w2, -h2], [0.55 * w2, -h2 * (1 - sl)], [w2, h2 * (0.15 + sl * 0.5)], [0.25 * w2, h2], [-0.6 * w2, 0.8 * h2]].map(([x, y]) => [ey[0] + x + dx, ey[1] + y + dy]);
+    p.poly(alm(12.5, Math.max(3.4, eh + 3)), C.bodyDD);
     if (eh > 0.4) {
-      const ec = ex.eye === "glow" ? [255, 255, 255] : C.eye; p.E2(ey[0], ey[1], 8, eh, 0, ec); q.E2(ey[0], ey[1], 8, eh, 0, ec);
-      if (ex.eye === "glow") { q.E2(ey[0], ey[1], 11, eh + 3, 0, [255, 170, 90]); q.E2(ey[0], ey[1], 6.5, eh, 0, [255, 255, 255]); q.line(ey[0] + 6, ey[1], ey[0] + 22, ey[1] - 1, [255, 230, 190]); }
-      else if (ex.eye === "wide") p.R(ey[0] + 1, ey[1] - 1, 2, 2, [10, 6, 6]);
-      else p.R(ey[0] + 1, ey[1] - Math.round(eh) + 1, 2, Math.max(1, Math.round(eh * 2) - 1), [10, 6, 6]);
-      if (ex.eye !== "glow") q.P(ey[0] - 3, ey[1] - Math.round(eh * 0.5), [255, 255, 240]);
-    } else p.line(ey[0] - 7, ey[1], ey[0] + 7, ey[1] + 1, C.bodyDD, 2);
-    const ba = brow * 0.5; p.E2(ey[0] - 1, ey[1] - eh - 3 + Math.max(0, brow) * 2, 15, 4.2, ba, C.bodyDD); p.E2(ey[0] - 3, ey[1] - eh - 5.5 + Math.max(0, brow) * 2, 11, 1.4, ba, C.bodyL);
-    if (C.horn) { spike([56, 22], [-0.42, -0.9], 26, 4.6, false); spike([44, 27], [-0.75, -0.66], 20, 4, false); }
-    spike([40, 34], [-0.95, -0.3], 12, 4, true);
-    // scale texture, lava veins, outline
+      const ec = ex.eye === "glow" ? [255, 255, 255] : C.eye; q.poly(alm(11, eh + 1.6), ex.eye === "glow" ? [255, 150, 70] : mixc(C.eye, [255, 110, 30], 0.55)); p.poly(alm(9.5, eh), ec); q.poly(alm(9.5, eh), ec);
+      p.poly(alm(7, eh * 0.45, -1, eh * 0.5), mixc(ec, [190, 80, 20], 0.4));
+      if (ex.eye === "glow") { q.poly(alm(9.5, eh), [255, 255, 255]); q.line(ey[0] + 9, ey[1] - 1, ey[0] + 28, ey[1] - 4, [255, 230, 190]); q.line(ey[0] + 9, ey[1], ey[0] + 22, ey[1] - 1, [255, 200, 140]); }
+      else if (ex.eye === "wide") { p.R(ey[0] + 1, ey[1] - 1, 2, 2, [10, 6, 6]); q.R(ey[0] + 1, ey[1] - 1, 2, 2, [10, 6, 6]); }
+      else { const ph = Math.max(1, Math.round(eh * 2) - 1); p.R(ey[0] + 1, ey[1] - Math.round(eh) + 1, 2, ph, [10, 6, 6]); q.R(ey[0] + 1, ey[1] - Math.round(eh) + 1, 2, ph, [30, 8, 8]); }
+      if (ex.eye !== "glow") { q.P(ey[0] - 4, ey[1] - Math.round(eh * 0.4), [255, 255, 255]); q.P(ey[0] - 3, ey[1] - Math.round(eh * 0.4), [255, 255, 240]); }
+    } else { p.line(ey[0] - 9, ey[1] - 1, ey[0] + 9, ey[1] + 2, C.bodyDD, 2); p.line(ey[0] - 9, ey[1] + 1, ey[0] - 12, ey[1] + 3, C.bodyDD); }
+    // the brow ridge: a hard overhang that slants down toward the snout when angry
+    const bf = Math.max(0, brow) * 5, bu = Math.max(0, -brow) * 4, by0 = ey[1] - eh * (brow > 0 ? 0.45 : 1) - 3;
+    p.poly([[58, by0 - 3 - bu], [80, by0 - 5 - bu], [94, by0 - 1 + bf - bu], [93, by0 + 2.5 + bf - bu], [80, by0 + 1.5 - bu * 0.5], [61, by0 + 2.5]], C.bodyDD);
+    p.line(61, by0 - 3 - bu, 91, by0 - 2 + bf - bu, C.bodyL);
+    // texture, lava veins, ink hatching in the shadows, outline and rim light
     for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) { const c = p.G(x, y); if (!c) continue;
-      const isB = c[0] === C.body[0] && c[1] === C.body[1], isD = c[0] === C.bodyD[0] && c[1] === C.bodyD[1], isL = c[0] === C.bodyL[0] && c[1] === C.bodyL[1];
+      const isB = same(c, C.body), isD = same(c, C.bodyD), isL = same(c, C.bodyL);
       if (C.veins && (isB || isD) && ((x + (y >> 1) + ((hash(x * 31 + (y >> 3)) * 3) | 0)) % 15 === 0)) { p.P(x, y, C.veinsD); q.P(x, y, C.veins); continue; }
-      if (isB && hash(x * 977 + y * 131) > 0.83) p.P(x, y, C.bodyD); else if (isL && hash(x * 13 + y * 7919) > 0.86) p.P(x, y, C.body); else if (isD && hash(x * 29 + y * 613) > 0.88) p.P(x, y, C.bodyDD); }
-    p.outline(C.out);
+      if (isD && (x - y + 400) % 4 === 0 && hash(x * 7 + y * 13) > 0.25) p.P(x, y, C.bodyDD);
+      else if (isB && hash(x * 977 + y * 131) > 0.86) p.P(x, y, C.bodyD); else if (isL && hash(x * 13 + y * 7919) > 0.88) p.P(x, y, C.body); }
+    const rim = []; for (let y = 1; y < FH; y++) for (let x = 0; x < FW - 1; x++) { const c = p.G(x, y); if (c && !p.G(x, y - 1) && !p.G(x + 1, y - 1) && (same(c, C.body) || same(c, C.bodyL))) rim.push([x, y]); }
+    p.outline(C.out); p.outline(C.out);
+    for (const [x, y] of rim) { p.P(x, y, mixc(C.bodyL, rimC, 0.55)); q.P(x, y, mixc(rimC, [0, 0, 0], 0.35)); }
     const out = { r: p.done(), gr: q.done() }; FCACHE.set(key, out); return out;
   }
   function face(C, ex, x, y, sc = 1, flipX = false, glowA = 0.9) {
