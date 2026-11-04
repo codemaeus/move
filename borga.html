@@ -294,7 +294,79 @@
   HPOSE.rise = mixPose(HPOSE.land, HPOSE.idle0, 0.5); HPOSE.chop01 = mixPose(HPOSE.chop0, HPOSE.chop1, 0.5); HPOSE.beam01 = mixPose(HPOSE.beam0, HPOSE.beam1, 0.5);
   const HFS = {}, HFC = {}; for (const k in HPOSE) Object.defineProperty(HFS, k, { enumerable: true, get: () => HFC[k] || (HFC[k] = heroFrame(HPOSE[k])) });
   const HD = frameBank(HFS, HPOSE, o => heroFrame(o), 160), HF = HD.F;
-  function warmFrames() { let n = 0; for (const k in KPOSE) if (!KFC[k]) { void KF[k]; if (++n >= 2) break; } if (!n && kForm) n = SD.warm(); if (!n) n = KD.warm(); if (!n) for (const k in JFS) if (!JFC[k]) { void JF[k]; if (++n >= 1) break; } if (!n) for (const k in HFS) if (!HFC[k]) { void HF[k]; if (++n >= 1) break; } if (n) setTimeout(warmFrames, 30); }
+  // ---------- the iron-fisted ape, Goura: an original rock-armoured ape kaiju with enormous arms, built from its own skeleton ----------
+  const GC = { fur: [58, 46, 42], furL: [88, 72, 62], furD: [36, 28, 27], furDD: [20, 16, 16], rock: [110, 106, 102], rockL: [152, 148, 140], rockD: [70, 66, 64], skin: [116, 92, 82], skinD: [86, 66, 60], eye: [255, 188, 60], crack: [255, 140, 40], mouth: [110, 28, 28], teeth: [240, 234, 220], out: [8, 6, 6] };
+  function apeFrame(o) {
+    const p = painter(KW, KH), q = painter(KW, KH), C = GC;
+    const lean = o.lean == null ? 0.75 : o.lean, by = o.by || 0, d = [Math.sin(lean), -Math.cos(lean)], f = [Math.cos(lean), Math.sin(lean)], n = [-f[0], -f[1]];
+    const add = (a, b, k = 1) => [a[0] + b[0] * k, a[1] + b[1] * k], dir = a => [Math.cos(a), Math.sin(a)], disc = (c, r, cc) => p.E(c[0], c[1], r, r, cc);
+    const cap = (a, b, r0, r1, base, light, dark) => { const m = Math.max(2, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]))); for (let i = 0; i <= m; i++) { const t = i / m; disc([lerp(a[0], b[0], t) + 0.8, lerp(a[1], b[1], t) + 1.5], lerp(r0, r1, t), dark); } for (let i = 0; i <= m; i++) { const t = i / m; disc([lerp(a[0], b[0], t), lerp(a[1], b[1], t)], lerp(r0, r1, t) - 0.6, base); } if (light) for (let i = 0; i <= m; i++) { const t = i / m, r = lerp(r0, r1, t); disc([lerp(a[0], b[0], t) - r * 0.3, lerp(a[1], b[1], t) - r * 0.42], r * 0.42, light); } };
+    const plate = (pts, back) => { p.poly(pts.map(v => [v[0] + 0.8, v[1] + 1.4]), C.rockD); p.poly(pts, back ? C.rockD : C.rock); if (!back) { const c = pts.reduce((a, v) => [a[0] + v[0] / pts.length, a[1] + v[1] / pts.length], [0, 0]); p.poly(pts.map(v => [lerp(v[0], c[0], 0.45) - 1, lerp(v[1], c[1], 0.45) - 1.2]), C.rockL); } };
+    const leg = (hp, foot, B, D, Lc) => { const F = [AX + foot[0], AY - (foot[1] || 0)], Kn = add([(hp[0] + F[0]) / 2, (hp[1] + F[1]) / 2 - 2], f, 7); cap(hp, Kn, 13, 11, B, Lc, D); cap(Kn, [F[0], F[1] - 5], 11, 8, B, Lc, D); p.E(F[0] + 3, F[1] - 3, 11, 4, D); p.E(F[0] + 2, F[1] - 4, 10, 3, B); return F; };
+    const arm = (s0, a1, a2, B, D, Lc, back) => {
+      const el = add(s0, dir(a1), 31), fi = add(el, dir(a2), 27), pr = (() => { const v = [-Math.sin(a2), Math.cos(a2)]; return v[1] < 0 ? v : [-v[0], -v[1]]; })();
+      cap(s0, el, 12, 11, B, Lc, D); cap(el, fi, 13, 16, B, Lc, D);
+      const ax = dir(a2), nx = [-ax[1], ax[0]], b0 = add(el, ax, 3), b1 = add(el, ax, 21); plate([add(b0, nx, 10), add(add(b0, ax, 6), nx, 13), add(b1, nx, 14), add(add(b1, ax, 3), nx, 2), add(b1, nx, -13), add(add(b0, ax, 8), nx, -12), add(b0, nx, -9)], back); p.line(...add(add(b0, ax, 9), nx, 9), ...add(add(b0, ax, 13), nx, -9), back ? C.furDD : C.rockD); // the rock bracer wrapped round the forearm
+      disc(add(fi, [0.8, 1.5]), 15, D); disc(fi, 14, B); if (!back) disc(add(fi, [-3, -4]), 6, Lc);
+      for (let i = -1; i <= 1; i++) { const k = add(add(fi, dir(a2), 11), [-Math.sin(a2), Math.cos(a2)], i * 7); p.E(k[0], k[1], 5, 4, back ? C.rockD : C.rock); if (!back) p.P(k[0] - 1, k[1] - 1, C.rockL); } // stone knuckles
+      return fi;
+    };
+    const hip = [AX - 4, AY - 40 + by], chest = add(hip, d, 40), sh = add(chest, d, -6);
+    // back arm and back leg in shadow
+    const fistB = arm(add(add(sh, n, 7), d, -2), o.aB1 == null ? 1.35 : o.aB1, o.aB2 == null ? 1.6 : o.aB2, C.furD, C.furDD, C.fur, true);
+    const footB = leg(add(hip, n, 5), o.fb || [-14, 0], C.furD, C.furDD, C.fur);
+    // torso: a barrel chest under a shaggy hump
+    for (let i = 0; i <= 26; i++) { const t = i / 26, c = add(hip, d, 40 * t), r = lerp(20, 27, t); disc([c[0] + 1, c[1] + 2], r, C.furDD); }
+    for (let i = 0; i <= 26; i++) { const t = i / 26, c = add(hip, d, 40 * t), r = lerp(20, 27, t) - 0.8; disc(c, r, C.fur); }
+    for (let i = 4; i <= 26; i++) { const t = i / 26, c = add(add(hip, d, 40 * t), n, 9), r = lerp(20, 27, t) * 0.42; disc([c[0], c[1] - 2], r, C.furL); }
+    for (let i = 6; i <= 22; i++) { const t = i / 26, c = add(add(hip, d, 40 * t), f, 13), r = lerp(9, 14, t); disc(c, r, C.skinD); disc(add(c, [-0.6, -0.8]), r - 1.4, C.skin); } // the bare chest
+    for (let i = 0; i < 3; i++) p.line(...add(add(hip, d, 18 + i * 7), f, 6), ...add(add(hip, d, 18 + i * 7), f, 20), C.skinD);
+    
+    // shaggy fur along the back
+    for (let i = 0; i < 9; i++) { const t = 0.1 + i * 0.1, b0 = add(add(hip, d, 44 * t), n, lerp(18, 25, t)), u = [n[0] * 0.7 - d[0] * 0.7, n[1] * 0.7 - d[1] * 0.7]; p.poly([add(b0, d, 4), add(b0, u, 7 + (i % 3) * 2), add(b0, d, -4)], C.furD); }
+    const footF = leg(add(hip, f, 4), o.ff || [16, 0], C.fur, C.furD, C.furL);
+    // head: low and forward between the shoulders
+    const ha = o.ha == null ? 0.15 : o.ha, F = [Math.cos(ha), Math.sin(ha)], U = [Math.sin(ha), -Math.cos(ha)], Hc = add(add(chest, d, 8), f, 20), jaw = o.jaw || 0;
+    p.E2(...add(Hc, [1, 1.5]), 16, 14, ha, C.furDD); p.E2(...Hc, 15, 13, ha, C.fur); p.E2(...add(add(Hc, U, 6), F, -4), 9, 4, ha, C.furL);
+    const ja = ha + jaw * 0.7, J = [Math.cos(ja), Math.sin(ja)], jb = add(add(Hc, F, 4), U, -6);
+    p.E2(...add(jb, J, 8), 11, 5, ja, C.skinD); p.E2(...add(add(jb, J, 8), [-J[1], J[0]], -1), 10, 3.6, ja, C.skin);
+    if (jaw > 0.12) { const lA = add(add(Hc, F, 6), U, -3), lB = add(add(Hc, F, 16), U, -3), jt = add(jb, J, 16); p.poly([lA, lB, jt, add(jb, J, 3)], C.mouth); for (const s2 of [0.25, 0.85]) { const tu = [lerp(lA[0], lB[0], s2), lerp(lA[1], lB[1], s2)]; p.poly([tu, add(tu, F, 2.5), add(add(tu, F, 1.2), U, -5)], C.teeth); const tl = add(add(jb, J, 4 + s2 * 10), [-J[1], J[0]], -1.5); p.poly([tl, add(tl, J, 2.5), add(add(tl, J, 1.2), [-J[1], J[0]], -4)], C.teeth); } }
+    p.E2(...add(add(Hc, F, 9), U, 1), 9, 7, ha, C.skinD); p.E2(...add(add(Hc, F, 9), U, 1.5), 8, 6, ha, C.skin); p.P(...add(add(Hc, F, 15), U, 2), C.furDD); p.P(...add(add(Hc, F, 15), U, 0.5), C.furDD); // muzzle and nostrils
+    if (jaw <= 0.12) p.line(...add(add(Hc, F, 5), U, -3.5), ...add(add(Hc, F, 16), U, -3), C.skinD);
+    const eye = add(add(Hc, F, 6), U, 5); p.R(eye[0] - 2, eye[1] - 1, 5, 3, C.furDD);
+    if (o.eye !== 0) { p.R(eye[0], eye[1] - 1, 2, 2, C.eye); q.R(eye[0], eye[1] - 1, 2, 2, C.eye); q.P(eye[0] + 1, eye[1] - 1, [255, 250, 220]); } else p.R(eye[0] - 2, eye[1], 5, 1, C.furDD);
+    p.E2(...add(add(Hc, F, 4), U, 8), 9, 3, ha - 0.15, C.furDD); // heavy brow
+    for (let i = 0; i < 3; i++) { const b0 = add(add(Hc, F, -2 + i * 5), U, 10 - i), u = [U[0] * 0.8 - F[0] * 0.6, U[1] * 0.8 - F[1] * 0.6]; plate([add(b0, F, -4), add(b0, u, 12 - i * 2), add(b0, F, 4)]); } // rock horns on the brow
+    const fistF = arm(sh, o.aF1 == null ? 1.15 : o.aF1, o.aF2 == null ? 1.4 : o.aF2, C.fur, C.furD, C.furL, false);
+    plate([add(add(sh, n, 14), d, 2), add(add(sh, n, 6), d, 15), add(add(sh, f, 9), d, 13), add(add(sh, f, 15), d, 1), add(add(sh, f, 6), d, -10), add(add(sh, n, 6), d, -11)]); plate([add(add(sh, n, 17), d, -8), add(add(sh, n, 10), d, 4), add(add(sh, n, 2), d, -12)]); // shoulder armour over the front arm
+    // fur streaks, rock grain and glowing cracks, outline
+    for (let y = 0; y < KH; y++) for (let x = 0; x < KW; x++) { const c = p.G(x, y); if (!c) continue;
+      if (c[0] === C.rock[0] && c[1] === C.rock[1]) { if ((x * 3 + y * 2 + ((h2(x >> 2, y >> 2) * 5) | 0)) % 13 === 0) { p.P(x, y, C.crack); q.P(x, y, C.crack); } else if (h2(x, y) > 0.82) p.P(x, y, C.rockD); }
+      else if (c[0] === C.fur[0] && c[1] === C.fur[1]) { const v = h2(x >> 1, y >> 1); if (v > 0.84) { p.P(x, y, C.furD); if (v > 0.9) p.P(x, y + 1, C.furD); } else if (v < 0.08) p.P(x, y, C.furL); }
+      else if (c[0] === C.furL[0] && c[1] === C.furL[1] && h2((x >> 1) + 7, y >> 1) > 0.8) p.P(x, y, C.fur); }
+    p.outline(C.out);
+    const main = p.done(), glow = q.done(), rel = pt => [pt[0] - AX, pt[1] - AY];
+    const out = { r: main, gr: glow, eye: rel(eye), head: rel(Hc), fist: rel(fistF), fistB: rel(fistB), mouth: rel(add(add(Hc, F, 16), U, -3)), feet: [rel(footB), rel(footF)] }, lz = (k, fn) => { let v = null; Object.defineProperty(out, k, { get: () => v || (v = fn()) }); };
+    lz("l", () => flip(main)); lz("gl", () => flip(glow)); lz("wr", () => tintOf(main, "#fff")); lz("wl", () => tintOf(out.l, "#fff"));
+    return out;
+  }
+  const GB = { lean: 0.75, by: 2, ha: 0.15, jaw: 0.05, aF1: 1.15, aF2: 1.4, aB1: 1.35, aB2: 1.6, ff: [16, 0], fb: [-14, 0] };
+  const GPOSE = {
+    idle0: { ...GB }, idle1: { ...GB, by: 4, jaw: 0.12, ha: 0.1, aF1: 1.12, aB1: 1.32 },
+    roar: { ...GB, lean: 0.12, by: 0, ha: -0.55, jaw: 1, aF1: -0.45, aF2: -1.1, aB1: -0.75, aB2: -1.35, ff: [16, 0], fb: [-17, 0] },
+    slam0: { ...GB, lean: 0.18, by: -2, ha: -0.3, jaw: 0.7, aF1: -1.7, aF2: -1.95, aB1: -1.55, aB2: -1.8, ff: [14, 0], fb: [-15, 0] },
+    slam1: { ...GB, lean: 0.95, by: 7, ha: 0.35, jaw: 0.85, aF1: 0.8, aF2: 0.95, aB1: 0.92, aB2: 1.05, ff: [21, 0], fb: [-18, 0] },
+    punch0: { ...GB, lean: 0.5, ha: 0.05, jaw: 0.4, aF1: 2.7, aF2: 2.25, aB1: 1.25, aB2: 1.5, ff: [14, 0], fb: [-18, 0] },
+    punch1: { ...GB, lean: 0.72, ha: 0.12, jaw: 0.65, aF1: 0.12, aF2: 0.02, aB1: 1.7, aB2: 2.0, ff: [24, 0], fb: [-14, 0] },
+    jump: { ...GB, lean: 0.5, by: -6, ha: -0.2, jaw: 0.6, aF1: -1.2, aF2: -1.6, aB1: -1.0, aB2: -1.4, ff: [10, 14], fb: [-8, 12] },
+    hurt: { ...GB, lean: 0.35, by: 2, ha: -0.6, jaw: 0.8, eye: 0, aF1: -0.3, aF2: 0.5, aB1: 2.4, aB2: 2.0 },
+    kneel: { ...GB, lean: 1.0, by: 16, ha: 0.5, jaw: 0.2, eye: 0, ff: [14, 0], fb: [-16, 0] },
+  };
+  for (let i = 0; i < 8; i++) { const a = i / 8 * PI * 2, s = Math.sin(a), c = Math.cos(a); GPOSE["w" + i] = { ...GB, by: 2 + Math.round(2 * Math.abs(s)), aF1: 1.15 + 0.32 * s, aF2: 1.4 + 0.22 * s, aB1: 1.35 - 0.32 * s, aB2: 1.6 - 0.22 * s, ff: [Math.round(16 - 9 * s), Math.round(Math.max(0, -c) * 6)], fb: [Math.round(-14 + 9 * s), Math.round(Math.max(0, c) * 6)], ha: 0.15 + 0.04 * Math.sin(2 * a) }; }
+  const GFS = {}, GFC = {}; for (const k in GPOSE) Object.defineProperty(GFS, k, { enumerable: true, get: () => GFC[k] || (GFC[k] = apeFrame(GPOSE[k])) });
+  const GD = frameBank(GFS, GPOSE, o => apeFrame(o), 160), GF = GD.F;
+  const ROCK = mk(22, 18, p => { p.poly([[2, 10], [6, 2], [15, 1], [21, 7], [19, 15], [9, 17], [1, 14]], [96, 90, 86]); p.poly([[5, 9], [8, 4], [14, 3], [18, 7], [12, 9]], [136, 130, 124]); p.line(8, 12, 15, 9, [60, 56, 54]); p.line(12, 4, 11, 9, [60, 56, 54]); p.outline([10, 8, 8]); });
+  function warmFrames() { let n = 0; for (const k in KPOSE) if (!KFC[k]) { void KF[k]; if (++n >= 2) break; } if (!n && kForm) n = SD.warm(); if (!n) n = KD.warm(); if (!n) for (const k in JFS) if (!JFC[k]) { void JF[k]; if (++n >= 1) break; } if (!n) for (const k in HFS) if (!HFC[k]) { void HF[k]; if (++n >= 1) break; } if (!n) for (const k in GFS) if (!GFC[k]) { void GF[k]; if (++n >= 1) break; } if (n) setTimeout(warmFrames, 30); }
   const WARM = [];
   setTimeout(() => {
     // queue the in-betweens used most (walk and run cycles, idle breathing, every tick of each attack) to be drawn while idle
@@ -856,17 +928,18 @@
   // ---------- cinema: letterbox, a camera that looks at the event, a held zoom ----------
   function cinema(o) { G.cine = { t: 0, life: o.life || 90, title: o.title, sub: o.sub, col: o.col }; if (o.focus != null || o.boss) G.focus = { x: o.focus, boss: o.boss, t: o.hold || 70 }; if (o.zoom) { G.zoomTo = o.zoom; G.zoomHold = o.hold || 60; G.zoomX = o.focus; G.zoomBoss = !!o.boss; } }
   let R = null;
-  function spawnRival(kind) { G.bossN = (G.bossN || 0) + 1; kind = kind || (G.bossN % 2 ? "jinrai" : "hero");
+  function spawnRival(kind) { G.bossN = (G.bossN || 0) + 1; kind = kind || ["ape", "jinrai", "hero"][G.bossN % 3];
     if (kind === "hero") { const max = 190 + 60 * Math.floor((G.bossN - 1) / 2); R = { kind, x: K.x + 200, y: -300, vy: 0, dir: -1, hp: max, max, bar: 1, state: "descend", t: 0, walk: 0, flash: 0, cd: 60, hitDone: false }; cinema({ life: 170, title: "光の巨人　アステル", sub: "空の彼方から 光の戦士が舞い降りた", col: [255, 236, 170], boss: 1, zoom: 1.1, hold: 110 }); news("正体不明の光の巨人が飛来　ボルガと交戦の構え"); sfx("hdescend"); G.shake = 4; A.fast = true; return; }
+    if (kind === "ape") { const max = 210 + 60 * Math.floor((G.bossN - 1) / 3); R = { kind, y: 0, vy: 0, vx: 0, x: K.x + 340, dir: -1, hp: max, max, bar: 1, state: "enter", t: 0, walk: 0, flash: 0, cd: 110, hitDone: false, rocks: [] }; cinema({ life: 170, title: "剛腕獣　ゴウラ", sub: "岩の拳で すべてを砕く 山の怪獣", col: [255, 196, 120], boss: 1, zoom: 1.1, hold: 110 }); news("山あいから 類人猿型の巨大怪獣が出現　ゴウラと命名"); sfx("roar", 1.6); sfx("pound"); G.shake = 10; A.fast = true; return; }
     const max = 150 + 60 * Math.floor((G.bossN - 1) / 2); R = { kind, y: 0, x: K.x + 320, dir: -1, hp: max, max, bar: 1, state: "enter", t: 0, walk: 0, flash: 0, cd: 90, hitDone: false }; cinema({ life: 170, title: "雷獣　ジンライ", sub: G.bossN > 2 ? `宿命のライバル ${Math.ceil(G.bossN / 2)}度目の襲来` : "雷をまとう 宿命のライバル怪獣", col: [170, 230, 255], boss: 1, zoom: 1.1, hold: 110 }); news("新たな怪獣が出現　雷獣ジンライと命名"); sfx("roar", 1.4); G.shake = 8; A.fast = true; }
-  function rBox() { return [R.x - 26, GY - 104 + R.y, R.x + 26, GY + R.y]; }
+  function rBox() { return R.kind === "ape" ? [R.x - 34, GY - 98 + R.y, R.x + 34, GY + R.y] : [R.x - 26, GY - 104 + R.y, R.x + 26, GY + R.y]; }
   function hitRival(x0, y0, x1, y1, dmg, fire) {
     const [a, b, c, d] = rBox(); if (x1 < a || x0 > c || y1 < b || y0 > d) return false;
     if (fire && G.t % 4) return true;
     let guard = false; if (R.kind === "hero" && !fire && dmg >= 3 && R.y === 0 && (R.state === "walk" || R.state === "guard") && Math.sign(K.x - R.x) === R.dir && Math.random() < 0.3) { guard = true; dmg *= 0.3; R.state = "guard"; R.t = 0; const gx = R.x + R.dir * 16; sparks(gx, GY - 70, 10, [255, 250, 220], 3); G.fx.push({ k: "ono", s: "ガキィン！", x: gx, y: GY - 110, t: 0, life: 30, c: [255, 250, 220] }); sfx("clang"); }
     R.hp -= dmg; R.flash = guard ? 0 : 6; addDamage(dmg * 60);
     if (!fire && !guard && dmg >= 3) { R.state = "stagger"; R.t = 0; R.x += Math.sign(R.x - K.x || 1) * (dmg > 8 ? 16 : 7); G.lastHit = [clamp((x0 + x1) / 2, a, c), clamp((y0 + y1) / 2, b, d)]; }
-    if (R.hp <= 0) { R.hp = 0; R.state = "die"; R.t = 0; R.vy = 0; say(R.kind === "hero" ? "アステル　ひざをつく！" : "ジンライ　たおれる！", 120); sfx("rdie"); }
+    if (R.hp <= 0) { R.hp = 0; R.state = "die"; R.t = 0; R.vy = 0; say(R.kind === "hero" ? "アステル　ひざをつく！" : R.kind === "ape" ? "ゴウラ　たおれる！" : "ジンライ　たおれる！", 120); sfx("rdie"); }
     return true;
   }
   function tackleRival() { K.dash = false; hitRival(R.x - 1, GY - 60, R.x + 1, GY - 50, 7); const hx = (K.x + R.x) / 2; hanabi(hx, GY - 60, 0); G.fx.push({ k: "ono", s: "ドガァッ！", x: hx, y: GY - 90, t: 0, life: 36, c: [255, 220, 160], big: 1 }); G.stop = 8; G.shake = 12; K.x -= K.dir * 10; sfx("impact"); }
@@ -877,6 +950,7 @@
     R.t++; if (R.flash) R.flash--; R.bar = lerp(R.bar, R.hp / R.max, 0.08);
     const dx = K.x - R.x, dist = Math.abs(dx);
     if (R.kind === "hero") return updateHero(dx, dist);
+    if (R.kind === "ape") return updateApe(dx, dist);
     if (R.state === "die") { if (R.t % 10 === 0) explode(R.x + rnd(-30, 30), GY - rnd(20, 100), 1.4); if (R.t % 4 === 0) sparks(R.x + rnd(-20, 20), GY - rnd(30, 100), 6, [150, 230, 255], 3); if (R.t > 110) { explode(R.x, GY - 50, 3); G.flash = 22; G.shake = 22; G.fx.push({ k: "ring", x: R.x, y: GY - 50, t: 0, life: 40, r: 200 }); hitRect(R.x - 120, 0, R.x + 120, GY + 10, 10, { rival: 1, r: 14 }); for (let i = 0; i < 8; i++) setFire(R.x + rnd(-80, 80), GY + rnd(0, 8), 700, rnd(1, 1.4)); addDamage(60000); K.rage = 100; K.hp = Math.min(100, K.hp + 50); G.nextBoss = K.x + 3200; say("ジンライを たおした！　怒りゲージ MAX", 200); news("雷獣ジンライ 沈黙　ボルガの勝利"); A.fast = false; R = null; } return; }
     const facing = () => { R.dir = dx > 0 ? 1 : -1; };
     const step = sp => { R.x += R.dir * sp; R.walk += sp; const ph = Math.floor(R.walk / 2) % 16; if (ph !== R.lastPh && (ph === 4 || ph === 12)) { G.shake = Math.max(G.shake, 2); dust(R.x, GY + 2, 2, 0.8); sfx("step"); for (const c of G.cars) if (c.alive && Math.abs(c.x - R.x) < 16) { c.alive = false; c.crushed = true; explode(c.x, c.y - 3, 0.6); } } R.lastPh = ph; };
@@ -889,6 +963,43 @@
       case "stagger": if (R.t > 20) { R.state = "walk"; R.cd = rnd(20, 50); } break;
     }
     if (dist < 46 && K.y === 0 && R.state !== "die") { const push = (46 - dist) / 2, sgn = Math.sign(dx) || 1; K.x += sgn * push; R.x -= sgn * push; }
+  }
+  const GSEQ = { punch: [[0, "idle0"], [6, "punch0"], [14, "punch0"], [18, "punch1"], [26, "punch1"], [34, "idle0"]], slam: [[0, "idle0"], [10, "slam0"], [30, "slam0"], [36, "slam1"], [52, "slam1"], [62, "idle0"]],
+    throw: [[0, "idle0"], [10, "slam1"], [22, "slam0"], [40, "slam0"], [46, "punch1"], [60, "idle0"]], roar: [[0, "idle0"], [10, "roar"]], die: [[0, "hurt"], [40, "hurt"], [56, "kneel"]], land: [[0, "slam1"], [14, "slam1"], [24, "idle0"]] };
+  function gFrame() {
+    const s = R.state, t = R.t;
+    if (s === "leap") return t < 14 ? GD.km("idle0", "slam1", t / 14) : "jump";
+    if (s === "roar" && t > 10) return GD.km("roar", "slam0", osc(8, t) * 0.25);
+    if (GSEQ[s]) return GD.seq(GSEQ[s], t);
+    if (s === "stagger") return "hurt";
+    return (s === "walk" || s === "enter") && Math.abs(K.x - R.x) > 90 ? GD.cyc("w", 8, R.walk / 3.2, 4) : GD.km("idle0", "idle1", osc(110, G.t));
+  }
+  function apeShock(x, r, dmg) { G.shake = Math.max(G.shake, 14); G.stop = Math.max(G.stop, 4); sfx("pound"); sfx("impact"); dust(x, GY + 2, 18, 2); debris(x, GY - 4, 16, [100, 92, 86], 3.5); G.fx.push({ k: "wave", x, y: GY, t: 0, life: 26, r }); G.fx.push({ k: "crack", x, y: GY + 4, t: 0, life: 200, seed: Math.random() * 100 }); kick(0, 5); rumble(0.7, 220);
+    hitRect(x - r, GY - 50, x + r, GY + 10, 4, { rival: 1, r: 11 }); for (const c of G.cars) if (c.alive && Math.abs(c.x - x) < r) { c.alive = false; c.flying = true; c.vy = -rnd(3, 6); c.vx = Math.sign(c.x - x || 1) * rnd(1, 3); c.spin = rnd(-0.3, 0.3); }
+    if (K.y > -20 && Math.abs(K.x - x) < r) rivalHitsKaiju(dmg, 22, null); }
+  function updateApe(dx, dist) {
+    const facing = () => { R.dir = dx > 0 ? 1 : -1; };
+    const step = sp => { R.x += R.dir * sp; R.walk += sp; const ph = Math.floor(R.walk / 3.2) % 8; if (ph !== R.lastPh && (ph === 2 || ph === 6)) { const fx = R.x + R.dir * 30; G.shake = Math.max(G.shake, 3); dust(fx, GY + 2, 3, 1); sfx("step"); for (const c of G.cars) if (c.alive && Math.abs(c.x - fx) < 16) { c.alive = false; c.crushed = true; explode(c.x, c.y - 3, 0.6); } } R.lastPh = ph; };
+    const fistW = () => { const F = GF[gFrame()]; return [R.x + F.fist[0] * R.dir, GY + R.y + F.fist[1]]; };
+    for (const rk of R.rocks) { rk.vy += 0.13; rk.x += rk.vx; rk.y += rk.vy; rk.rot += 0.2;
+      if (!rk.hit && Math.abs(rk.x - K.x) < 28 && rk.y > GY + K.y - 110 && rk.y < GY + K.y) { rk.hit = rk.dead = true; rivalHitsKaiju(7, 16, null); debris(rk.x, rk.y, 14, [100, 92, 86], 3); dust(rk.x, rk.y, 4, 1.2); sfx("crash"); }
+      if (rk.y > GY) { rk.dead = true; debris(rk.x, GY - 4, 12, [100, 92, 86], 3); dust(rk.x, GY, 6, 1.4); hitRect(rk.x - 20, GY - 30, rk.x + 20, GY, 2, { rival: 1 }); G.shake = Math.max(G.shake, 6); sfx("crash"); } }
+    R.rocks = R.rocks.filter(rk => !rk.dead);
+    if (R.state === "die") { if (R.t % 10 === 0) explode(R.x + rnd(-34, 34), GY - rnd(20, 90), 1.4); if (R.t % 5 === 0) debris(R.x + rnd(-20, 20), GY - rnd(30, 90), 6, [110, 104, 100], 3);
+      if (R.t > 110) { explode(R.x, GY - 50, 3); G.flash = 22; G.shake = 22; G.fx.push({ k: "ring", x: R.x, y: GY - 50, t: 0, life: 40, r: 200 }); hitRect(R.x - 120, 0, R.x + 120, GY + 10, 10, { rival: 1, r: 14 }); for (let i = 0; i < 8; i++) setFire(R.x + rnd(-80, 80), GY + rnd(0, 8), 700, rnd(1, 1.4)); addDamage(70000); K.rage = 100; K.hp = Math.min(100, K.hp + 50); G.nextBoss = K.x + 3200; say("ゴウラを たおした！　怒りゲージ MAX", 200); news("剛腕獣ゴウラ 沈黙　ボルガの勝利"); A.fast = false; R = null; } return; }
+    if (R.state === "leap" || R.y < 0) { if (R.t === 14 && R.state === "leap") { R.vy = -6.2; R.vx = clamp(dx / 42, -4.5, 4.5); sfx("jump"); dust(R.x, GY + 2, 10, 1.4); }
+      if (R.t > 14 || R.y < 0) { R.vy += 0.24; R.y += R.vy; R.x += R.vx; if (R.y >= 0) { R.y = 0; R.vy = 0; R.state = "land"; R.t = 0; apeShock(R.x, 110, 10); } } return; }
+    switch (R.state) {
+      case "enter": case "walk": facing(); if (dist > 90) step(dist > 280 ? 2.1 : R.state === "enter" ? 1.3 : 1.1);
+        if (--R.cd <= 0) { const r = Math.random(); R.t = 0; R.hitDone = false; if (dist < 100) R.state = r < 0.6 ? "punch" : "slam"; else if (dist < 150 && r < 0.5) R.state = "slam"; else if (dist < 340 && r < 0.45) R.state = "leap"; else if (dist > 170 && r < 0.8) R.state = "throw"; else R.state = "roar"; if (R.state === "roar") sfx("roar", 1.6); if (R.state === "punch" || R.state === "slam") sfx("whoosh"); } break;
+      case "punch": if (R.t >= 17 && R.t <= 21 && !R.hitDone) { const [fx, fy] = fistW(); hitRect(fx - 16, fy - 16, fx + 16, fy + 16, 3.5, { rival: 1, r: 11 }); if (Math.abs(K.x - fx) < 34 && fy > GY + K.y - 110) { R.hitDone = true; rivalHitsKaiju(8, 22, "ドゴォッ！"); } } if (R.t === 16) sfx("swipe"); if (R.t > 36) { R.state = "walk"; R.cd = rnd(40, 80); } break;
+      case "slam": if (R.t === 36) { const [fx] = fistW(); apeShock(fx, 120, 9); } if (R.t > 64) { R.state = "walk"; R.cd = rnd(50, 90); } break;
+      case "throw": facing(); if (R.t === 10) { debris(R.x + R.dir * 30, GY - 4, 8, [100, 92, 86], 2); sfx("grab"); } if (R.t === 46) { R.rocks.push({ x: R.x + R.dir * 20, y: GY - 150, vx: R.dir * clamp(dist / 50, 3, 6), vy: -2.6, rot: 0 }); sfx("whoosh"); } if (R.t > 62) { R.state = "walk"; R.cd = rnd(50, 100); } break;
+      case "roar": if (R.t === 12) { G.shake = 10; G.fx.push({ k: "roarwave", x: R.x + R.dir * 24, y: GY - 80, t: 0, life: 40, dir: R.dir }); for (const b of G.blds) if (b.state === "stand" && Math.abs(b.x + b.w / 2 - R.x) < 160) b.flk = 30; } if (R.t > 64) { R.state = "walk"; R.cd = 40; } break;
+      case "land": if (R.t > 24) { R.state = "walk"; R.cd = rnd(40, 80); } break;
+      case "stagger": if (R.t > 18) { R.state = "walk"; R.cd = rnd(20, 50); } break;
+    }
+    if (dist < 52 && K.y === 0) { const push = (52 - dist) / 2, sgn = Math.sign(dx) || 1; K.x += sgn * push; R.x -= sgn * push; }
   }
   function updateHRings() {
     if (!G.hrings.length) return;
@@ -1328,6 +1439,19 @@
   function drawHRings(cam) {
     for (const h of G.hrings) { const X = h.x - cam, Y = h.y, s = Math.abs(Math.sin(h.t * 0.5)); e.fillStyle = "rgba(255,210,110,0.45)"; e.beginPath(); e.ellipse(X, Y, 14, 3 + s * 3, 0, 0, PI * 2); e.fill(); e.strokeStyle = "rgb(255,255,230)"; e.lineWidth = 1; e.beginPath(); e.ellipse(X, Y, 11, 2 + s * 2.5, 0, 0, PI * 2); e.stroke(); e.fillStyle = "rgb(255,255,240)"; for (let i = 0; i < 6; i++) { const a = h.t * 0.6 + i * PI / 3; e.fillRect(Math.round(X + Math.cos(a) * 13), Math.round(Y + Math.sin(a) * (3 + s * 3)), 1, 1); } addLight(h.x, h.y, 44, 0.7, [255, 230, 150]); }
   }
+  function drawApe(cam) {
+    const F = GF[gFrame()], X = Math.round(R.x - cam), Y = Math.round(GY + R.y), ox = R.dir > 0 ? AX : KW - AX;
+    for (const rk of R.rocks) { w.save(); w.translate(Math.round(rk.x - cam), Math.round(rk.y)); w.rotate(rk.rot); w.drawImage(ROCK, -11, -9); w.restore(); }
+    if (R.state === "throw" && R.t >= 10 && R.t < 46) { const fx = X + F.fist[0] * R.dir, fy = Y + F.fist[1]; w.drawImage(ROCK, Math.round(fx - 11), Math.round(fy - 20)); }
+    if (X < -150 || X > W + 150) return;
+    const sh = clamp(1 + R.y / 200, 0.15, 1); w.fillStyle = `rgba(0,0,0,${(0.38 * sh).toFixed(3)})`; w.beginPath(); w.ellipse(X + R.dir * 10, GY + 2, 44 * sh, 5 * sh, 0, 0, PI * 2); w.fill();
+    const jit = R.state === "stagger" || (R.state === "die" && R.t < 80) ? Math.round(rnd(-1.5, 1.5)) : 0, sink = R.state === "die" && R.t > 60 ? Math.min(30, (R.t - 60) * 0.6) : 0, img = R.flash && R.flash % 3 ? (R.dir > 0 ? F.wr : F.wl) : R.dir > 0 ? F.r : F.l, sx = X - ox + jit, sy = Y - AY + sink;
+    w.save(); w.beginPath(); w.rect(0, 0, W, GY + 4); w.clip(); w.drawImage(img, sx, sy); w.restore();
+    bx.globalCompositeOperation = "destination-out"; bx.drawImage(img, sx, sy); bx.globalCompositeOperation = "source-over";
+    e.globalAlpha = clamp(0.7 + 0.25 * Math.sin(G.t * 0.12), 0, 1); e.drawImage(R.dir > 0 ? F.gr : F.gl, sx, sy); e.globalAlpha = 1;
+    addLight(R.x + F.eye[0] * R.dir, Y + F.eye[1], 30, 0.4, [255, 180, 80]);
+    if (R.state === "slam" && R.t > 20 && R.t < 36) { const fx = X + F.fist[0] * R.dir, fy = Y + F.fist[1]; e.fillStyle = "rgba(255,170,70,0.5)"; e.fillRect(fx - 8, fy - 8, 16, 16); addLight(R.x + F.fist[0] * R.dir, fy, 40, 0.6, [255, 150, 60]); }
+  }
   function drawHero(cam) {
     const F = HF[hFrame()], X = Math.round(R.x - cam), Y = Math.round(GY + R.y), ox = R.dir > 0 ? AX : KW - AX;
     if (X < -140 || X > W + 140) return;
@@ -1346,7 +1470,7 @@
     if (R.state === "die" && R.t > 100) { e.fillStyle = "rgba(255,250,220,0.35)"; e.fillRect(X - 4, Y, 8, Math.min(200, GY - Y)); addLight(R.x, Y - 50, 90, 0.8, [255, 240, 200]); }
   }
   function drawRival(cam) {
-    drawHRings(cam); if (!R) return; if (R.kind === "hero") return drawHero(cam); const fk = rFrame(), F = JF[fk], X = Math.round(R.x - cam), Y = GY, ox = R.dir > 0 ? AX : KW - AX;
+    drawHRings(cam); if (!R) return; if (R.kind === "hero") return drawHero(cam); if (R.kind === "ape") return drawApe(cam); const fk = rFrame(), F = JF[fk], X = Math.round(R.x - cam), Y = GY, ox = R.dir > 0 ? AX : KW - AX;
     if (X < -140 || X > W + 140) return;
     const sink = R.state === "die" && R.t > 60 ? Math.min(40, (R.t - 60) * 0.8) : 0;
     w.fillStyle = "rgba(0,0,0,0.35)"; w.beginPath(); w.ellipse(X, GY + 2, 34, 4, 0, 0, PI * 2); w.fill();
@@ -1553,7 +1677,7 @@
     const oku = Math.floor(G.damage / 10000), man = Math.floor(G.damage % 10000), s = `被害総額 ${oku > 0 ? oku + "億" : ""}${man.toLocaleString()}万円`;
     const ti = text(s, 12, [255, 214, 140]); g.drawImage(ti, W - ti.width - 6, 4);
     const al = text(`警戒レベル ${"■".repeat(G.alert)}${"□".repeat(5 - G.alert)}`, 12, G.alert >= 4 ? [255, 120, 110] : [200, 200, 220]); g.drawImage(al, W - al.width - 6, 18);
-    if (R) { g.save(); if (G.newsQ.length) g.translate(0, -14); const hero = R.kind === "hero", nm = text(hero ? "光の巨人アステル" : "雷獣ジンライ", 12, hero ? [255, 236, 170] : [170, 230, 255]); g.drawImage(nm, 96, 186); g.fillStyle = "rgb(10,10,20)"; g.fillRect(95, 200, 194, 8); g.fillStyle = hero ? "rgb(90,30,34)" : "rgb(40,60,110)"; g.fillRect(96, 201, 192, 6); g.fillStyle = hero ? "rgb(230,70,60)" : "rgb(110,200,255)"; g.fillRect(96, 201, Math.round(192 * R.bar), 6); g.fillStyle = hero ? "rgb(255,220,200)" : "rgb(220,245,255)"; g.fillRect(96, 201, Math.round(192 * R.bar), 1); g.restore(); }
+    if (R) { g.save(); if (G.newsQ.length) g.translate(0, -14); const hero = R.kind === "hero", ape = R.kind === "ape", nm = text(hero ? "光の巨人アステル" : ape ? "剛腕獣ゴウラ" : "雷獣ジンライ", 12, hero ? [255, 236, 170] : ape ? [255, 200, 130] : [170, 230, 255]); g.drawImage(nm, 96, 186); g.fillStyle = "rgb(10,10,20)"; g.fillRect(95, 200, 194, 8); g.fillStyle = hero ? "rgb(90,30,34)" : ape ? "rgb(70,46,24)" : "rgb(40,60,110)"; g.fillRect(96, 201, 192, 6); g.fillStyle = hero ? "rgb(230,70,60)" : ape ? "rgb(240,150,60)" : "rgb(110,200,255)"; g.fillRect(96, 201, Math.round(192 * R.bar), 6); g.fillStyle = hero ? "rgb(255,220,200)" : "rgb(220,245,255)"; g.fillRect(96, 201, Math.round(192 * R.bar), 1); g.restore(); }
     if (K.deaths) { const d = text(`復活 ${K.deaths}回`, 12, [200, 200, 220]); g.drawImage(d, W - d.width - 6, 46); }
     { const { p } = nightClock(), hm = (22 * 60 + Math.floor(p * 480)) % 1440, hh = Math.floor(hm / 60), wx = weatherOf(Math.max(0, Math.floor((K.x + 150 - SEA) / DLEN))), t2 = text(`${hh < 12 ? "午前" : "午後"}${hh % 12}時${String(hm % 60).padStart(2, "0")}分　${{ fog: "霧", clear: "晴れ", rain: "雨", storm: "雷雨" }[wx]}`, 12, [200, 210, 230]); g.drawImage(t2, W - t2.width - 6, 32); }
     const cineT = G.cine && G.cine.title;
@@ -1697,7 +1821,7 @@
   function loop(now) { acc += Math.min(0.1, (now - last) / 1000); last = now; while (acc >= 1 / 60) { update(); acc -= 1 / 60; } audioTick(); const t0 = performance.now(); render(); msAvg = lerp(msAvg, performance.now() - t0, 0.05); const z = G.zoom || 1; if (z > 1.002) { const sw = W / z, sh = H / z, cx = clamp((G.zoomHold > 0 && G.zoomX != null ? G.zoomX : K.x) - G.cam, sw / 2, W - sw / 2); vctx.drawImage(low, cx - sw / 2, (H - sh) * 0.75, sw, sh, 0, 0, view.width, view.height); } else vctx.drawImage(low, 0, 0, view.width, view.height); requestAnimationFrame(loop); }
   window.Game = { G, K, KF, HF, KD, kFrame: () => kFrame(), lightning: () => lightning(), blowTank: b => blowTank(b), pylonDown: p => pylonDown(p), spawnBoss: k => spawnRival(k), get R() { return R; }, epic: (b, k) => epicCollapse(b, k), carve: (b, x, y, r) => carve(b, x, y, r), update, render, keys, resetWorld, low, ms: () => msAvg };
   // internals for tools such as the promo-movie director (movie/volga_movie.js); unused by the game itself
-  window.Game.lib = { KPOSE, HPOSE, mixPose, kaijuFrame, heroFrame, KC, JC, SC, HC, KD, JD, SD, HD, KF, JF, HF, text, painter, canvas, mk, flip, tintOf, sfx, music, initAudio, audioTick, A, ACT, startAct, startTrans, spawnRival, epicCollapse, collapse, nova, cinema, lines, kick, chain, explode, dust, debris, sparks, smokeP, glass, setFire, hitRect, stomp, rumble, addLight, makeBuilding, SKY, FAR, MID, BRIDGE, SPR, W, H, GY, SW, AX, AY, KW, KH, PI, low, view, rgba, col, hash, lerp, clamp, rnd,
+  window.Game.lib = { GPOSE, apeFrame, GF, KPOSE, HPOSE, mixPose, kaijuFrame, heroFrame, KC, JC, SC, HC, KD, JD, SD, HD, KF, JF, HF, text, painter, canvas, mk, flip, tintOf, sfx, music, initAudio, audioTick, A, ACT, startAct, startTrans, spawnRival, epicCollapse, collapse, nova, cinema, lines, kick, chain, explode, dust, debris, sparks, smokeP, glass, setFire, hitRect, stomp, rumble, addLight, makeBuilding, SKY, FAR, MID, BRIDGE, SPR, W, H, GY, SW, AX, AY, KW, KH, PI, low, view, rgba, col, hash, lerp, clamp, rnd,
     setForm: v => { kForm = v; }, getR: () => R, setR: v => { R = v; },
     blit(ctx, ox = 0, oy = 0, scale = 1) { const z = G.zoom || 1; if (z > 1.002) { const sw = W / z, sh = H / z, cx = clamp((G.zoomHold > 0 && G.zoomX != null ? G.zoomX : K.x) - G.cam, sw / 2, W - sw / 2); ctx.drawImage(low, cx - sw / 2, (H - sh) * 0.75, sw, sh, ox, oy, W * scale, H * scale); } else ctx.drawImage(low, ox, oy, W * scale, H * scale); } };
   view.focus(); requestAnimationFrame(loop);
