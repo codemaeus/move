@@ -1174,6 +1174,7 @@
         if (G.zoomHold > 0) { G.zoomHold--; if (G.zoomBoss && R) G.zoomX = (K.x + R.x) / 2; G.zoom = lerp(G.zoom || 1, G.zoomTo, 0.05); } else G.zoom = lerp(G.zoom || 1, 1, 0.08);
         let target = K.x - W * (K.dir > 0 ? 0.36 : 0.64);
         if (G.focus && G.focus.t > 0) { G.focus.t--; const fx = G.focus.boss && R ? (K.x + R.x) / 2 : G.focus.x; if (fx != null) target = fx - W / 2; }
+        if (G.camLock != null) target = G.camLock;
         G.cam = lerp(G.cam, Math.max(0, target), 0.06); generate();
       }
     }
@@ -1534,7 +1535,8 @@
     for (const b of G.blds) { drawBuilding(b, cam, w); drawBuildingLights(b, cam); }
     drawGround(w, cam);
     for (const p of G.props) drawProp(p, cam);
-    if (G.mode === "play") { drawRival(cam); drawKaiju(cam); }
+    if (G.mode === "play" && !G.noActors) { drawRival(cam); drawKaiju(cam); }
+    if (G.hook) G.hook(w, e, bx, cam);
     for (const o of G.thrown) { w.save(); w.translate(Math.round(o.x - cam), Math.round(o.y)); w.rotate(o.rot); w.scale((o.flip ? -1 : 1) * (o.sc || 1), o.sc || 1); w.drawImage(o.img, -o.img.width / 2, -o.img.height / 2); w.restore(); }
     for (const p of G.pieces) {
       if (p.hinge) { const X = p.px - cam; if (X < -260 || X > W + 260) continue; w.save(); w.beginPath(); w.rect(0, 0, W, SW + 4); w.clip(); w.translate(Math.round(X), Math.round(p.py)); w.rotate(p.ang * p.dir); w.drawImage(p.img, -p.ox, -p.oy); w.restore(); continue; }
@@ -1555,7 +1557,7 @@
       const t1 = text("怪獣ボルガ", 24, [255, 170, 80], [60, 16, 10]), t2 = text("夜の街", 16, [255, 230, 200], [40, 10, 10]); g.drawImage(t1, 200, 60); g.drawImage(t2, 232, 92);
       if (Math.floor(G.t / 30) % 2) { const t3 = text("Z / Enter でスタート", 12); g.drawImage(t3, 214, 130); }
       const t4 = text("不死身の怪獣が 夜の街を どこまでも壊していく", 12, [200, 190, 190]); g.drawImage(t4, Math.round((W - t4.width) / 2), 196);
-    } else { drawScreenCars(); drawLines(); drawOno(Math.round(G.cam)); drawHUD(); drawCombo(); drawNewsRank(); drawCinema(); }
+    } else if (G.noHUD) { drawScreenCars(); drawLines(); drawOno(Math.round(G.cam)); drawCinema(); } else { drawScreenCars(); drawLines(); drawOno(Math.round(G.cam)); drawHUD(); drawCombo(); drawNewsRank(); drawCinema(); }
     if (G.paused) { g.fillStyle = "rgba(0,0,0,0.5)"; g.fillRect(0, 0, W, H); const t1 = text("ポーズ", 24); g.drawImage(t1, Math.round((W - t1.width) / 2), 90); }
   }
 
@@ -1658,6 +1660,10 @@
   let last = performance.now(), acc = 0, msAvg = 0;
   function loop(now) { acc += Math.min(0.1, (now - last) / 1000); last = now; while (acc >= 1 / 60) { update(); acc -= 1 / 60; } audioTick(); const t0 = performance.now(); render(); msAvg = lerp(msAvg, performance.now() - t0, 0.05); const z = G.zoom || 1; if (z > 1.002) { const sw = W / z, sh = H / z, cx = clamp((G.zoomHold > 0 && G.zoomX != null ? G.zoomX : K.x) - G.cam, sw / 2, W - sw / 2); vctx.drawImage(low, cx - sw / 2, (H - sh) * 0.75, sw, sh, 0, 0, view.width, view.height); } else vctx.drawImage(low, 0, 0, view.width, view.height); requestAnimationFrame(loop); }
   window.Game = { G, K, KF, HF, KD, kFrame: () => kFrame(), lightning: () => lightning(), blowTank: b => blowTank(b), pylonDown: p => pylonDown(p), spawnBoss: k => spawnRival(k), get R() { return R; }, epic: (b, k) => epicCollapse(b, k), carve: (b, x, y, r) => carve(b, x, y, r), update, render, keys, resetWorld, low, ms: () => msAvg };
+  // internals for tools such as the promo-movie director (movie/volga_movie.js); unused by the game itself
+  window.Game.lib = { KPOSE, HPOSE, mixPose, kaijuFrame, heroFrame, KC, JC, SC, HC, KD, JD, SD, HD, KF, JF, HF, text, painter, canvas, mk, flip, tintOf, sfx, music, initAudio, audioTick, A, ACT, startAct, startTrans, spawnRival, epicCollapse, collapse, nova, cinema, lines, kick, chain, explode, dust, debris, sparks, smokeP, glass, setFire, hitRect, stomp, rumble, addLight, makeBuilding, SKY, FAR, MID, BRIDGE, SPR, W, H, GY, SW, AX, AY, KW, KH, PI, low, view, rgba, col, hash, lerp, clamp, rnd,
+    setForm: v => { kForm = v; }, getR: () => R, setR: v => { R = v; },
+    blit(ctx, ox = 0, oy = 0, scale = 1) { const z = G.zoom || 1; if (z > 1.002) { const sw = W / z, sh = H / z, cx = clamp((G.zoomHold > 0 && G.zoomX != null ? G.zoomX : K.x) - G.cam, sw / 2, W - sw / 2); ctx.drawImage(low, cx - sw / 2, (H - sh) * 0.75, sw, sh, ox, oy, W * scale, H * scale); } else ctx.drawImage(low, ox, oy, W * scale, H * scale); } };
   view.focus(); requestAnimationFrame(loop);
 })();
 </script>
